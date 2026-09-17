@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { FactoryRenderer } from '../src/factory-renderer.js';
+import { FactoryGame } from '../src/factory-core.js';
 
 test('factory entry loads generated atlases and wires construction, production, order and persistence controls', async () => {
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
@@ -266,6 +267,51 @@ test('factory entry loads generated atlases and wires construction, production, 
     nodes.get('tutorial-exit').click(); assert.equal(runtime.game.serialize(), beforePracticeMenu);
     nodes.get('help').click(); assert.equal(nodes.get('help-dialog').open, true); nodes.get('help-done').click(); assert.equal(nodes.get('help-dialog').open, false);
     nodes.get('portrait-continue').click(); assert.equal(orientation.hidden, true);
+    // Warehouse routing, shipping and milestone buttons use real core transitions.
+    nodes.get('menu-home').click(); const beforeBusinessUi = runtime.game.serialize();
+    assert.equal(runtime.game.restore(new FactoryGame().serialize()), true); nodes.get('menu-play').click();
+    nodes.get('business-toggle').click(); assert.equal(nodes.get('business-dialog').open, true);
+    const shopTime = runtime.game.state.time; frames.shift()(performance.now() + 350000); assert.equal(runtime.game.state.time, shopTime);
+    nodes.get('business-locate-depot').click(); assert.equal(nodes.get('business-dialog').open, false);
+    assert.equal(runtime.game.state.buildings.find(b => b.id === runtime.ui.selected).type, 'depot');
+    nodes.get('depot-store').click(); assert.equal(runtime.game.at(8, 2).mode, 'store');
+    for (let n = 0; n < 600; n++) runtime.game.update(.1);
+    frames.shift()(performance.now() + 353000); assert.ok(runtime.game.warehouseUsed >= 12); assert.equal(runtime.game.state.totalSold, 0);
+    nodes.get('business-toggle').click(); const shipButton = nodes.get('wholesale-offers').children[0].children.find(el => el.dataset?.wholesale);
+    assert.equal(shipButton.disabled, false); shipButton.click(); assert.equal(runtime.game.state.business.shipments, 1);
+    const shippedSave = runtime.game.serialize(); shipButton.click(); assert.equal(runtime.game.serialize(), shippedSave);
+    nodes.get('business-goals-tab').click(); assert.equal(nodes.get('business-goals-view').hidden, false);
+    const milestoneButton = nodes.get('business-goals').children[0].children.find(el => el.dataset?.milestone);
+    milestoneButton.click(); assert.equal(runtime.game.state.career.points, 1); const goalSave = runtime.game.serialize();
+    milestoneButton.click(); assert.equal(runtime.game.serialize(), goalSave);
+    nodes.get('business-trade-tab').click();
+    const sellButton = nodes.get('warehouse-items').children[0].children.find(el => el.dataset?.sellFood);
+    const stockBeforeRetail = runtime.game.warehouseUsed; sellButton.click(); assert.ok(runtime.game.warehouseUsed < stockBeforeRetail);
+    nodes.get('business-back').click(); assert.equal(nodes.get('business-dialog').open, false); assert.equal(runtime.ui.screen, 'workshop');
+    nodes.get('menu-home').click(); assert.equal(JSON.parse(storage.get('food-factory-v1')).business.shipments, 1);
+    nodes.get('menu-business').click(); assert.equal(nodes.get('business-dialog').open, true); nodes.get('close-business').click(); nodes.get('menu-play').click();
+
+    // Expanding keeps the view; minimap jumps clear a pending paint gesture and update hit tests.
+    runtime.game.state.coins = 100000;
+    const initialCamera = { x: runtime.renderer.camera.x, y: runtime.renderer.camera.y, scale: runtime.renderer.transform.scale };
+    for (let n = 0; n < 5; n++) nodes.get('expand').click();
+    assert.deepEqual(runtime.game.area, [40, 24]);
+    assert.deepEqual({ x: runtime.renderer.camera.x, y: runtime.renderer.camera.y, scale: runtime.renderer.transform.scale }, initialCamera);
+    assert.equal(nodes.get('expand').disabled, true); assert.equal(nodes.get('minimap-panel').hidden, false);
+    nodes.get('palette').children.find(b => b.dataset.building === 'belt').click();
+    down(strokeEvent(93, 10, 5)); const beforeMapJump = runtime.game.state.buildings.length;
+    nodes.get('factory-minimap').listeners.pointerdown({ preventDefault() {}, clientX: 1008 * 39.5 / 40, clientY: 576 * 23.5 / 24 });
+    assert.equal(runtime.renderer.camera.x, 39.5 * 72); assert.equal(runtime.renderer.camera.y, 23.5 * 72);
+    move(strokeEvent(93, 39, 23)); up(strokeEvent(93, 39, 23));
+    assert.equal(runtime.game.state.buildings.length, beforeMapJump, 'minimap navigation cannot continue a stale belt stroke');
+    down(strokeEvent(94, 39, 23)); up(strokeEvent(94, 39, 23)); assert.equal(runtime.game.at(39, 23).type, 'belt');
+    nodes.get('factory-minimap').listeners.keydown({ key: 'ArrowLeft', preventDefault() {} }); assert.equal(runtime.renderer.camera.x, 35.5 * 72);
+    nodes.get('map-overview').click(); assert.ok(runtime.renderer.camera.zoom < 1);
+    nodes.get('zoom-reset').click(); assert.equal(runtime.renderer.camera.zoom, 1); assert.equal(runtime.renderer.camera.x, 360);
+    nodes.get('close-minimap').click(); assert.equal(nodes.get('minimap-panel').hidden, true);
+    nodes.get('menu-home').click(); const menuCamera = runtime.renderer.camera.x;
+    nodes.get('factory-minimap').listeners.pointerdown({ preventDefault() {}, clientX: 1000, clientY: 570 }); assert.equal(runtime.renderer.camera.x, menuCamera);
+    assert.equal(runtime.game.restore(beforeBusinessUi), true); nodes.get('menu-play').click(); nodes.get('menu-home').click();
     // Reload an old-format save into the menu, retaining explicit settings over OS defaults.
     const legacy = JSON.parse(storage.get('food-factory-v1')); delete legacy.career;
     storage.set('food-factory-v1', JSON.stringify(legacy));

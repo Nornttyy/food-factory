@@ -1,10 +1,10 @@
-import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.8.0';
-import { CELL, FactoryCamera, jellyPose, foodPose } from './factory-feel.js?v=0.8.0';
-import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.8.0';
+import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.9.0';
+import { CELL, FactoryCamera, jellyPose, foodPose } from './factory-feel.js?v=0.9.0';
+import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.9.0';
 export class FactoryAssets {
   constructor() { this.images = {}; this.sprites = {}; this.ready = false; }
   async load(base = './assets/generated/factory/cream-v1/') {
-    const response = await fetch(base + 'manifest.json?v=0.8.0');
+    const response = await fetch(base + 'manifest.json?v=0.9.0');
     if (!response.ok) throw new Error('素材清单读取失败');
     const manifest = await response.json();
     this.sprites = Object.fromEntries(manifest.sprites.map(sprite => [sprite.id, sprite]));
@@ -73,7 +73,7 @@ export class FactoryRenderer {
     }
     for (const id of this.previous.keys()) if (!ids.has(id)) { this.previous.delete(id); this.pulses.delete(id); }
     for (const [id, pulse] of this.pulses) if (timestamp - pulse.start > 900) this.pulses.delete(id);
-    for (const e of game.events) if (!this.salesSeen.has(e)) { this.salesSeen.add(e); const depot = game.at(e.x, e.y); if (depot) this.pulse(depot.id, 'sale', timestamp); this.burst(e.x, e.y, 'sale', timestamp); }
+    for (const e of game.events) if (!this.salesSeen.has(e)) { this.salesSeen.add(e); const depot = this.grid?.get(`${e.x},${e.y}`) || game.at(e.x, e.y); if (depot) this.pulse(depot.id, e.kind === 'store' ? 'produce' : 'sale', timestamp); this.burst(e.x, e.y, e.kind, timestamp); }
     this.particles = this.reduced ? [] : this.particles.filter(p => timestamp - p.start < 650);
   }
   cellAt(clientX, clientY) {
@@ -81,27 +81,31 @@ export class FactoryRenderer {
     return { x: Math.floor((clientX - rect.left - t.x) / t.scale / CELL), y: Math.floor((clientY - rect.top - t.y) / t.scale / CELL) };
   }
   draw(game, ui, timestamp) {
+    this.grid = new Map(game.state.buildings.map(b => [`${b.x},${b.y}`, b]));
     this.now = timestamp; this.reduced = Boolean(ui.reducedMotion); this.resize(game.area, ui); this.syncEffects(game, timestamp);
     const ctx = this.ctx, t = this.transform, s = game.state;
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#f4e9ce'; ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     ctx.setTransform(t.dpr * t.scale, 0, 0, t.dpr * t.scale, t.x * t.dpr, t.y * t.dpr);
     const [areaW, areaH] = game.area;
-    for (let y = 0; y < HEIGHT; y++) for (let x = 0; x < WIDTH; x++) {
+    const left = Math.max(0, Math.floor(-t.x / t.scale / CELL) - 2), top = Math.max(0, Math.floor(-t.y / t.scale / CELL) - 2);
+    const right = Math.min(WIDTH, Math.ceil((this.canvas.width / t.dpr - t.x) / t.scale / CELL) + 2), bottom = Math.min(HEIGHT, Math.ceil((this.canvas.height / t.dpr - t.y) / t.scale / CELL) + 2);
+    const visible = s.buildings.filter(b => b.x >= left && b.x < right && b.y >= top && b.y < bottom);
+    for (let y = top; y < bottom; y++) for (let x = left; x < right; x++) {
       const active = x < areaW && y < areaH;
       ctx.fillStyle = active ? ((x + y) % 2 ? '#f4e6c7' : '#f8edcf') : ((x + y) % 2 ? '#e9e4d0' : '#eee9d7');
       ctx.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2);
       if (active) { ctx.fillStyle = '#dfd0ad'; ctx.fillRect(x * CELL + 4, y * CELL + 4, 2, 2); }
     }
-    if (s.expansion < 2) {
+    if (game.expansionCost !== null) {
       ctx.save(); ctx.strokeStyle = '#c3bda2'; ctx.setLineDash([5, 7]); ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(areaW * CELL, 0); ctx.lineTo(areaW * CELL, areaH * CELL); ctx.lineTo(0, areaH * CELL); ctx.stroke(); ctx.restore();
       ctx.fillStyle = '#b2aa8e'; ctx.textAlign = 'center'; ctx.font = '14px system-ui';
-      ctx.fillText('扩建后开放', (areaW + (WIDTH - areaW) / 2) * CELL, HEIGHT * CELL / 2 + 10);
-      ctx.font = '25px system-ui'; ctx.fillText('+', (areaW + (WIDTH - areaW) / 2) * CELL, HEIGHT * CELL / 2 - 18);
+      ctx.fillText('扩建后开放', (areaW + 1.1) * CELL, Math.min(3, areaH / 2) * CELL);
+      ctx.fillText('扩建后开放', Math.min(5, areaW / 2) * CELL, (areaH + .7) * CELL);
     }
-    for (const b of s.buildings) if (['belt', 'splitter'].includes(BUILDINGS[b.type].kind)) this.drawBelt(b, game);
-    for (const b of s.buildings) if (!['belt', 'splitter'].includes(BUILDINGS[b.type].kind)) this.drawMachine(b, game, timestamp);
-    for (const b of s.buildings) {
+    for (const b of visible) if (['belt', 'splitter'].includes(BUILDINGS[b.type].kind)) this.drawBelt(b, game);
+    for (const b of visible) if (!['belt', 'splitter'].includes(BUILDINGS[b.type].kind)) this.drawMachine(b, game, timestamp);
+    for (const b of visible) {
       if (!b.output) continue;
       const kind = BUILDINGS[b.type].kind;
       if (['belt', 'splitter'].includes(kind)) {
@@ -144,7 +148,7 @@ export class FactoryRenderer {
     for (const event of game.events) {
       const age = s.time - event.time;
       ctx.save(); ctx.globalAlpha = Math.max(0, 1 - age / 1.5); ctx.fillStyle = '#79915e'; ctx.textAlign = 'center'; ctx.font = 'bold 16px system-ui';
-      ctx.fillText(`+${event.value}`, event.x * CELL + 36, event.y * CELL - age * 25); ctx.restore();
+      ctx.fillText(event.kind === 'store' ? '入库 +1' : `+${event.value}`, event.x * CELL + 36, event.y * CELL - age * 25); ctx.restore();
     }
     for (const p of this.particles) {
       const age = (timestamp - p.start) / 1000;
@@ -154,7 +158,7 @@ export class FactoryRenderer {
   }
   drawBelt(b, game) {
     const ctx = this.ctx, x = b.x * CELL + 36, y = b.y * CELL + 36;
-    const { inputs, outputs, ports, blockedEnds } = conveyorPorts(b, (x, y) => game.at(x, y));
+    const { inputs, outputs, ports, blockedEnds } = conveyorPorts(b, (x, y) => this.grid ? this.grid.get(`${x},${y}`) : game.at(x, y));
     ctx.lineCap = 'butt'; ctx.lineJoin = 'round';
     for (const [width, color] of [[43, '#c0a786'], [38, '#ecdbb5'], [28, '#a28c76']]) {
       ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath();
@@ -195,7 +199,7 @@ export class FactoryRenderer {
   }
   drawMachine(b, game, timestamp) {
     const ctx = this.ctx, def = BUILDINGS[b.type], x = b.x * CELL, y = b.y * CELL;
-    const ports = connectedPorts(b, (x, y) => game.at(x, y));
+    const ports = connectedPorts(b, (x, y) => this.grid ? this.grid.get(`${x},${y}`) : game.at(x, y));
     this.drawMachineConnections(b, ports);
     round(ctx, x + 5, y + 7, 62, 59, 10, def.kind === 'source' ? '#e7e9cd' : def.kind === 'depot' ? '#e8dcc1' : '#f0dfb7');
     const working = !b.output && (b.input || def.kind === 'source');
@@ -209,6 +213,7 @@ export class FactoryRenderer {
     ctx.restore();
     for (const { side, output } of ports) if (!output) arrow(ctx, x + 36 + DIRS[side][0] * 32, y + 36 + DIRS[side][1] * 32, (side + 2) % 4, '#ecd0ae', 5);
     if (def.kind !== 'depot') arrow(ctx, x + 36 + DIRS[b.dir][0] * 29, y + 36 + DIRS[b.dir][1] * 29, b.dir, '#879d73', 8);
+    else if (b.mode === 'store') { round(ctx, x + 44, y + 3, 25, 18, 5, '#b9cbd7'); ctx.fillStyle = '#526b79'; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'center'; ctx.fillText('仓', x + 56, y + 16); }
     if (def.duration) {
       round(ctx, x + 15, y + 65, 42, 3, 1.5, '#d6c7a2');
       if (b.progress > 0) round(ctx, x + 15, y + 65, Math.max(2, 42 * b.progress / game.duration(b)), 3, 1.5, '#9daa83');
@@ -216,5 +221,23 @@ export class FactoryRenderer {
     if (b.blocked) { round(ctx, x + 2, y + 2, 15, 15, 5, '#dfb097'); ctx.fillStyle = '#fff5dd'; ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center'; ctx.fillText('Ⅱ', x + 9.5, y + 13); }
     if (b.level > 1) { ctx.fillStyle = '#7f906b'; ctx.font = 'bold 9px system-ui'; ctx.textAlign = 'left'; ctx.fillText(`L${b.level}`, x + 6, y + 60); }
     if (b.flashUntil > game.state.time) { ctx.strokeStyle = '#9aaa7d'; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(x + 2, y + 2, 68, 68, 12); ctx.stroke(); }
+  }
+  drawMinimap(canvas, game) {
+    const ctx = canvas.getContext('2d'), w = canvas.width, h = canvas.height, [aw, ah] = game.area;
+    const sx = w / WIDTH, sy = h / HEIGHT;
+    ctx.clearRect(0, 0, w, h); ctx.fillStyle = '#e8e3d4'; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#f6e9c9'; ctx.fillRect(0, 0, aw * sx, ah * sy);
+    for (const b of game.state.buildings) {
+      const kind = BUILDINGS[b.type].kind;
+      ctx.fillStyle = b.mode === 'store' ? '#7196ae' : kind === 'depot' ? '#c99558' : kind === 'source' ? '#91a76f' : kind === 'machine' ? '#c68e80' : '#aa9578';
+      ctx.fillRect(b.x * sx, b.y * sy, Math.max(2, sx - .5), Math.max(2, sy - .5));
+    }
+    const t = this.transform, view = this.camera.view;
+    if (view) {
+      const i = view.insets;
+      const x = Math.max(0, (i.left - t.x) / t.scale / CELL), y = Math.max(0, (i.top - t.y) / t.scale / CELL);
+      const right = Math.min(aw, (view.width - i.right - t.x) / t.scale / CELL), bottom = Math.min(ah, (view.height - i.bottom - t.y) / t.scale / CELL);
+      ctx.strokeStyle = '#6e8655'; ctx.lineWidth = 2; ctx.strokeRect(x * sx, y * sy, Math.max(0, right - x) * sx, Math.max(0, bottom - y) * sy);
+    }
   }
 }

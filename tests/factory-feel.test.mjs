@@ -15,11 +15,11 @@ test('Q spring compresses, overshoots, settles and honors reduced-motion', () =>
   }
   assert.ok(Math.abs(foodPose(0).y) < 1e-10); assert.ok(foodPose(.5).y <= -9); assert.ok(Math.abs(foodPose(1).y) < 1e-10);
 });
-test('camera fits the active factory rather than compressing it with locked land', () => {
+test('camera keeps a usable local scale even as the map grows to 40 by 24', () => {
   for (const [w, h] of [[1440, 900], [844, 390], [667, 375]]) {
     const active = new FactoryCamera(), whole = new FactoryCamera();
-    active.resize(w, h, [10, 6]); whole.resize(w, h, [14, 8]);
-    assert.ok(active.transform.scale > whole.transform.scale * 1.25);
+    active.resize(w, h, [10, 6]); whole.resize(w, h, [40, 24]);
+    assert.equal(active.transform.scale, whole.transform.scale);
     const t = active.transform, i = cameraInsets(w, h);
     assert.ok(t.x >= i.left - .001); assert.ok(t.y >= i.top - .001);
     assert.ok(t.x + 720 * t.scale <= w - i.right + .001); assert.ok(t.y + 432 * t.scale <= h - i.bottom + .001);
@@ -32,10 +32,10 @@ test('zoom preserves the pointer world anchor, pans consistently, clamps and res
   const before = worldAt(600, 300); camera.zoomAt(1.5, 600, 300); const after = worldAt(600, 300);
   assert.ok(Math.abs(before[0] - after[0]) < 1e-8); assert.ok(Math.abs(before[1] - after[1]) < 1e-8);
   const old = camera.x; camera.pan(20, 0); assert.ok(camera.x < old);
-  camera.zoomAt(100, 600, 300); assert.equal(camera.zoom, 2.6); camera.zoomAt(.001, 600, 300); assert.equal(camera.zoom, .65);
-  camera.pan(1e8, -1e8); assert.equal(camera.x, 0); assert.equal(camera.y, 576);
+  camera.zoomAt(100, 600, 300); assert.equal(camera.zoom, 3.2); camera.zoomAt(.001, 600, 300); assert.equal(camera.zoom, .18);
+  camera.pan(1e8, -1e8); assert.equal(camera.x, 0); assert.equal(camera.y, 432);
   camera.fit([10, 6]); assert.equal(camera.zoom, 1); assert.equal(camera.x, 360);
-  camera.resize(844, 390, [12, 8]); assert.equal(camera.x, 432); assert.equal(camera.y, 288);
+  camera.resize(844, 390, [12, 8]); assert.equal(camera.x, 360); assert.equal(camera.y, 216);
 });
 test('render feedback is bounded and never contaminates simulation saves', () => {
   const g = new FactoryGame(), before = g.serialize();

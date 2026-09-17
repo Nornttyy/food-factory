@@ -1,8 +1,11 @@
-import { LINK_DIRS, directionBetween, opposite, canLink, outputDirections } from './factory-links.js?v=0.8.0';
-import { RESEARCH, freshCareer, contractFor, contractComplete, validCareer } from './factory-career.js?v=0.8.0';
+import { LINK_DIRS, directionBetween, opposite, canLink, outputDirections } from './factory-links.js?v=0.9.0';
+import { RESEARCH, freshCareer, contractFor, contractComplete, validCareer } from './factory-career.js?v=0.9.0';
+import { freshBusiness, validBusiness, warehouseCapacity, warehouseUsed, wholesaleFor, MILESTONES } from './factory-business.js?v=0.9.0';
 export const SAVE_KEY = 'food-factory-v1';
-export const WIDTH = 14;
-export const HEIGHT = 8;
+export const WIDTH = 40;
+export const HEIGHT = 24;
+export const AREAS = [[14, 8], [18, 10], [22, 12], [28, 16], [34, 20], [40, 24]];
+export const EXPANSION_COSTS = [350, 900, 1800, 3600, 6500, null];
 export const STEP = 0.1;
 export const DIRS = LINK_DIRS;
 export const DIRECTION_NAMES = ['朝右', '朝下', '朝左', '朝上'];
@@ -85,15 +88,51 @@ export class FactoryGame {
   constructor({ starter = true } = {}) {
     this.state = { version: 1, coins: 450, expansion: 0, orderIndex: 0, orderProgress: {}, delivered: {}, stock: {}, buildings: [], nextId: 1, time: 0, tick: 0, paused: false, speed: 1, totalSold: 0 };
     this.state.career = freshCareer();
+    this.state.business = freshBusiness();
     this.state.orderCatalog = 2;
     this.accumulator = 0;
     this.events = [];
     if (starter) ['flour_hopper', 'belt', 'dough_mixer', 'belt', 'bread_oven', 'belt', 'belt', 'depot'].forEach((type, i) => this.state.buildings.push({ ...makeEntity(type, i + 1, 2, 0, this.state.nextId++), gifted: true }));
   }
-  get area() { return [[10, 6], [12, 8], [14, 8]][this.state.expansion]; }
+  get area() { return AREAS[this.state.expansion]; }
   get order() { return orderFor(this.state.orderIndex, this.state.orderCatalog); }
   get unlockLevel() { return Math.min(2, this.state.orderIndex); }
-  get expansionCost() { return [350, 900, null][this.state.expansion]; }
+  get expansionCost() { return EXPANSION_COSTS[this.state.expansion]; }
+  get warehouseCapacity() { return warehouseCapacity(this.state.business); }
+  get warehouseUsed() { return warehouseUsed(this.state.business); }
+  salePrice(item) { return Math.round((ITEMS[item]?.value || 0) * (1 + this.state.career.research.value * .1)); }
+  get wholesaleOffers() {
+    const b = this.state.business;
+    return [0, 1, 2].map(slot => {
+      const offer = wholesaleFor(this.unlockLevel, b.shipments, slot, b.reputation);
+      return { ...offer, reward: Math.round(Object.entries(offer.wants).reduce((sum, [item, count]) => sum + this.salePrice(item) * count, 0) * offer.multiplier) };
+    });
+  }
+  setDepotMode(id, mode) {
+    const b = this.state.buildings.find(b => b.id === id);
+    if (b?.type !== 'depot' || !['sell', 'store'].includes(mode)) return { ok: false, message: '请选择出货站模式' };
+    b.mode = mode; return { ok: true };
+  }
+  shipWholesale(id) {
+    const offer = this.wholesaleOffers.find(offer => offer.id === id), business = this.state.business;
+    if (!offer) return { ok: false, message: '合作货单已更新，请重新选择' };
+    if (Object.entries(offer.wants).some(([item, n]) => (business.warehouse[item] || 0) < n)) return { ok: false, message: '仓库还没备齐这些美味' };
+    for (const [item, n] of Object.entries(offer.wants)) { business.warehouse[item] -= n; business.shipped[item] = (business.shipped[item] || 0) + n; }
+    business.shipments++; business.reputation += offer.reputation; this.state.coins += offer.reward;
+    return { ok: true, reward: offer.reward, reputation: offer.reputation };
+  }
+  sellWarehouse(item, count) {
+    const b = this.state.business, value = this.salePrice(item);
+    if (!value || !Number.isSafeInteger(count) || count <= 0 || (b.warehouse[item] || 0) < count) return { ok: false, message: '库存不足' };
+    b.warehouse[item] -= count; this.state.coins += value * count;
+    return { ok: true, reward: value * count };
+  }
+  claimMilestone(id) {
+    const goal = MILESTONES.find(goal => goal.id === id), b = this.state.business;
+    if (!goal || b.claimed.includes(id) || goal.progress(this.state) < goal.target) return { ok: false, message: '目标还未达成或已经领取' };
+    b.claimed.push(id); this.state.coins += goal.coins; this.state.career.points += goal.points;
+    return { ok: true, reward: goal.coins, points: goal.points };
+  }
   get offers() { return [0, 1, 2].map(slot => contractFor(this.unlockLevel, this.state.career.completed, slot)); }
   get contract() {
     const c = this.state.career.contract;
@@ -201,7 +240,7 @@ export class FactoryGame {
     return { ok: true, reward };
   }
   deliver(item, b) {
-    const value = Math.round((ITEMS[item]?.value || 0) * (1 + this.state.career.research.value * .1));
+    const value = this.salePrice(item);
     if (!value) return false;
     this.state.coins += value;
     this.state.totalSold++;
@@ -220,7 +259,7 @@ export class FactoryGame {
     if (!target || (source && !canLink(source, target))) return false;
     const def = BUILDINGS[target.type];
     if (def.kind === 'source') return false;
-    if (def.kind === 'depot') return Boolean(ITEMS[item]?.value);
+    if (def.kind === 'depot') return Boolean(ITEMS[item]?.value) && (target.mode !== 'store' || this.warehouseUsed < this.warehouseCapacity);
     if (def.kind === 'machine') return !target.input && def.input === item;
     return !target.output;
   }
@@ -237,6 +276,8 @@ export class FactoryGame {
     // Eligibility is a start-of-tick snapshot. No item can be transferred twice in one tick.
     const candidates = s.buildings.filter(b => b.output && b.readyAt <= s.time + 1e-9);
     const reserved = new Set();
+    let storageReserved = 0;
+    const storageFree = this.warehouseCapacity - this.warehouseUsed;
     const moves = [];
     // Rotating arbitration prevents a permanent winner at merging inputs.
     const offset = candidates.length ? s.tick % candidates.length : 0;
@@ -249,16 +290,25 @@ export class FactoryGame {
       for (const dir of dirs) {
         const [dx, dy] = DIRS[dir];
         const target = map.get(`${b.x + dx},${b.y + dy}`);
-        if (target && !reserved.has(target.id) && this.canReceive(target, b.output, b)) { chosen = { from: b, to: target, item: b.output, dir }; break; }
+        if (target && !reserved.has(target.id) && this.canReceive(target, b.output, b)) {
+          if (target.type === 'depot' && target.mode === 'store' && storageReserved >= storageFree) continue;
+          chosen = { from: b, to: target, item: b.output, dir }; break;
+        }
       }
       b.blocked = !chosen;
-      if (chosen) { reserved.add(chosen.to.id); moves.push(chosen); }
+      if (chosen) { reserved.add(chosen.to.id); if (chosen.to.type === 'depot' && chosen.to.mode === 'store') storageReserved++; moves.push(chosen); }
     }
     for (const { from, to, item, dir } of moves) {
       from.output = null; from.blocked = false;
       if (BUILDINGS[from.type].kind === 'splitter') from.roundRobin = dir === from.dir ? 1 : 0;
       const def = BUILDINGS[to.type];
-      if (def.kind === 'depot') { this.deliver(item, to); to.flashUntil = s.time + 0.5; }
+      if (def.kind === 'depot') {
+        if (to.mode === 'store') {
+          s.business.warehouse[item] = (s.business.warehouse[item] || 0) + 1;
+          this.events.push({ kind: 'store', x: to.x, y: to.y, time: s.time });
+        } else this.deliver(item, to);
+        to.flashUntil = s.time + 0.5;
+      }
       else if (def.kind === 'machine') { to.input = item; to.progress = 0; }
       else {
         const travel = this.duration(to);
@@ -282,16 +332,19 @@ export class FactoryGame {
   }
   restore(raw) {
     try {
-      if (typeof raw !== 'string' || raw.length > 250000) return false;
+      if (typeof raw !== 'string' || raw.length > 500000) return false;
       const s = JSON.parse(raw);
       const integer = (v, max = 1e12) => Number.isSafeInteger(v) && v >= 0 && v <= max;
       const nonnegative = v => Number.isFinite(v) && v >= 0 && v <= 1e12;
-      if (!s || s.version !== 1 || !integer(s.coins) || !integer(s.expansion, 2) || !integer(s.orderIndex, 100000) || !integer(s.totalSold) || !integer(s.nextId) || !integer(s.tick) || !nonnegative(s.time) || ![1, 2].includes(s.speed) || typeof s.paused !== 'boolean' || !Array.isArray(s.buildings) || s.buildings.length > WIDTH * HEIGHT) return false;
+      if (!s || s.version !== 1 || !integer(s.coins) || !integer(s.expansion, AREAS.length - 1) || !integer(s.orderIndex, 100000) || !integer(s.totalSold) || !integer(s.nextId) || !integer(s.tick) || !nonnegative(s.time) || ![1, 2].includes(s.speed) || typeof s.paused !== 'boolean' || !Array.isArray(s.buildings) || s.buildings.length > WIDTH * HEIGHT) return false;
       if (s.career === undefined) s.career = freshCareer();
+      if (s.business === undefined) s.business = freshBusiness();
+      if (!validBusiness(s.business)) return false;
       // Finish the already accepted legacy order before switching to the new menu.
       if (s.orderCatalog === undefined) s.orderCatalog = 1;
       if (![1, 2].includes(s.orderCatalog)) return false;
       if (!validCareer(s.career, s)) return false;
+      if (s.business.claimed.some(id => { const goal = MILESTONES.find(goal => goal.id === id); return goal.progress(s) < goal.target; })) return false;
       const record = value => value && typeof value === 'object' && !Array.isArray(value) && Object.entries(value).every(([key, n]) => ITEMS[key]?.value && integer(n));
       if (!record(s.delivered) || !record(s.orderProgress)) return false;
       const wants = orderFor(s.orderIndex, s.orderCatalog).wants;
@@ -299,7 +352,7 @@ export class FactoryGame {
       if (!s.stock || typeof s.stock !== 'object' || Array.isArray(s.stock) || Object.entries(s.stock).some(([key, n]) => !Object.hasOwn(BUILDINGS, key) || !integer(n, 8))) return false;
       const giftLimits = { belt: 4, flour_hopper: 1, dough_mixer: 1, bread_oven: 1, depot: 1 };
       const gifts = { ...s.stock };
-      const [w, h] = [[10, 6], [12, 8], [14, 8]][s.expansion];
+      const [w, h] = AREAS[s.expansion];
       const ids = new Set(), cells = new Set();
       for (const b of s.buildings) {
         const def = BUILDINGS[b.type];
@@ -308,6 +361,7 @@ export class FactoryGame {
         if (b.input !== null && (def.kind !== 'machine' || b.input !== def.input)) return false;
         if (b.output !== null && (!ITEMS[b.output] || def.kind === 'depot' || (['source', 'machine'].includes(def.kind) && b.output !== def.output))) return false;
         if (b.gifted !== undefined && typeof b.gifted !== 'boolean') return false;
+        if (b.mode !== undefined && (b.type !== 'depot' || !['sell', 'store'].includes(b.mode))) return false;
         if (b.gifted) gifts[b.type] = (gifts[b.type] || 0) + 1;
         let maxPaid = b.gifted ? 0 : def.cost;
         for (let level = 1; level < b.level; level++) maxPaid += upgradeCost({ type: b.type, level });

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FactoryGame, BUILDINGS, ITEMS, DIRS, makeEntity, orderFor, upgradeCost } from '../src/factory-core.js';
+import { FactoryGame, BUILDINGS, ITEMS, DIRS, AREAS, makeEntity, orderFor, upgradeCost } from '../src/factory-core.js';
 function run(game, seconds) { for (let i = 0; i < Math.round(seconds * 10); i++) game.update(.1); }
 function empty() { const g = new FactoryGame({ starter: false }); g.state.coins = 10000; return g; }
 function add(g, type, x, y, dir = 0) { const result = g.place(type, x, y, dir); assert.equal(result.ok, true, result.message); return result.building; }
@@ -16,7 +16,7 @@ test('starter makes bread, sells once and completes the first order without inpu
 });
 test('placement guards funds, bounds, directions, overlap and unlocks without mutation', () => {
   const g = new FactoryGame(), before = g.serialize();
-  for (const args of [['belt', -1, 1], ['belt', 10, 1], ['belt', 1.5, 1], ['belt', 1, 2], ['belt', 1, 1, 4], ['juice_press', 1, 1], ['unknown', 1, 1]]) assert.equal(g.place(...args).ok, false);
+  for (const args of [['belt', -1, 1], ['belt', 14, 1], ['belt', 1.5, 1], ['belt', 1, 2], ['belt', 1, 1, 4], ['juice_press', 1, 1], ['unknown', 1, 1]]) assert.equal(g.place(...args).ok, false);
   assert.equal(g.serialize(), before); g.state.coins = 0; assert.equal(g.place('belt', 0, 0).ok, false);
 });
 test('four directions move one item at most once per tick and at equal speed', () => {
@@ -72,9 +72,15 @@ test('paid construction and upgrades refund exactly once, starter cannot mint co
   const starter = new FactoryGame(); starter.state.buildings.map(b => b.id).forEach(id => starter.remove(id)); assert.equal(starter.state.coins, 450);
 });
 test('expansions charge once, unlock real cells and stop at grid bounds', () => {
-  const g = empty(); assert.equal(g.place('belt', 11, 7).ok, false);
-  assert.equal(g.expand().ok, true); assert.deepEqual(g.area, [12, 8]); assert.equal(g.place('belt', 11, 7).ok, true);
-  assert.equal(g.expand().ok, true); assert.deepEqual(g.area, [14, 8]); assert.equal(g.expand().ok, false); assert.equal(g.place('belt', 14, 0).ok, false);
+  const g = empty(); g.state.coins = 50000;
+  for (let stage = 0; stage < AREAS.length; stage++) {
+    assert.deepEqual(g.area, AREAS[stage]); const [w, h] = g.area;
+    assert.equal(g.place('belt', w - 1, h - 1).ok, true);
+    assert.equal(g.place('belt', w, h - 1).ok, false); assert.equal(g.place('belt', w - 1, h).ok, false);
+    const wallet = g.state.coins, cost = g.expansionCost;
+    assert.equal(g.expand().ok, cost !== null); assert.equal(g.state.coins, wallet - (cost || 0));
+  }
+  assert.deepEqual(g.area, [40, 24]); assert.equal(g.expand().ok, false);
 });
 test('pause freezes production; double speed doubles fixed simulation time', () => {
   const g = new FactoryGame(); g.state.paused = true; const before = g.serialize(); run(g, 20); assert.equal(g.serialize(), before);
