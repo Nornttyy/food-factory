@@ -1,28 +1,23 @@
-import { FactoryGame } from './factory-core.js?v=0.9.0';
-import { canLink } from './factory-links.js?v=0.9.0';
+import { FactoryGame } from './factory-core.js?v=0.10.0';
 
-export const TUTORIAL_KEY = 'food-factory-tutorial-v1';
+export const TUTORIAL_KEY = 'food-factory-tutorial-cat-v2';
 export const LESSONS = [
-  { title: '选一段传送带', copy: '在下方「运输」里，点传送带。', target: 'belt' },
-  { title: '补上发光的空格', copy: '点烤箱右边的空格，箭头朝右。', cell: { x: 6, y: 2 } },
-  { title: '第一份面包出炉', copy: '点 2× 加快生产，面包进出货站就能赚钱。', cell: { x: 8, y: 2 }, target: 'speed' },
-  { title: '让烤箱更快一点', copy: '点发光的烤箱，再点「升级」。', cell: { x: 5, y: 2 }, target: 'upgrade-building' },
-  { title: '领走第一笔订单奖励', copy: '出货满 4 份，点右上角「订单」领取。', target: 'orders-toggle' },
-  { title: '学会啦，正式开工！', copy: '接传送带 → 出货 → 升级 → 领订单。去试试新配方吧。' },
+  { title: '猫咪，开工啦', copy: '点下方「做一份」，猫咪会走到免费手工作台。', target: 'shop-cook' },
+  { title: '等面包做好', copy: '原料免费，做好会放到取餐架。', target: 'shop-cook' },
+  { title: '端起第一份面包', copy: '点「取餐」，猫咪会走过去端起来。', target: 'shop-pickup' },
+  { title: '给顾客送餐', copy: '点头顶想要面包的顾客，送到手里才收钱。', target: 'shop-serve' },
+  { title: '完成第一张订单', copy: '继续做饭、送餐；满 4 份后点「订单」领取小奖励。', target: 'orders-toggle' },
+  { title: '学会啦，正式开店', copy: '服务 6 位顾客开放产线，12 位可招跑堂猫。' },
 ];
 export function createPractice() {
-  const game = new FactoryGame();
-  game.remove(game.at(6, 2).id); // Reuses one real starter belt; no extra gifts.
-  return game;
+  return new FactoryGame();
 }
-export function nextLesson(step, game, tool) {
-  if (step === 0 && tool === 'belt') return 1;
-  if (step === 1) {
-    const belt = game.at(6, 2);
-    if (belt?.type === 'belt' && canLink(game.at(5, 2), belt) && canLink(belt, game.at(7, 2))) return 2;
-  }
-  if (step === 2 && game.state.totalSold >= 1) return 3;
-  if (step === 3 && game.at(5, 2)?.level >= 2) return 4;
+export function nextLesson(step, game) {
+  const s = game.state.shop;
+  if (step === 0 && s.player.task?.kind === 'cook') return 1;
+  if (step === 1 && s.counter.bread > 0) return 2;
+  if (step === 2 && s.player.holding) return 3;
+  if (step === 3 && s.served >= 1) return 4;
   if (step === 4 && game.state.orderIndex >= 1) return 5;
   return step;
 }

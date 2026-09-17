@@ -8,7 +8,8 @@ test('factory entry loads generated atlases and wires construction, production, 
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   const manifest = JSON.parse(await readFile(new URL('../assets/generated/factory/cream-v1/manifest.json', import.meta.url), 'utf8'));
   const nodes = new Map(), storage = new Map(), frames = [], draws = [], documentListeners = {}, windowListeners = {};
-  let failStorageKey = null;
+  let failStorageKey = null, frameTime = performance.now();
+  const renderFrame = () => frames.shift()(frameTime += 1000);
   const context = new Proxy({ globalAlpha: 1, drawImage: (...args) => draws.push(args) }, { get: (t, p) => p in t ? t[p] : () => {}, set: (t, p, v) => { t[p] = v; return true; } });
   class Element {
     constructor(tag = 'div') { this.tagName = tag.toUpperCase(); this.children = []; this.style = {}; this.dataset = {}; this.listeners = {}; this.hidden = false; this.classList = { toggle() {} }; }
@@ -43,11 +44,12 @@ test('factory entry loads generated atlases and wires construction, production, 
   install('setTimeout', () => 1); install('clearTimeout', () => {});
   try {
     const { runtime } = await import(`../src/factory-main.js?test=${Date.now()}`);
-    assert.equal(runtime.assets.ready, true); assert.equal(nodes.get('loading').hidden, true); assert.equal(runtime.game.state.buildings.length, 8);
+    assert.equal(runtime.assets.ready, true); assert.equal(nodes.get('loading').hidden, true); assert.equal(runtime.game.state.buildings.length, 0);
+    assert.equal(runtime.game.state.coins, 0); assert.ok(runtime.game.state.shop);
     assert.equal(runtime.ui.screen, 'menu'); assert.equal(nodes.get('main-menu').hidden, false); assert.equal(nodes.get('factory-app').hidden, true);
-    assert.equal(frames.length, 1); frames.shift()(performance.now() + 100); assert.equal(runtime.game.state.time, 0);
+    assert.equal(frames.length, 1); renderFrame(); assert.equal(runtime.game.state.time, 0);
     nodes.get('factory-board').listeners.pointerdown({ button: 0, preventDefault() {}, pointerId: 100, clientX: 20, clientY: 20 });
-    assert.equal(runtime.game.state.buildings.length, 8);
+    assert.equal(runtime.game.state.buildings.length, 0);
     for (const key of ['r', ' ', 'Enter', 'Delete']) windowListeners.keydown({ key, preventDefault() {} });
     assert.equal(runtime.ui.dir, 0); assert.equal(runtime.game.state.paused, false);
     nodes.get('menu-settings').click(); assert.equal(nodes.get('settings-dialog').open, true);
@@ -57,24 +59,31 @@ test('factory entry loads generated atlases and wires construction, production, 
     assert.equal(runtime.practice.step, 0, 'a first-time player starts in an isolated practice factory');
     assert.equal(nodes.get('tutorial-card').hidden, false); assert.equal(storage.has('food-factory-v1'), false);
     const realBeforePractice = runtime.practice.realGame.serialize();
-    frames.shift()(performance.now() + 100); assert.equal(runtime.game.state.time, 0, 'production waits for the belt lesson');
-    nodes.get('palette').children.find(b => b.dataset.building === 'belt').click(); assert.equal(runtime.practice.step, 1);
-    const tutorialPoint = (x, y) => ({ clientX: runtime.renderer.transform.x + (x + .5) * 72 * runtime.renderer.transform.scale, clientY: runtime.renderer.transform.y + (y + .5) * 72 * runtime.renderer.transform.scale });
-    const tutorialTap = (x, y) => { nodes.get('factory-board').listeners.pointerdown({ button: 0, preventDefault() {}, pointerId: 90, ...tutorialPoint(x, y) }); nodes.get('factory-board').listeners.pointerup(); };
-    tutorialTap(0, 0); assert.equal(runtime.game.at(0, 0), undefined); assert.equal(runtime.practice.step, 1);
-    nodes.get('rotate').click(); assert.equal(runtime.ui.dir, 0);
-    tutorialTap(6, 2); assert.equal(runtime.practice.step, 2); assert.equal(runtime.game.at(6, 2).dir, 0);
-    nodes.get('speed').click(); assert.equal(runtime.game.state.speed, 2);
-    for (let i = 0; i < 100; i++) runtime.game.update(.1);
-    frames.shift()(performance.now() + 1000); assert.equal(runtime.practice.step, 3);
-    tutorialTap(5, 2); nodes.get('upgrade-building').click(); assert.equal(runtime.practice.step, 4);
-    for (let i = 0; i < 100; i++) runtime.game.update(.1);
-    frames.shift()(performance.now() + 3000); nodes.get('claim-order').click(); assert.equal(runtime.practice.step, 5);
+    const shopAdvance = seconds => { for (let i = 0; i < seconds * 10; i++) runtime.game.update(.1); renderFrame(); };
+    assert.equal(runtime.ui.scene, 'shop'); assert.equal(nodes.get('scene-factory').disabled, true);
+    nodes.get('shop-cook').click(); assert.equal(runtime.practice.step, 1);
+    shopAdvance(5); assert.equal(runtime.practice.step, 2); assert.equal(runtime.game.state.coins, 0);
+    nodes.get('shop-pickup').click(); shopAdvance(2); assert.equal(runtime.practice.step, 3);
+    assert.equal(runtime.game.state.shop.player.holding, 'bread');
+    nodes.get('shop-serve').click(); shopAdvance(2); assert.equal(runtime.practice.step, 4);
+    assert.equal(runtime.game.state.coins, 4); assert.equal(runtime.game.state.totalSold, 1);
+    for (let i = 0; i < 3; i++) { nodes.get('shop-cook').click(); shopAdvance(6); nodes.get('shop-serve').click(); shopAdvance(4); }
+    nodes.get('orders-toggle').click(); nodes.get('claim-order').click(); assert.equal(runtime.practice.step, 5);
     assert.equal(storage.has('food-factory-v1'), false, 'practice, upgrades, rewards and autosave never write the real save');
     assert.equal(runtime.practice.realGame.serialize(), realBeforePractice);
     nodes.get('tutorial-exit').click(); assert.equal(runtime.practice, null); assert.equal(runtime.game.serialize(), realBeforePractice);
     assert.equal(nodes.get('tutorial-card').hidden, true); assert.equal(nodes.get('recipe-list').children.length, 8);
-    frames.shift()(performance.now() + 100); assert.ok(draws.length >= 9);
+    assert.equal(nodes.get('shop-controls').hidden, false);
+    nodes.get('shop-cook').click(); shopAdvance(5); assert.equal(runtime.game.state.shop.counter.bread, 1);
+    nodes.get('shop-staff').click(); const staffPause = runtime.game.state.time;
+    renderFrame(); assert.equal(runtime.game.state.time, staffPause);
+    assert.equal(nodes.get('staff-cards').children.length, 2); nodes.get('close-staff').click();
+    nodes.get('shop-serve').click(); shopAdvance(4); assert.equal(runtime.game.state.coins, 4);
+    nodes.get('scene-factory').click(); assert.equal(runtime.ui.scene, 'shop', 'automation remains locked before six customers');
+    // Continue established factory interaction regressions in an explicit isolated fixture.
+    assert.equal(runtime.game.restore(new FactoryGame({ shop: false }).serialize()), true);
+    runtime.ui.scene = 'factory'; nodes.get('menu-home').click(); nodes.get('menu-play').click();
+    renderFrame(); assert.ok(draws.length >= 9);
     assert.equal(nodes.get('order-drawer').hidden, true); assert.equal(nodes.get('inspector-panel').hidden, true); assert.equal(nodes.get('palette').hidden, true);
     nodes.get('orders-toggle').click(); assert.equal(nodes.get('order-drawer').hidden, false);
     nodes.get('close-orders').click(); assert.equal(nodes.get('order-drawer').hidden, true);
@@ -85,7 +94,7 @@ test('factory entry loads generated atlases and wires construction, production, 
     const point = (x, y) => ({ clientX: runtime.renderer.transform.x + (x + .5) * 72 * runtime.renderer.transform.scale, clientY: runtime.renderer.transform.y + (y + .5) * 72 * runtime.renderer.transform.scale });
     nodes.get('factory-board').listeners.pointerdown({ button: 0, preventDefault() {}, pointerId: 1, ...point(0, 0) });
     nodes.get('factory-board').listeners.pointerup();
-    assert.equal(runtime.game.at(0, 0).type, 'belt'); assert.equal(runtime.game.state.coins, original - 8);
+    assert.equal(runtime.game.at(0, 0).type, 'belt'); assert.equal(runtime.game.state.coins, original - 35);
     nodes.get('rotate').click(); assert.equal(runtime.ui.dir, 1);
     nodes.get('select-tool').click();
     nodes.get('factory-board').listeners.pointerdown({ button: 0, preventDefault() {}, pointerId: 2, ...point(3, 2) });
@@ -132,7 +141,7 @@ test('factory entry loads generated atlases and wires construction, production, 
     nodes.get('resume').click(); assert.equal(runtime.game.state.paused, false);
     nodes.get('speed').click(); assert.equal(runtime.game.state.speed, 2);
     for (let i = 0; i < 200; i++) runtime.game.update(.1);
-    frames.shift()(performance.now() + 5000);
+    renderFrame();
     assert.equal(runtime.game.orderReady, true); assert.equal(nodes.get('claim-order').disabled, false);
     nodes.get('claim-order').click(); assert.equal(runtime.game.state.orderIndex, 1);
     const saved = JSON.parse(storage.get('food-factory-v1')); assert.equal(saved.orderIndex, 1);
@@ -144,7 +153,7 @@ test('factory entry loads generated atlases and wires construction, production, 
     nodes.get('factory-board').listeners.pointermove({ pointerId: 11, ...point(2, 5) });
     nodes.get('factory-board').listeners.pointerup({ pointerId: 11 });
     assert.equal(oldBelt.dir, 1, 'dragging from an existing belt redirects its output');
-    assert.equal(runtime.game.at(2, 5).dir, 1); assert.equal(runtime.game.state.coins, beforeExtension - 8);
+    assert.equal(runtime.game.at(2, 5).dir, 1); assert.equal(runtime.game.state.coins, beforeExtension - 35);
     assert.equal(nodes.get('inspector-panel').hidden, true, 'resuming a belt stroke must not open its inspector');
     const bottomBelt = runtime.game.at(2, 5), beforeTouchBelt = runtime.game.state.coins;
     const dragTouch = { button: 0, pointerType: 'touch', preventDefault() {}, pointerId: 12, ...point(2, 5) };
@@ -153,7 +162,7 @@ test('factory entry loads generated atlases and wires construction, production, 
     documentEvent('pointerup', dragTouch); nodes.get('factory-board').listeners.pointerup({ ...dragTouch, ...point(4, 5) });
     assert.equal(bottomBelt.dir, 0, 'touch can also continue and turn an existing belt');
     assert.equal(runtime.game.at(3, 5).dir, 0); assert.equal(runtime.game.at(4, 5).dir, 0);
-    assert.equal(runtime.game.state.coins, beforeTouchBelt - 16, 'fast touch strokes fill intermediate cells once');
+    assert.equal(runtime.game.state.coins, beforeTouchBelt - 70, 'fast touch strokes fill intermediate cells once');
     const board = nodes.get('factory-board');
     const strokeEvent = (pointerId, x, y, pointerType = 'mouse') => ({ button: 0, preventDefault() {}, pointerId, pointerType, ...point(x, y) });
     const down = event => { documentEvent('pointerdown', event); board.listeners.pointerdown(event); };
@@ -173,7 +182,7 @@ test('factory entry loads generated atlases and wires construction, production, 
       move(strokeEvent(pointerId, 6, 2, pointerType));
       up(strokeEvent(pointerId, 6, 2, pointerType));
       assert.equal(runtime.game.at(5, 2).dir, 0); assert.equal(runtime.game.at(6, 2).dir, 0);
-      assert.equal(runtime.game.state.coins, wallet - 16, 'retry and pointerup must charge only for the two new belts');
+      assert.equal(runtime.game.state.coins, wallet - 70, 'retry and pointerup must charge only for the two new belts');
       assert.deepEqual(machine, beforeMachine); assert.equal(nodes.get('toast').hidden, true);
     }
 
@@ -186,7 +195,7 @@ test('factory entry loads generated atlases and wires construction, production, 
     for (const x of [1, 2, 4, 5, 6]) assert.equal(runtime.game.at(x, 2).dir, 0);
     assert.equal(runtime.game.at(8, 2), undefined); assert.equal(runtime.game.at(9, 2), undefined);
     assert.deepEqual(throughMachine, beforeThrough); assert.deepEqual(depot, beforeDepot);
-    assert.equal(runtime.game.state.coins, throughWallet - 40);
+    assert.equal(runtime.game.state.coins, throughWallet - 175);
 
     // Keep already completed input belts when the next movement misses a turned outlet.
     cleanLayout();
@@ -196,7 +205,7 @@ test('factory entry loads generated atlases and wires construction, production, 
     move(strokeEvent(16, 5, 4)); up(strokeEvent(16, 5, 4));
     assert.equal(runtime.game.at(3, 3).dir, 0, 'diagonal correction leaves through the lower outlet before turning');
     assert.equal(runtime.game.at(4, 3).dir, 0); assert.equal(runtime.game.at(5, 3).dir, 1); assert.equal(runtime.game.at(5, 4).dir, 1);
-    assert.equal(turnedMachine.dir, 1); assert.equal(runtime.game.state.coins, turnedWallet - 48);
+    assert.equal(turnedMachine.dir, 1); assert.equal(runtime.game.state.coins, turnedWallet - 210);
 
     // Multi-touch still cancels a failed stroke, without reviving its old anchor.
     cleanLayout(); runtime.game.place('bread_oven', 4, 2, 0);
@@ -210,7 +219,7 @@ test('factory entry loads generated atlases and wires construction, production, 
     // Returning to the menu freezes production and preserves a deliberate pause.
     runtime.game.state.paused = true;
     nodes.get('menu-home').click(); const menuSave = runtime.game.serialize();
-    frames.shift()(performance.now() + 100000);
+    renderFrame();
     assert.equal(runtime.game.serialize(), menuSave); assert.equal(nodes.get('factory-app').hidden, true);
     for (const key of ['r', ' ', 'Enter', 'Delete']) windowListeners.keydown({ key, preventDefault() {} });
     assert.equal(runtime.game.serialize(), menuSave);
@@ -227,7 +236,7 @@ test('factory entry loads generated atlases and wires construction, production, 
     failStorageKey = null; nodes.get('restart-cancel').click(); assert.equal(runtime.game.serialize(), beforeReset);
     nodes.get('menu-new').click(); nodes.get('restart-confirm').click();
     assert.equal(storage.get('food-factory-v1-before-restart'), beforeReset);
-    assert.equal(runtime.game.state.buildings.length, 8); assert.equal(runtime.game.state.totalSold, 0); assert.equal(runtime.game.state.career.points, 0);
+    assert.equal(runtime.game.state.buildings.length, 0); assert.equal(runtime.game.state.coins, 0); assert.ok(runtime.game.state.shop); assert.equal(runtime.game.state.totalSold, 0); assert.equal(runtime.game.state.career.points, 0);
     assert.match(nodes.get('recipe-list').children.find(card => card.dataset.food === 'steamed_bun').children[2].textContent, /第 1 单后解锁/);
     nodes.get('menu-home').click(); assert.equal(nodes.get('menu-restore').hidden, false);
     nodes.get('menu-restore').click(); nodes.get('restart-confirm').click();
@@ -238,7 +247,7 @@ test('factory entry loads generated atlases and wires construction, production, 
     runtime.game.state.orderIndex = 0;
     nodes.get('career-toggle').click(); assert.equal(nodes.get('career-dialog').open, true);
     assert.equal(nodes.get('contract-offers').children.length, 3);
-    const beforeChoice = runtime.game.state.time; frames.shift()(performance.now() + 200000); assert.equal(runtime.game.state.time, beforeChoice);
+    const beforeChoice = runtime.game.state.time; renderFrame(); assert.equal(runtime.game.state.time, beforeChoice);
     nodes.get('contract-offers').children[0].children.find(el => el.dataset?.contract === '0').click();
     assert.equal(nodes.get('career-dialog').open, false); assert.equal(runtime.game.contract.status, 'active');
     for (let i = 0; i < 6; i++) runtime.game.deliver('bread', { x: 1, y: 1 });
@@ -254,7 +263,7 @@ test('factory entry loads generated atlases and wires construction, production, 
       nodes.get('menu-home').click(); const realSave = runtime.game.serialize(), stored = storage.get('food-factory-v1');
       nodes.get('menu-tutorial').click(); runtime.practice.step = step;
       runtime.game.state.coins += 500; runtime.game.state.totalSold += 10;
-      frames.shift()(performance.now() + 250000 + step * 3000);
+      renderFrame();
       documentEvent('visibilitychange', {}); windowListeners.pagehide();
       assert.equal(storage.get('food-factory-v1'), stored); assert.equal(runtime.practice.realGame.serialize(), realSave);
       nodes.get('tutorial-exit').click(); assert.equal(runtime.game.serialize(), realSave); assert.equal(storage.get('food-factory-v1'), stored);
@@ -269,14 +278,14 @@ test('factory entry loads generated atlases and wires construction, production, 
     nodes.get('portrait-continue').click(); assert.equal(orientation.hidden, true);
     // Warehouse routing, shipping and milestone buttons use real core transitions.
     nodes.get('menu-home').click(); const beforeBusinessUi = runtime.game.serialize();
-    assert.equal(runtime.game.restore(new FactoryGame().serialize()), true); nodes.get('menu-play').click();
+    assert.equal(runtime.game.restore(new FactoryGame({ shop: false }).serialize()), true); nodes.get('menu-play').click();
     nodes.get('business-toggle').click(); assert.equal(nodes.get('business-dialog').open, true);
-    const shopTime = runtime.game.state.time; frames.shift()(performance.now() + 350000); assert.equal(runtime.game.state.time, shopTime);
+    const shopTime = runtime.game.state.time; renderFrame(); assert.equal(runtime.game.state.time, shopTime);
     nodes.get('business-locate-depot').click(); assert.equal(nodes.get('business-dialog').open, false);
     assert.equal(runtime.game.state.buildings.find(b => b.id === runtime.ui.selected).type, 'depot');
     nodes.get('depot-store').click(); assert.equal(runtime.game.at(8, 2).mode, 'store');
     for (let n = 0; n < 600; n++) runtime.game.update(.1);
-    frames.shift()(performance.now() + 353000); assert.ok(runtime.game.warehouseUsed >= 12); assert.equal(runtime.game.state.totalSold, 0);
+    renderFrame(); assert.ok(runtime.game.warehouseUsed >= 12); assert.equal(runtime.game.state.totalSold, 0);
     nodes.get('business-toggle').click(); const shipButton = nodes.get('wholesale-offers').children[0].children.find(el => el.dataset?.wholesale);
     assert.equal(shipButton.disabled, false); shipButton.click(); assert.equal(runtime.game.state.business.shipments, 1);
     const shippedSave = runtime.game.serialize(); shipButton.click(); assert.equal(runtime.game.serialize(), shippedSave);
@@ -320,7 +329,7 @@ test('factory entry loads generated atlases and wires construction, production, 
     assert.equal(reloaded.ui.screen, 'menu'); assert.equal(reloaded.game.state.coins, legacy.coins);
     assert.equal(reloaded.game.state.career.points, 0); assert.equal(reloaded.ui.reducedMotion, false);
     assert.match(nodes.get('menu-play').textContent, /继续经营/);
-    storage.delete('food-factory-tutorial-v1'); nodes.get('menu-play').click(); assert.equal(reloaded.practice, null, 'legacy players are never forced into practice');
+    storage.delete('food-factory-tutorial-cat-v2'); nodes.get('menu-play').click(); assert.equal(reloaded.practice, null, 'legacy players are never forced into practice');
     storage.set('food-factory-preferences-v1', '{');
     await import(`../src/factory-main.js?bad-preference=${Date.now()}`);
     assert.equal(nodes.get('menu-restore').hidden, false, 'damaged settings must not hide an existing backup');

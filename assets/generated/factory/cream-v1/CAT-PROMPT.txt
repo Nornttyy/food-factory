@@ -1,0 +1,26 @@
+Use case: stylized-concept.
+Asset type: one production game sprite sheet for a cute cat protagonist, with independent body parts for 2D skeletal animation.
+Output: exactly one 1536 x 1024 pixel landscape RGBA PNG with a genuinely transparent alpha background. Empty space must be transparent pixels. Do NOT draw a checkerboard, solid background, scene, floor, shadows on the background, labels, grid lines, or text.
+
+Primary request: draw exactly 12 isolated cutout parts from the SAME adorable, chubby, apricot-orange and cream cat chef, front view, arranged in a precise four-column by three-row invisible grid. Each cell is 384 pixels wide and approximately 341 pixels tall. Every part must be centered within its own cell with ample transparent margin on every side. No part touches another part. Never assemble or show a full character anywhere.
+
+Style: very simple low-detail cream pastel cartoon game art, rounded plump silhouettes, warm medium-brown clean uniform outlines, flat solid colors with only one simple flat second-tone shadow patch per form. No realistic textures, no fur strands, no gradients, no grain, no 3D, no glossy lighting. Cream patches, muted apricot fur, pale peach apron, ivory chef hat. All parts consistent in drawing style and naturally fit the same cat when recombined.
+
+Exact row-major order, left to right:
+ROW 1:
+Cell 1: one large rounded cat HEAD with two triangular ears and small cream muzzle patch, front view. Face is intentionally BLANK: absolutely NO eyes, eyebrows, nose, mouth, whiskers, or expression; those will be animated separately in code. No neck, no body, no hat.
+Cell 2: one separate soft puffy IVORY CHEF HAT with simple rounded lobes and a short band. No head.
+Cell 3: one plump APRON TORSO only, a rounded apricot cat body dressed in pale-peach apron with tiny simple pocket and neck straps. No head, no arms, no hands, no legs, no tail. Clear closed rounded upper and lower edges for overlapping joint assembly.
+Cell 4: one detached curled CAT TAIL, apricot with a cream tip, gentle upright C curve. No other body parts.
+ROW 2:
+Cell 1: LEFT UPPER ARM only, short plump apricot vertical capsule, rounded shoulder at top and rounded elbow at bottom. No paw or hand.
+Cell 2: LEFT FOREARM WITH PAW, short plump vertical forearm with round cream paw at lower end and two tiny toe marks. Rounded upper joint.
+Cell 3: RIGHT UPPER ARM only, mirrored match to left upper arm, short plump apricot vertical capsule, rounded shoulder and elbow. No paw or hand.
+Cell 4: RIGHT FOREARM WITH PAW, mirrored match to left forearm, short plump forearm with round cream paw at lower end and two tiny toe marks.
+ROW 3:
+Cell 1: LEFT THIGH only, short plump apricot vertical capsule, rounded hip at top and knee at bottom. No foot.
+Cell 2: LEFT SHIN AND FOOT, short plump vertical apricot shin ending in one rounded cream cat foot subtly pointing outward to the left.
+Cell 3: RIGHT THIGH only, mirrored match to left thigh, short plump apricot vertical capsule, rounded hip and knee. No foot.
+Cell 4: RIGHT SHIN AND FOOT, mirrored match to left shin and foot, short plump apricot shin ending in one rounded cream cat foot subtly pointing outward to the right.
+
+All limbs are single isolated segments that can overlap at round joints, NOT complete two-joint arms or legs. Sizes should retain intended character proportions within cell: head and torso large, hat medium, tail tall curved, limb segments smaller. Make every component fully visible and keep at least 40 transparent pixels between art and its cell boundary. Keep limb segments upright in a neutral pose. No duplicate full cats, no extra items, no detached facial features, no labels, no watermark.

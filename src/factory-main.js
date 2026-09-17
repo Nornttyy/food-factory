@@ -1,9 +1,10 @@
-import { FactoryGame, BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, AREAS, WIDTH, HEIGHT, upgradeCost } from './factory-core.js?v=0.9.0';
-import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.9.0';
-import { directionBetween, nextBeltCell } from './factory-links.js?v=0.9.0';
-import { RESEARCH } from './factory-career.js?v=0.9.0';
-import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.9.0';
-import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS } from './factory-business.js?v=0.9.0';
+import { FactoryGame, BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, AREAS, WIDTH, HEIGHT, upgradeCost } from './factory-core.js?v=0.10.0';
+import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.10.0';
+import { directionBetween, nextBeltCell } from './factory-links.js?v=0.10.0';
+import { RESEARCH } from './factory-career.js?v=0.10.0';
+import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.10.0';
+import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS } from './factory-business.js?v=0.10.0';
+import { SHOP_RECIPES, STAFF, COUNTER_CAPACITY, counterUsed, customerY } from './factory-shop.js?v=0.10.0';
 
 const $ = selector => document.querySelector(selector);
 let game = new FactoryGame();
@@ -12,7 +13,7 @@ try { tutorialSeen = localStorage.getItem(TUTORIAL_KEY) === 'seen'; } catch { /*
 const assets = new FactoryAssets();
 const canvas = $('#factory-board');
 const renderer = new FactoryRenderer(canvas, assets);
-const ui = { screen: 'menu', careerTab: 'contracts', businessTab: 'trade', mapOpen: false, category: 'logistics', tool: 'select', dir: 0, selected: null, hover: null, dockOpen: false, ordersOpen: false, inspectorOpen: false, focus: false, reducedMotion: false };
+const ui = { screen: 'menu', scene: 'shop', careerTab: 'contracts', businessTab: 'trade', mapOpen: false, category: 'logistics', tool: 'select', dir: 0, selected: null, hover: null, dockOpen: false, ordersOpen: false, inspectorOpen: false, focus: false, reducedMotion: false };
 const PREFERENCES_KEY = 'food-factory-preferences-v1', BACKUP_KEY = `${SAVE_KEY}-before-restart`;
 let hasSave = false, hasBackup = false, restartMode = 'new', explicitMotion = false;
 const motionQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)');
@@ -54,6 +55,7 @@ try {
     catch { protectOriginalSave = true; toast('原存档已保留，本次试玩暂不保存'); }
   }
 } catch { saveWorks = false; }
+if (!game.state.shop) ui.scene = 'factory';
 function action(result, message) {
   if (!result?.ok) { toast(result?.message); return false; }
   if (message) toast(message);
@@ -64,7 +66,7 @@ function renderPalette() {
   const palette = $('#palette'); palette.replaceChildren();
   for (const [type, def] of Object.entries(BUILDINGS)) {
     if (def.category !== ui.category) continue;
-    const locked = def.unlock > game.unlockLevel;
+    const locked = def.unlock > game.unlockLevel || !game.automationReady;
     const button = document.createElement('button'); button.className = `build-card${ui.tool === type ? ' active' : ''}${locked ? ' locked' : ''}`;
     button.dataset.building = type; button.setAttribute('aria-pressed', String(ui.tool === type));
     button.disabled = Boolean(practice && type !== 'belt');
@@ -72,9 +74,9 @@ function renderPalette() {
     button.setAttribute('aria-label', `${def.label}，${locked ? '完成订单解锁' : `${def.cost} 金币`}`);
     button.append(assets.icon(def.sprite));
     const text = document.createElement('span'), strong = document.createElement('strong'), small = document.createElement('small');
-    strong.textContent = def.label; small.textContent = locked ? `第 ${def.unlock} 单后解锁` : game.state.stock[type] ? `免费重放 ×${game.state.stock[type]}` : `${def.cost} 金币`;
+    strong.textContent = def.label; small.textContent = !game.automationReady ? '服务 6 位顾客后开放' : locked ? `第 ${def.unlock} 单后解锁` : game.state.stock[type] ? `免费重放 ×${game.state.stock[type]}` : `${def.cost} 金币`;
     text.append(strong, small); button.append(text);
-    button.addEventListener('click', () => locked ? toast(`完成第 ${def.unlock} 单即可解锁`) : chooseTool(type));
+    button.addEventListener('click', () => locked ? toast(!game.automationReady ? '先亲手服务 6 位顾客' : `完成第 ${def.unlock} 单即可解锁`) : chooseTool(type));
     palette.append(button);
   }
 }
@@ -106,7 +108,7 @@ function renderOrder() {
 function recipeLabel(def) {
   if (def.kind === 'source') return `持续供应 ${ITEMS[def.output].label}`;
   if (def.kind === 'machine') return `${ITEMS[def.input].label} → ${ITEMS[def.output].label}`;
-  if (def.kind === 'depot') return '接收成品，自动换取金币';
+  if (def.kind === 'depot') return '成品送到小店取餐架，送餐后收钱';
   if (def.kind === 'splitter') return '向前 / 顺时针侧口轮流出货';
   return '沿箭头方向运送物品';
 }
@@ -131,13 +133,13 @@ function renderInspector() {
     const actions = document.createElement('div'); actions.className = 'inspector-actions';
     if (b.type === 'depot') {
       const modes = element('div', '', 'depot-modes');
-      for (const [mode, label] of [['sell', '现卖'], ['store', '入库']]) {
+      for (const [mode, label] of [['sell', '送到小店'], ['store', '入库']]) {
         const button = element('button', label); button.id = `depot-${mode}`; button.disabled = Boolean(practice);
         button.setAttribute('aria-pressed', String((b.mode || 'sell') === mode)); button.classList.toggle('active', (b.mode || 'sell') === mode);
-        button.addEventListener('click', () => action(game.setDepotMode(b.id, mode), mode === 'store' ? '这条产线开始入库备货' : '这条产线恢复现卖'));
+        button.addEventListener('click', () => action(game.setDepotMode(b.id, mode), mode === 'store' ? '这条产线开始入库备货' : '成品送到取餐架，记得给顾客送餐'));
         modes.append(button);
       }
-      root.append(modes, element('p', b.mode === 'store' ? `入库用于合作 · 仓储 ${game.warehouseUsed}/${game.warehouseCapacity}` : '现卖赚金币，并推进工坊订单和急单', 'tiny-note'));
+      root.append(modes, element('p', b.mode === 'store' ? `入库用于合作 · 仓储 ${game.warehouseUsed}/${game.warehouseCapacity}` : '不自动售卖；取餐架满了会停收', 'tiny-note'));
     }
     if (def.duration) {
       const up = document.createElement('button'); up.id = 'upgrade-building'; up.textContent = b.level >= 3 ? '已满级' : `升级 · ${upgradeCost(b)}`; up.disabled = b.level >= 3;
@@ -158,14 +160,15 @@ function renderUi(force = false) {
     if (next !== practice.step) {
       practice.step = next;
       if (next >= 2) { ui.tool = 'select'; ui.selected = null; ui.inspectorOpen = false; }
-      if (next === 4) ui.ordersOpen = true;
+      if (next === 4 && game.orderReady) ui.ordersOpen = true;
       force = true;
     }
   }
   const s = game.state, b = s.buildings.find(b => b.id === ui.selected);
-  const key = JSON.stringify([practice?.step, s.coins, s.orderIndex, s.orderProgress, s.totalSold, s.expansion, s.paused, s.speed, s.career, s.business, s.career.contract?.status === 'active' ? Math.ceil(s.time) : 0, ui.screen, ui.careerTab, ui.businessTab, ui.mapOpen, ui.tool, ui.selected, ui.dir, ui.dockOpen, ui.ordersOpen, ui.inspectorOpen, ui.focus, ui.reducedMotion, b?.mode, b?.level, b?.blocked, b?.input, b?.output]);
+  const key = JSON.stringify([practice?.step, s.coins, s.orderIndex, s.orderProgress, s.totalSold, s.expansion, s.paused, s.speed, s.career, s.business, s.shop && [s.shop.served, s.shop.counter, s.shop.player.holding, s.shop.player.task, Math.floor(s.shop.player.work * 5), s.shop.customers.map(c => [c.id, c.item, Math.ceil(c.cooldown)])], s.career.contract?.status === 'active' ? Math.ceil(s.time) : 0, ui.screen, ui.scene, ui.careerTab, ui.businessTab, ui.mapOpen, ui.tool, ui.selected, ui.dir, ui.dockOpen, ui.ordersOpen, ui.inspectorOpen, ui.focus, ui.reducedMotion, b?.mode, b?.level, b?.blocked, b?.input, b?.output]);
   if (!force && key === lastUi) return; lastUi = key;
   renderFront();
+  renderShop();
   $('#coins').textContent = s.coins.toLocaleString('zh-CN');
   if (s.coins > lastCoins) bounceElement($('#wallet')); lastCoins = s.coins;
   $('#factory-level').textContent = `${game.area.join(' × ')} 格工坊`;
@@ -174,7 +177,7 @@ function renderUi(force = false) {
   $('#pause').textContent = s.paused ? '▷' : 'Ⅱ'; $('#pause').setAttribute('aria-label', s.paused ? '继续生产' : '暂停生产');
   $('#pause-overlay').hidden = !s.paused; $('#speed').textContent = `${s.speed}×`; $('#direction').textContent = DIRECTION_NAMES[ui.dir];
   $('#select-tool').classList.toggle('active', ui.tool === 'select'); $('#remove-tool').classList.toggle('active', ui.tool === 'remove');
-  $('#selection-hint').textContent = ui.tool === 'pan' ? '按住拖动 · 滚轮缩放' : ui.tool === 'remove' ? '点设备拆除 · 清空物品并退款' : BUILDINGS[ui.tool] ? `${BUILDINGS[ui.tool].label} · ${DIRECTION_NAMES[ui.dir]}${ui.tool === 'belt' ? ' · 按住拖着铺' : ' · 点空格摆放'}` : '点机器查看 · 下方建造';
+  $('#selection-hint').textContent = ui.scene === 'shop' ? '点工作台做饭 · 点顾客送餐 · 点地面走路' : ui.tool === 'pan' ? '按住拖动 · 滚轮缩放' : ui.tool === 'remove' ? '点设备拆除 · 清空物品并退款' : BUILDINGS[ui.tool] ? `${BUILDINGS[ui.tool].label} · ${DIRECTION_NAMES[ui.dir]}${ui.tool === 'belt' ? ' · 按住拖着铺' : ' · 点空格摆放'}` : '点机器查看 · 下方建造';
   $('#factory-app').classList.toggle('dock-open', ui.dockOpen);
   $('#factory-app').classList.toggle('focus-mode', ui.focus);
   $('#factory-app').classList.toggle('reduced-motion', ui.reducedMotion);
@@ -204,6 +207,82 @@ function renderUi(force = false) {
   $('#map-area').textContent = `已开放 ${game.area.join('×')} / ${WIDTH}×${HEIGHT}`;
 }
 function element(tag, text, className = '') { const el = document.createElement(tag); el.textContent = text; el.className = className; return el; }
+let lastShopMenu = '';
+function renderShop() {
+  const s = game.state.shop, inShop = Boolean(s && ui.scene === 'shop');
+  $('#factory-app').classList.toggle('shop-scene', inShop);
+  $('#shop-controls').hidden = !inShop;
+  $('#scene-shop').hidden = !s; $('#scene-factory').hidden = !s;
+  $('#scene-shop').setAttribute('aria-pressed', String(inShop));
+  $('#scene-factory').setAttribute('aria-pressed', String(!inShop));
+  $('#scene-factory').disabled = Boolean(practice) || !game.automationReady;
+  $('#scene-factory').textContent = game.automationReady ? '自动化产线 ↗' : `产线 ${s?.served || 0}/6`;
+  if (!s) return;
+  const key = `${game.unlockLevel}:${Boolean(practice)}`;
+  if (lastShopMenu !== key) {
+    lastShopMenu = key; const select = $('#shop-food'); select.replaceChildren();
+    for (const [item, def] of Object.entries(SHOP_RECIPES)) if (def.unlock <= game.unlockLevel && (!practice || item === 'bread')) {
+      const option = element('option', `${ITEMS[item].label} · ${game.salePrice(item)} 金币`); option.value = item; select.append(option);
+    }
+  }
+  $('#shop-food').value = s.selected;
+  const p = s.player, cooking = p.task?.kind === 'cook';
+  $('#shop-status').textContent = p.holding ? `端着 ${ITEMS[p.holding].label}` : cooking ? `${ITEMS[p.task.item].label} · ${p.work > 0 ? '制作中' : '走向工作台'}` : counterUsed(s) ? `取餐架 ${counterUsed(s)}/${COUNTER_CAPACITY} 份` : '做一份美食，给顾客送去';
+  $('#shop-progress').textContent = s.served < 6 && !s.legacy ? `服务 ${s.served}/6 位 · 开放产线` : s.served < 12 && !s.legacy ? `服务 ${s.served}/12 位 · 可招跑堂` : s.served < 24 && !s.legacy ? `服务 ${s.served}/24 位 · 可招后厨` : `已服务 ${s.served} 位顾客`;
+  $('#shop-cook').textContent = cooking ? '制作中…' : '做一份';
+  $('#shop-cook').disabled = Boolean(p.holding || cooking || counterUsed(s) >= COUNTER_CAPACITY || game.state.paused);
+  $('#shop-pickup').textContent = p.holding ? '放回餐架' : '取餐';
+  $('#shop-pickup').disabled = game.state.paused || (!p.holding && !counterUsed(s));
+  $('#shop-clear').disabled = game.state.paused || (!p.holding && !counterUsed(s));
+  $('#shop-serve').disabled = game.state.paused || !s.customers.some(c => !c.cooldown && (p.holding ? c.item === p.holding : s.counter[c.item] > 0));
+  $('#shop-staff').disabled = Boolean(practice);
+  if ($('#staff-dialog').open) renderStaff();
+}
+function renderStaff() {
+  const root = $('#staff-cards'); root.replaceChildren();
+  const s = game.state.shop;
+  if (!s) return;
+  for (const [role, def] of Object.entries(STAFF)) {
+    const card = element('article', '', 'staff-card'), hired = Boolean(s.staff[role]), unlocked = s.legacy || s.served >= def.served;
+    card.append(element('h3', def.label), element('p', def.detail), element('small', `服务 ${def.served} 位解锁 · 招募 ${def.cost} 金币`));
+    const hire = element('button', hired ? '已加入 ✓' : !unlocked ? `${s.served}/${def.served} 位顾客` : `招募 · ${def.cost}`, 'primary-button'); hire.dataset.hire = role;
+    hire.disabled = hired || !unlocked || game.state.coins < def.cost;
+    hire.addEventListener('click', () => action(game.hire(role), `${def.label}来帮忙啦`)); card.append(hire); root.append(card);
+  }
+}
+function switchScene(scene) {
+  if (practice || (scene === 'factory' && !game.automationReady) || (scene === 'shop' && !game.state.shop)) return;
+  finishDrag(); ui.scene = scene; ui.mapOpen = false; ui.hover = null; chooseTool('select');
+  renderer.resize(game.area, ui); renderUi(true); canvas.focus({ preventScroll: true });
+}
+function shopCommand(kind, value) {
+  if (ui.screen !== 'workshop' || ui.scene !== 'shop' || document.querySelector('dialog[open]')) return;
+  if (practice && practice.step === 5) return;
+  if (practice && kind === 'cook') value = 'bread';
+  action(game.shopAction(kind, value));
+}
+function serveNext() {
+  const s = game.state.shop;
+  if (!s) return;
+  const c = s.customers.find(c => !c.cooldown && (s.player.holding ? c.item === s.player.holding : s.counter[c.item] > 0));
+  if (c) shopCommand('serve', c.id); else toast('先做顾客想要的美食');
+}
+function useShopPoint(point) {
+  const s = game.state.shop;
+  if (!s) return;
+  if (point.x >= 7.1 && point.x <= 9.3) {
+    const customer = s.customers.find(c => point.y >= customerY(c.slot) - .95 && point.y <= customerY(c.slot) + .2);
+    if (customer) {
+      if (!customer.cooldown && !s.player.holding && !s.counter[customer.item] && !game.state.paused) {
+        s.selected = customer.item; save(); renderUi(true); toast(`顾客想要${ITEMS[customer.item].label}，点「做一份」`); return;
+      }
+      shopCommand('serve', customer.id); return;
+    }
+  }
+  if (point.y > 1.1 && point.y < 2.6 && point.x > 1 && point.x < 3.7) shopCommand('cook');
+  else if (point.y > 1.1 && point.y < 2.6 && point.x >= 3.7 && point.x < 6.2) shopCommand('pickup');
+  else shopCommand('walk', point);
+}
 function clockLabel(seconds) { const n = Math.max(0, Math.ceil(seconds)); return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`; }
 function renderRecipes() {
   const root = $('#recipe-list'); root.replaceChildren();
@@ -211,7 +290,7 @@ function renderRecipes() {
     const food = ITEMS[item], unlock = Math.max(...chain.map(type => BUILDINGS[type].unlock));
     const card = element('article', '', 'food-recipe'); card.dataset.food = item;
     card.append(assets.icon(food.sprite), element('h3', food.label), element('small', `${food.value} 金币 / 份 · ${unlock > game.unlockLevel ? `第 ${unlock} 单后解锁` : '已解锁'}`));
-    card.append(element('p', [...chain.map(type => BUILDINGS[type].label), '出货站'].join(' → ')));
+    card.append(element('p', `手工 ${SHOP_RECIPES[item].seconds} 秒 · 原料免费\n产线：${[...chain.map(type => BUILDINGS[type].label), '出货站', '小店取餐架'].join(' → ')}`));
     root.append(card);
   }
 }
@@ -220,7 +299,7 @@ function renderTutorial() {
   $('#factory-app').classList.toggle('in-tutorial', Boolean(practice));
   ui.tutorialTarget = practice ? LESSONS[practice.step].cell : null;
   for (const id of ['career-toggle', 'business-toggle', 'map-toggle', 'remove-tool', 'rotate', 'focus-view']) $(`#${id}`).disabled = Boolean(practice);
-  for (const id of ['speed', 'orders-toggle', 'claim-order']) $(`#${id}`)?.classList.toggle('tutorial-highlight', Boolean(practice && (id === LESSONS[practice.step].target || (id === 'claim-order' && practice.step === 4 && game.orderReady))));
+  for (const id of ['shop-cook', 'shop-pickup', 'shop-serve', 'orders-toggle', 'claim-order']) $(`#${id}`)?.classList.toggle('tutorial-highlight', Boolean(practice && (id === LESSONS[practice.step].target || (id === 'claim-order' && practice.step === 4 && game.orderReady))));
   if (!practice) return;
   $('#tutorial-progress').textContent = practice.step === 5 ? '练习完成' : `新手练习 ${practice.step + 1} / 5`;
   $('#tutorial-title').textContent = LESSONS[practice.step].title;
@@ -235,13 +314,14 @@ function startTutorial() {
   practice = { realGame, step: 0 }; game = createPractice(); tutorialSeen = true;
   try { localStorage.setItem(TUTORIAL_KEY, 'seen'); } catch { /* No impact on the real save. */ }
   $('#help-dialog').close(); ui.category = 'logistics'; ui.dir = 0;
-  ui.tool = 'select'; ui.selected = null; ui.inspectorOpen = false; ui.ordersOpen = false; ui.focus = false; ui.mapOpen = false; ui.dockOpen = true;
+  ui.scene = 'shop'; ui.tool = 'select'; ui.selected = null; ui.inspectorOpen = false; ui.ordersOpen = false; ui.focus = false; ui.mapOpen = false; ui.dockOpen = false;
   document.querySelectorAll('[data-category]').forEach(button => button.classList.toggle('active', button.dataset.category === ui.category));
   resetEffects(); renderPalette(); renderRecipes(); enterWorkshop();
 }
 function leaveTutorial(toMenu = false) {
   if (!practice) return;
   finishDrag(); game = practice.realGame; practice = null;
+  ui.scene = game.state.shop ? 'shop' : 'factory';
   ui.tutorialTarget = null; ui.category = 'logistics'; ui.dir = 0; ui.ordersOpen = false; ui.focus = false;
   resetEffects(); chooseTool('select'); renderRecipes();
   if (toMenu) enterMenu(); else enterWorkshop();
@@ -256,7 +336,7 @@ function renderFront() {
   $('#menu-business-summary').textContent = `${BUSINESS_RANKS[businessLevel(s.business.reputation)]} · ${game.warehouseUsed}/${game.warehouseCapacity} 份库存`;
   $('#business-toggle').textContent = `仓库与合作 ${game.warehouseUsed}/${game.warehouseCapacity}`;
   $('#menu-play').textContent = !assets.ready ? '正在准备…' : hasSave ? '继续经营  →' : '开始经营  →';
-  $('#menu-summary').textContent = hasSave ? `已交付 ${s.totalSold} 份美味 · 完成 ${s.orderIndex} 张订单\n${s.coins.toLocaleString('zh-CN')} 金币 · ${s.career.points} 研究点` : '从第一份面包开始，让美味自己流动。';
+  $('#menu-summary').textContent = hasSave ? `已交付 ${s.totalSold} 份美味 · 完成 ${s.orderIndex} 张订单\n${s.coins.toLocaleString('zh-CN')} 金币 · ${s.career.points} 研究点` : '一只猫，零金币。从亲手做第一份面包开始。';
   $('#menu-new').hidden = !hasSave; $('#menu-restore').hidden = !hasBackup;
   $('#menu-career-summary').textContent = s.career.completed ? `已完成 ${s.career.completed} 次挑战 · ${s.career.points} 研究点` : '挑战产能，解锁永久加成';
   $('#settings-motion').textContent = ui.reducedMotion ? 'Q 弹动效：关' : 'Q 弹动效：开';
@@ -276,8 +356,9 @@ function renderBusiness() {
   for (const item of SALE_FOODS) {
     const count = business.warehouse[item] || 0, card = element('div', '', 'warehouse-item');
     card.append(assets.icon(ITEMS[item].sprite), element('strong', `${ITEMS[item].label} · ${count}`), element('small', `合作累计 ${business.shipped[item] || 0} 份`, 'warehouse-history'));
-    const sell = element('button', count ? `散卖 ${Math.min(10, count)} 份` : '暂无库存', 'soft-button'); sell.disabled = !count; sell.dataset.sellFood = item;
-    sell.addEventListener('click', () => { const result = game.sellWarehouse(item, Math.min(10, count)); action(result, result.ok ? `散卖 +${result.reward} 金币` : undefined); }); card.append(sell); warehouse.append(card);
+    const amount = Math.min(10, count, s.shop ? COUNTER_CAPACITY - counterUsed(s.shop) : 10);
+    const sell = element('button', count ? s.shop ? amount ? `送餐架 ${amount} 份` : '取餐架已满' : `散卖 ${amount} 份` : '暂无库存', 'soft-button'); sell.disabled = !amount; sell.dataset.sellFood = item;
+    sell.addEventListener('click', () => { const result = game.sellWarehouse(item, amount); action(result, result.ok ? result.moved ? '已送到取餐架，给顾客送餐后收钱' : `散卖 +${result.reward} 金币` : undefined); }); card.append(sell); warehouse.append(card);
   }
   const offers = $('#wholesale-offers'); offers.replaceChildren();
   for (const offer of game.wholesaleOffers) {
@@ -288,7 +369,8 @@ function renderBusiness() {
     }
     card.append(element('span', `+${offer.reward} 金币 · +${offer.reputation} 声望`, 'reward-line'));
     const ready = Object.entries(offer.wants).every(([item, n]) => (business.warehouse[item] || 0) >= n);
-    const button = element('button', ready ? '整单发货' : '还需备货', 'primary-button'); button.dataset.wholesale = offer.id; button.disabled = !ready;
+    const locked = Boolean(s.shop && !s.shop.legacy && s.shop.served < 30);
+    const button = element('button', locked ? `服务 ${s.shop.served}/30 位后开放` : ready ? '整单发货' : '还需备货', 'primary-button'); button.dataset.wholesale = offer.id; button.disabled = !ready || locked;
     button.addEventListener('click', () => { const result = game.shipWholesale(offer.id); action(result, result.ok ? `合作完成 · +${result.reputation} 声望` : undefined); }); card.append(button); offers.append(card);
   }
   const goals = $('#business-goals'); goals.replaceChildren();
@@ -303,6 +385,7 @@ function openBusiness() { if (practice || !assets.ready) return; finishDrag(); $
 function locateDepot() {
   if (practice) return;
   $('#business-dialog').close(); enterWorkshop();
+  switchScene('factory');
   const b = game.state.buildings.find(b => b.type === 'depot');
   if (!b) { toast('先在运输分类放一座出货站'); return; }
   chooseTool('select'); ui.selected = b.id; ui.inspectorOpen = true; ui.hover = null;
@@ -347,7 +430,7 @@ function renderCareer() {
 function enterWorkshop() {
   if (!assets.ready) return;
   finishDrag(); if (!practice) hasSave = true; ui.screen = 'workshop'; previousTime = performance.now();
-  renderUi(true); renderer.resize(game.area, ui); save(); canvas.focus({ preventScroll: true });
+  renderPalette(); renderUi(true); renderer.resize(game.area, ui); save(); canvas.focus({ preventScroll: true });
 }
 function enterMenu() {
   if (practice) { leaveTutorial(true); return; }
@@ -371,7 +454,7 @@ function confirmRestart() {
     game.restore(candidate.serialize()); hasBackup = true; hasSave = true; protectOriginalSave = false;
     renderRecipes();
     renderer.previous.clear(); renderer.pulses.clear(); renderer.particles = []; renderer.camera.fit(game.area);
-    ui.category = 'logistics'; ui.dir = 0; chooseTool('select');
+    ui.scene = game.state.shop ? 'shop' : 'factory'; ui.category = 'logistics'; ui.dir = 0; chooseTool('select');
     document.querySelectorAll('[data-category]').forEach(button => button.classList.toggle('active', button.dataset.category === ui.category));
     $('#restart-dialog').close(); enterWorkshop();
   } catch { toast('无法备份，当前工坊未改变'); }
@@ -391,6 +474,7 @@ function removeBuilding(b) {
 }
 function useCell(cell, paint = false) {
   if (ui.screen !== 'workshop' || document.querySelector('dialog[open]')) return false;
+  if (ui.scene === 'shop') return false;
   if (!game.inside(cell.x, cell.y)) { if (!paint) toast('点上方扩建，解锁更多空地'); return false; }
   const b = game.at(cell.x, cell.y);
   if (practice && ui.tool === 'belt' && (practice.step !== 1 || cell.x !== 6 || cell.y !== 2)) return false;
@@ -416,8 +500,14 @@ canvas.addEventListener('pointerdown', event => {
   activePointer = event.pointerId;
   event.preventDefault(); canvas.focus({ preventScroll: true }); canvas.setPointerCapture(event.pointerId);
   lastPointer = { x: event.clientX, y: event.clientY };
-  panning = event.button === 1 || ui.tool === 'pan' || ui.focus;
+  panning = ui.scene !== 'shop' && (event.button === 1 || ui.tool === 'pan' || ui.focus);
   if (panning) { panPoint = lastPointer; canvas.dataset.panning = 'true'; return; }
+  if (ui.scene === 'shop') {
+    const point = renderer.shopPointAt(event.clientX, event.clientY);
+    if (event.pointerType === 'touch') { pendingTouch = { ...point, shop: true }; touchOrigin = lastPointer; }
+    else useShopPoint(point);
+    return;
+  }
   const cell = renderer.cellAt(event.clientX, event.clientY); ui.hover = cell;
   dragging = !practice && (ui.tool === 'belt' || ui.tool === 'remove'); lastCell = cell;
   dragError = '';
@@ -428,6 +518,10 @@ canvas.addEventListener('pointermove', event => {
   if (ui.screen !== 'workshop' || document.querySelector('dialog[open]')) return;
   if (activePointer !== null && event.pointerId !== activePointer) return;
   lastPointer = { x: event.clientX, y: event.clientY };
+  if (ui.scene === 'shop') {
+    if (pendingTouch && touchOrigin && Math.hypot(event.clientX - touchOrigin.x, event.clientY - touchOrigin.y) > 8) pendingTouch = null;
+    return;
+  }
   if (panning && panPoint) { renderer.pan(event.clientX - panPoint.x, event.clientY - panPoint.y); panPoint = lastPointer; ui.hover = null; return; }
   const hit = document.elementFromPoint?.(event.clientX, event.clientY);
   if (hit && hit !== canvas) { lastCell = null; pendingTouch = null; ui.hover = null; return; }
@@ -465,7 +559,7 @@ function finishDrag(event, complete = false) {
     const hit = document.elementFromPoint?.(event.clientX, event.clientY);
     validTap = (!hit || hit === canvas) && (!touchOrigin || dragging || Math.hypot(event.clientX - touchOrigin.x, event.clientY - touchOrigin.y) <= 8);
   }
-  if (complete && pendingTouch && validTap && !blockedTouchGesture) useCell(pendingTouch);
+  if (complete && pendingTouch && validTap && !blockedTouchGesture) { if (pendingTouch.shop) useShopPoint(pendingTouch); else useCell(pendingTouch); }
   if (dragging) save();
   if (complete && ui.selected !== null) renderer.pulse(ui.selected, 'release');
   activePointer = null; pendingTouch = null; touchOrigin = null; panning = false; panPoint = null; canvas.dataset.panning = 'false';
@@ -495,7 +589,7 @@ document.querySelectorAll('[data-category]').forEach(button => button.addEventLi
 $('#select-tool').addEventListener('click', () => chooseTool('select'));
 $('#remove-tool').addEventListener('click', () => chooseTool(ui.tool === 'remove' ? 'select' : 'remove'));
 function rotate() {
-  if (practice) return;
+  if (practice || ui.scene === 'shop') return;
   if (ui.selected !== null && ui.tool === 'select') { game.rotate(ui.selected); renderer.pulse(ui.selected); } else ui.dir = (ui.dir + 1) % 4;
   save(); renderUi(true);
 }
@@ -533,7 +627,19 @@ $('#factory-minimap').addEventListener('keydown', event => {
   renderer.camera.centerOn(renderer.camera.x / 72 + delta[0], renderer.camera.y / 72 + delta[1]); renderer.resize(game.area, ui); ui.hover = null;
 });
 $('#focus-view').addEventListener('click', () => { finishDrag(); ui.focus = !ui.focus; ui.ordersOpen = false; ui.inspectorOpen = false; ui.hover = null; renderUi(true); });
-canvas.addEventListener('wheel', event => { if (ui.screen !== 'workshop' || document.querySelector('dialog[open]')) return; event.preventDefault(); finishDrag(); renderer.zoom(Math.exp(-Math.max(-150, Math.min(150, event.deltaY)) * .0025), event.clientX, event.clientY); lastPointer = { x: event.clientX, y: event.clientY }; refreshHover(); }, { passive: false });
+canvas.addEventListener('wheel', event => { if (ui.scene === 'shop' || ui.screen !== 'workshop' || document.querySelector('dialog[open]')) return; event.preventDefault(); finishDrag(); renderer.zoom(Math.exp(-Math.max(-150, Math.min(150, event.deltaY)) * .0025), event.clientX, event.clientY); lastPointer = { x: event.clientX, y: event.clientY }; refreshHover(); }, { passive: false });
+$('#scene-shop').addEventListener('click', () => switchScene('shop'));
+$('#scene-factory').addEventListener('click', () => switchScene('factory'));
+$('#shop-cook').addEventListener('click', () => shopCommand('cook'));
+$('#shop-pickup').addEventListener('click', () => shopCommand('pickup'));
+$('#shop-serve').addEventListener('click', serveNext);
+$('#shop-clear').addEventListener('click', () => shopCommand('discard'));
+$('#shop-food').addEventListener('change', () => {
+  const item = $('#shop-food').value;
+  if (game.state.shop && Object.hasOwn(SHOP_RECIPES, item) && SHOP_RECIPES[item].unlock <= game.unlockLevel && !practice) { game.state.shop.selected = item; save(); renderUi(true); }
+});
+$('#shop-staff').addEventListener('click', () => { if (practice) return; finishDrag(); $('#staff-dialog').showModal(); renderStaff(); });
+$('#close-staff').addEventListener('click', () => $('#staff-dialog').close());
 $('#motion-toggle').addEventListener('click', toggleMotion);
 $('#settings-motion').addEventListener('click', toggleMotion);
 $('#menu-play').addEventListener('click', () => !hasSave && !tutorialSeen && !protectOriginalSave ? startTutorial() : enterWorkshop());
@@ -569,11 +675,19 @@ $('#close-recipes').addEventListener('click', () => $('#recipe-dialog').close())
 $('#portrait-continue').addEventListener('click', () => $('.orientation-hint').hidden = true);
 window.addEventListener('keydown', event => {
   if (ui.screen !== 'workshop') return;
-  if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName) || document.querySelector('dialog[open]')) return;
+  if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) || document.querySelector('dialog[open]')) return;
   if (ui.focus && event.key !== 'Escape') return;
   if (event.key.toLowerCase() === 'r') { event.preventDefault(); rotate(); }
   if (event.key === ' ' && document.activeElement?.tagName !== 'BUTTON') { event.preventDefault(); pause(); }
   if (event.key === 'Escape') { ui.ordersOpen = false; ui.focus = false; chooseTool('select'); }
+  if (ui.scene === 'shop') {
+    if (document.activeElement === canvas) {
+      const d = { ArrowRight: [1, 0], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowUp: [0, -1], d: [1, 0], s: [0, 1], a: [-1, 0], w: [0, -1] }[event.key];
+      if (d) { event.preventDefault(); const p = game.state.shop.player; shopCommand('walk', { x: p.x + d[0], y: p.y + d[1] }); }
+      if (event.key.toLowerCase() === 'e' || event.key === 'Enter') { event.preventDefault(); const s = game.state.shop; if (s.player.holding) serveNext(); else if (counterUsed(s)) shopCommand('pickup'); else shopCommand('cook'); }
+    }
+    return;
+  }
   if (event.key === 'Delete' || event.key === 'Backspace') { const b = game.state.buildings.find(b => b.id === ui.selected); if (b && document.activeElement === canvas) { event.preventDefault(); removeBuilding(b); } }
   if (['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'].includes(event.key) && document.activeElement === canvas) {
     event.preventDefault(); const [w, h] = game.area, pos = ui.hover || { x: 0, y: 0 };
@@ -588,7 +702,7 @@ window.addEventListener('pagehide', save);
 let previousTime = performance.now(), previousSave = previousTime, previousUi = 0;
 function frame(now) {
   const dt = Math.min(.1, Math.max(0, (now - previousTime) / 1000)); previousTime = now;
-  if (ui.screen === 'workshop' && !document.hidden && !document.querySelector('dialog[open]') && (!practice || (practice.step >= 2 && practice.step < 5))) game.update(dt);
+  if (ui.screen === 'workshop' && !document.hidden && !document.querySelector('dialog[open]') && (!practice || practice.step < 5)) game.update(dt);
   if (ui.screen === 'workshop') { renderer.draw(game, ui, now); if (!$('#minimap-panel').hidden) renderer.drawMinimap($('#factory-minimap'), game); }
   $('#zoom-reset').textContent = `${Math.round(renderer.camera.zoom * 100)}%`;
   if (now - previousUi > 160) { renderUi(); previousUi = now; }

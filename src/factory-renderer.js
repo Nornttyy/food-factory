@@ -1,10 +1,11 @@
-import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.9.0';
-import { CELL, FactoryCamera, jellyPose, foodPose } from './factory-feel.js?v=0.9.0';
-import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.9.0';
+import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.10.0';
+import { CELL, FactoryCamera, jellyPose, foodPose } from './factory-feel.js?v=0.10.0';
+import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.10.0';
+import { drawShopScene } from './factory-shop-view.js?v=0.10.0';
 export class FactoryAssets {
   constructor() { this.images = {}; this.sprites = {}; this.ready = false; }
   async load(base = './assets/generated/factory/cream-v1/') {
-    const response = await fetch(base + 'manifest.json?v=0.9.0');
+    const response = await fetch(base + 'manifest.json?v=0.10.0');
     if (!response.ok) throw new Error('素材清单读取失败');
     const manifest = await response.json();
     this.sprites = Object.fromEntries(manifest.sprites.map(sprite => [sprite.id, sprite]));
@@ -45,6 +46,12 @@ export class FactoryRenderer {
     const rect = this.canvas.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
     const w = Math.max(1, Math.round(rect.width * dpr)), h = Math.max(1, Math.round(rect.height * dpr));
     if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
+    if (ui.scene === 'shop') {
+      const top = rect.height < 600 ? 82 : 112, bottom = rect.height < 600 ? 72 : 92;
+      const scale = Math.max(.08, Math.min((rect.width - 18) / 720, (rect.height - top - bottom) / 432));
+      this.transform = { scale, x: (rect.width - 720 * scale) / 2, y: top + (rect.height - top - bottom - 432 * scale) / 2, dpr };
+      return;
+    }
     this.transform = { ...this.camera.resize(rect.width, rect.height, area, ui), dpr };
   }
   zoom(factor, clientX, clientY) {
@@ -80,7 +87,12 @@ export class FactoryRenderer {
     const rect = this.canvas.getBoundingClientRect(), t = this.transform;
     return { x: Math.floor((clientX - rect.left - t.x) / t.scale / CELL), y: Math.floor((clientY - rect.top - t.y) / t.scale / CELL) };
   }
+  shopPointAt(clientX, clientY) {
+    const rect = this.canvas.getBoundingClientRect(), t = this.transform;
+    return { x: (clientX - rect.left - t.x) / t.scale / CELL, y: (clientY - rect.top - t.y) / t.scale / CELL };
+  }
   draw(game, ui, timestamp) {
+    if (ui.scene === 'shop' && game.state.shop) { this.resize(game.area, ui); drawShopScene(this, game, ui); return; }
     this.grid = new Map(game.state.buildings.map(b => [`${b.x},${b.y}`, b]));
     this.now = timestamp; this.reduced = Boolean(ui.reducedMotion); this.resize(game.area, ui); this.syncEffects(game, timestamp);
     const ctx = this.ctx, t = this.transform, s = game.state;

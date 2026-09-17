@@ -6,9 +6,9 @@ const run = (game, seconds) => { for (let n = 0; n < seconds * 10; n++) game.upd
 const stockFor = (game, slot = 0) => { const offer = game.wholesaleOffers[slot]; game.state.business.warehouse = { ...offer.wants }; return offer; };
 
 test('legacy factories migrate warehouse defaults without changing orders or active contracts', () => {
-  const game = new FactoryGame(); game.acceptContract(0); run(game, 12);
+  const game = new FactoryGame({ shop: false }); game.acceptContract(0); run(game, 12);
   const original = JSON.parse(game.serialize()); delete original.business;
-  const loaded = new FactoryGame(); assert.equal(loaded.restore(JSON.stringify(original)), true);
+  const loaded = new FactoryGame({ shop: false }); assert.equal(loaded.restore(JSON.stringify(original)), true);
   assert.deepEqual(loaded.state.business, freshBusiness());
   assert.deepEqual(loaded.state.career, original.career); assert.deepEqual(loaded.state.orderProgress, original.orderProgress);
   assert.equal(loaded.state.coins, original.coins);
@@ -16,7 +16,7 @@ test('legacy factories migrate warehouse defaults without changing orders or act
 });
 
 test('a real production line can store rather than sell, then return to selling', () => {
-  const game = new FactoryGame(), depot = game.at(8, 2);
+  const game = new FactoryGame({ shop: false }), depot = game.at(8, 2);
   game.acceptContract(0); const wallet = game.state.coins;
   assert.equal(game.setDepotMode(depot.id, 'store').ok, true); run(game, 30);
   assert.ok(game.state.business.warehouse.bread >= 4); assert.equal(game.state.coins, wallet);
@@ -43,7 +43,7 @@ test('multiple depots reserve shared capacity without loss, then resume when spa
 });
 
 test('wholesale consumes exactly one basket, pays a premium once, and leaves retail goals alone', () => {
-  const game = new FactoryGame(); game.acceptContract(0);
+  const game = new FactoryGame({ shop: false }); game.acceptContract(0);
   const insufficient = game.serialize(), emptyOffer = game.wholesaleOffers[2];
   assert.equal(game.shipWholesale(emptyOffer.id).ok, false); assert.equal(game.serialize(), insufficient);
   const offer = stockFor(game, 2), wallet = game.state.coins;
@@ -54,11 +54,11 @@ test('wholesale consumes exactly one basket, pays a premium once, and leaves ret
   assert.deepEqual(game.state.business.shipped, offer.wants);
   assert.deepEqual(game.state.orderProgress, {}); assert.deepEqual(game.contract.progress, {}); assert.equal(game.state.totalSold, 0);
   const after = game.serialize(); assert.equal(game.shipWholesale(offer.id).ok, false); assert.equal(game.serialize(), after);
-  assert.equal(new FactoryGame().restore(after), true);
+  assert.equal(new FactoryGame({ shop: false }).restore(after), true);
 });
 
 test('stock retail clears space without crediting timed or main orders, and packaging applies', () => {
-  const game = new FactoryGame(); game.acceptContract(0); game.state.business.warehouse = { bread: 20 };
+  const game = new FactoryGame({ shop: false }); game.acceptContract(0); game.state.business.warehouse = { bread: 20 };
   game.state.career.points = 3; game.research('value');
   const wallet = game.state.coins, price = game.salePrice('bread');
   assert.equal(game.sellWarehouse('bread', 10).reward, price * 10); assert.equal(game.state.coins, wallet + price * 10);
@@ -71,12 +71,12 @@ test('stock retail clears space without crediting timed or main orders, and pack
 });
 
 test('removing storage depots neither discards nor duplicates shared warehouse contents', () => {
-  const game = new FactoryGame(), depot = game.at(8, 2); game.setDepotMode(depot.id, 'store'); run(game, 25);
+  const game = new FactoryGame({ shop: false }), depot = game.at(8, 2); game.setDepotMode(depot.id, 'store'); run(game, 25);
   const stored = { ...game.state.business.warehouse };
   game.remove(depot.id); assert.deepEqual(game.state.business.warehouse, stored);
   const replacement = game.place('depot', 8, 2).building; assert.equal(replacement.mode, undefined);
   game.setDepotMode(replacement.id, 'store'); assert.deepEqual(game.state.business.warehouse, stored);
-  const loaded = new FactoryGame(); assert.equal(loaded.restore(game.serialize()), true);
+  const loaded = new FactoryGame({ shop: false }); assert.equal(loaded.restore(game.serialize()), true);
   assert.equal(loaded.at(8, 2).mode, 'store'); assert.deepEqual(loaded.state.business.warehouse, stored);
 });
 
@@ -90,19 +90,19 @@ test('wholesale baskets stay within capacity and available food tiers, even afte
 });
 
 test('cooperation reputation expands capacity and every milestone pays only once across reload', () => {
-  const game = new FactoryGame(); assert.equal(game.warehouseCapacity, 100); game.state.orderIndex = 8; game.state.expansion = 4; game.state.career.completed = 3;
+  const game = new FactoryGame({ shop: false }); assert.equal(game.warehouseCapacity, 100); game.state.orderIndex = 8; game.state.expansion = 4; game.state.career.completed = 3;
   for (let round = 0; round < 10; round++) assert.equal(game.shipWholesale(stockFor(game, 2).id).ok, true);
   assert.equal(game.warehouseCapacity, 300); assert.equal(validBusiness(game.state.business), true);
   for (const goal of MILESTONES) {
     const points = game.state.career.points; assert.equal(game.claimMilestone(goal.id).ok, true, goal.id);
     assert.equal(game.state.career.points, points + goal.points); const saved = game.serialize();
     assert.equal(game.claimMilestone(goal.id).ok, false); assert.equal(game.serialize(), saved);
-    const loaded = new FactoryGame(); assert.equal(loaded.restore(saved), true); assert.equal(loaded.claimMilestone(goal.id).ok, false);
+    const loaded = new FactoryGame({ shop: false }); assert.equal(loaded.restore(saved), true); assert.equal(loaded.claimMilestone(goal.id).ok, false);
   }
 });
 
 test('malformed business state, impossible histories, and invalid depot modes reject atomically', () => {
-  const game = new FactoryGame(), before = game.serialize();
+  const game = new FactoryGame({ shop: false }), before = game.serialize();
   const invalid = [
     s => s.business.warehouse.bread = -1, s => s.business.warehouse.bread = .5,
     s => s.business.warehouse.flour = 1, s => s.business.warehouse.bread = 101,
