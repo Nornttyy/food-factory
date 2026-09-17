@@ -7,7 +7,7 @@ function add(g, type, x, y, dir = 0) { const result = g.place(type, x, y, dir); 
 function countItems(g) { return g.state.buildings.reduce((n, b) => n + Number(Boolean(b.input)) + Number(Boolean(b.output)), 0); }
 
 test('starter makes bread, sells once and completes the first order without input', () => {
-  const g = new FactoryGame({ shop: false }); run(g, 30);
+  const g = new FactoryGame(); run(g, 30);
   assert.ok(g.state.delivered.bread >= 4); assert.equal(g.orderReady, true);
   assert.equal(g.state.coins, 450 + g.state.delivered.bread * ITEMS.bread.value);
   const before = g.state.coins; assert.equal(g.claimOrder().ok, true);
@@ -15,7 +15,7 @@ test('starter makes bread, sells once and completes the first order without inpu
   assert.equal(g.claimOrder().ok, false); assert.deepEqual(g.state.orderProgress, {});
 });
 test('placement guards funds, bounds, directions, overlap and unlocks without mutation', () => {
-  const g = new FactoryGame({ shop: false }), before = g.serialize();
+  const g = new FactoryGame(), before = g.serialize();
   for (const args of [['belt', -1, 1], ['belt', 14, 1], ['belt', 1.5, 1], ['belt', 1, 2], ['belt', 1, 1, 4], ['juice_press', 1, 1], ['unknown', 1, 1]]) assert.equal(g.place(...args).ok, false);
   assert.equal(g.serialize(), before); g.state.coins = 0; assert.equal(g.place('belt', 0, 0).ok, false);
 });
@@ -69,7 +69,7 @@ test('paid construction and upgrades refund exactly once, starter cannot mint co
   assert.equal(g.upgrade(b.id).ok, true); assert.equal(g.upgrade(b.id).ok, true); assert.equal(g.upgrade(b.id).ok, false);
   b.input = 'flour'; const result = g.remove(b.id); assert.equal(result.discarded, true); assert.equal(g.state.coins, before);
   assert.equal(g.remove(b.id).ok, false); assert.equal(g.state.coins, before);
-  const starter = new FactoryGame({ shop: false }); starter.state.buildings.map(b => b.id).forEach(id => starter.remove(id)); assert.equal(starter.state.coins, 450);
+  const starter = new FactoryGame(); starter.state.buildings.map(b => b.id).forEach(id => starter.remove(id)); assert.equal(starter.state.coins, 450);
 });
 test('expansions charge once, unlock real cells and stop at grid bounds', () => {
   const g = empty(); g.state.coins = 50000;
@@ -83,19 +83,19 @@ test('expansions charge once, unlock real cells and stop at grid bounds', () => 
   assert.deepEqual(g.area, [40, 24]); assert.equal(g.expand().ok, false);
 });
 test('pause freezes production; double speed doubles fixed simulation time', () => {
-  const g = new FactoryGame({ shop: false }); g.state.paused = true; const before = g.serialize(); run(g, 20); assert.equal(g.serialize(), before);
+  const g = new FactoryGame(); g.state.paused = true; const before = g.serialize(); run(g, 20); assert.equal(g.serialize(), before);
   g.state.paused = false; g.state.speed = 2; run(g, 5); assert.equal(g.state.time, 10);
   const time = g.state.time; g.update(NaN); g.update(-1); assert.equal(g.state.time, time);
 });
 test('save round-trip preserves paid costs, queues, order and future deliveries', () => {
-  const a = new FactoryGame({ shop: false }); run(a, 12.3); a.upgrade(a.at(5, 2).id);
-  const b = new FactoryGame({ shop: false }); assert.equal(b.restore(a.serialize()), true);
+  const a = new FactoryGame(); run(a, 12.3); a.upgrade(a.at(5, 2).id);
+  const b = new FactoryGame(); assert.equal(b.restore(a.serialize()), true);
   run(a, 50); run(b, 50);
   assert.equal(a.state.coins, b.state.coins); assert.deepEqual(a.state.delivered, b.state.delivered); assert.deepEqual(a.state.orderProgress, b.state.orderProgress);
   assert.deepEqual(a.state.buildings.map(({ motion, flashUntil, idle, ...entity }) => entity), b.state.buildings.map(({ motion, flashUntil, idle, ...entity }) => entity));
 });
 test('damaged or foreign saves are rejected without replacing the working state', () => {
-  const g = new FactoryGame({ shop: false }), base = JSON.parse(g.serialize()), before = g.serialize();
+  const g = new FactoryGame(), base = JSON.parse(g.serialize()), before = g.serialize();
   const patches = [s => s.version = 2, s => s.coins = -10, s => s.expansion = 99, s => s.buildings[0].type = 'unknown', s => s.buildings[0].type = 'constructor', s => s.buildings[0].x = 99, s => s.buildings[0].input = 'bread', s => s.buildings[0].paid = 999999, s => s.buildings.push({ ...s.buildings[0] }), s => s.orderProgress = { bread: 9999 }, s => s.speed = Infinity, s => s.buildings[0].level = 0];
   for (const change of patches) { const data = structuredClone(base); change(data); assert.equal(g.restore(JSON.stringify(data)), false); assert.equal(g.serialize(), before); }
   for (const raw of [null, '', '{', '{}', '[]']) assert.equal(g.restore(raw), false);
@@ -108,14 +108,14 @@ test('orders continue beyond the introductory set with bounded rewards and targe
 });
 
 test('upgrading a paused partly processed machine preserves completion and yields a valid save', () => {
-  const g = new FactoryGame({ shop: false }), oven = g.at(5, 2); oven.input = 'dough'; oven.progress = 2.5; g.state.paused = true;
+  const g = new FactoryGame(), oven = g.at(5, 2); oven.input = 'dough'; oven.progress = 2.5; g.state.paused = true;
   assert.equal(g.upgrade(oven.id).ok, true); assert.ok(oven.progress < 2.134);
-  const restored = new FactoryGame({ shop: false }); assert.equal(restored.restore(g.serialize()), true); assert.equal(restored.state.paused, true);
+  const restored = new FactoryGame(); assert.equal(restored.restore(g.serialize()), true); assert.equal(restored.state.paused, true);
 });
 test('gifted equipment can be recovered and replaced for free even after spending all coins', () => {
-  const g = new FactoryGame({ shop: false }), oven = g.at(5, 2); g.remove(oven.id); assert.equal(g.state.stock.bread_oven, 1);
+  const g = new FactoryGame(), oven = g.at(5, 2); g.remove(oven.id); assert.equal(g.state.stock.bread_oven, 1);
   g.expand(); g.state.coins = 0; const replacement = g.place('bread_oven', 5, 2);
   assert.equal(replacement.ok, true); assert.equal(replacement.building.gifted, true); assert.equal(g.state.stock.bread_oven, 0);
   assert.equal(g.place('bread_oven', 5, 3).ok, false); run(g, 30); assert.ok(g.state.coins > 0);
-  const restored = new FactoryGame({ shop: false }); assert.equal(restored.restore(g.serialize()), true);
+  const restored = new FactoryGame(); assert.equal(restored.restore(g.serialize()), true);
 });

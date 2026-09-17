@@ -6,10 +6,9 @@ import { FactoryRenderer } from '../src/factory-renderer.js';
 
 test('old expansion stages gain room without losing paid layouts, coins or progress', () => {
   for (const [stage, [w, h]] of [[10, 6], [12, 8], [14, 8]].entries()) {
-    const game = new FactoryGame({ shop: false }); game.state.expansion = stage; game.place('belt', w - 1, h - 1);
+    const game = new FactoryGame(); game.state.expansion = stage; game.place('belt', w - 1, h - 1);
     const old = JSON.parse(game.serialize()); delete old.business;
-    old.buildings.find(b => b.x === w - 1 && b.y === h - 1).paid = 8;
-    const loaded = new FactoryGame({ shop: false }); assert.equal(loaded.restore(JSON.stringify(old)), true);
+    const loaded = new FactoryGame(); assert.equal(loaded.restore(JSON.stringify(old)), true);
     assert.deepEqual(loaded.area, AREAS[stage]); assert.ok(loaded.area[0] >= w && loaded.area[1] >= h);
     assert.equal(loaded.state.coins, old.coins); assert.deepEqual(loaded.state.orderProgress, old.orderProgress);
     assert.equal(loaded.at(w - 1, h - 1).paid, 8);
@@ -23,7 +22,7 @@ test('a fully occupied 960-machine factory round-trips with upgraded working con
     b.paid += upgradeCost({ ...b, level: 1 }) + upgradeCost({ ...b, level: 2 }); b.level = 3; b.input = 'dough'; b.progress = 1.3;
   }
   assert.equal(game.state.buildings.length, 960); const raw = game.serialize(); assert.ok(raw.length < 500000);
-  const loaded = new FactoryGame({ shop: false }); assert.equal(loaded.restore(raw), true);
+  const loaded = new FactoryGame(); assert.equal(loaded.restore(raw), true);
   assert.deepEqual(loaded.area, [40, 24]); assert.equal(loaded.at(39, 23).progress, 1.3); assert.equal(loaded.at(39, 23).level, 3);
 });
 

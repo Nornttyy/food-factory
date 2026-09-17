@@ -38,7 +38,7 @@ test('zoom preserves the pointer world anchor, pans consistently, clamps and res
   camera.resize(844, 390, [12, 8]); assert.equal(camera.x, 360); assert.equal(camera.y, 216);
 });
 test('render feedback is bounded and never contaminates simulation saves', () => {
-  const g = new FactoryGame({ shop: false }), before = g.serialize();
+  const g = new FactoryGame(), before = g.serialize();
   const renderer = new FactoryRenderer({ getContext: () => ({}) }, {});
   renderer.syncEffects(g, 100); renderer.pulse(1, 'upgrade', 120);
   for (let n = 0; n < 30; n++) renderer.burst(1, 2, 'upgrade', 200);

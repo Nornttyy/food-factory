@@ -71,7 +71,7 @@ test('continuing an existing belt turns it and charges only for the new tile', (
   old.output = 'bread';
   const result = game.extendBelt(old, { x: 2, y: 3 });
   assert.equal(result.ok, true); assert.equal(result.created, true); assert.equal(old.dir, 1);
-  assert.equal(result.building.dir, 1); assert.equal(game.state.coins, wallet - 35);
+  assert.equal(result.building.dir, 1); assert.equal(game.state.coins, wallet - 8);
   add(game, 'depot', 2, 4); run(game, 2); assert.equal(game.state.delivered.bread, 1);
 });
 
@@ -160,7 +160,7 @@ test('fast diagonal routing can cross a machine and preserve its contents and or
     anchor = result.building; assert.ok(++steps <= 6);
   }
   assert.equal(game.at(3, 2).type, 'belt'); assert.equal(game.at(4, 1), undefined);
-  assert.deepEqual(machine, beforeMachine); assert.equal(game.state.coins, wallet - 5 * 35);
+  assert.deepEqual(machine, beforeMachine); assert.equal(game.state.coins, wallet - 5 * 8);
 });
 
 test('rotation and removal immediately recompute ports rather than retaining stale joins', () => {
@@ -175,7 +175,7 @@ test('saved corner routes restore with identical future delivery and no lost goo
   const game = empty(), first = add(game, 'belt', 2, 2, 0);
   game.extendBelt(first, { x: 3, y: 2 }); game.extendBelt({ x: 3, y: 2 }, { x: 3, y: 3 });
   add(game, 'depot', 3, 4); first.output = 'bread'; game.update(.1);
-  const restored = new FactoryGame({ shop: false }); assert.equal(restored.restore(game.serialize()), true);
+  const restored = new FactoryGame(); assert.equal(restored.restore(game.serialize()), true);
   run(game, 3); run(restored, 3);
   assert.deepEqual(restored.state.delivered, { bread: 1 }); assert.equal(restored.state.coins, game.state.coins);
   assert.equal(restored.state.buildings.some(b => b.output), false);

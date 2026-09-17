@@ -1,7 +1,7 @@
 {
   "name": "美食工坊",
   "short_name": "美食工坊",
-  "description": "猫咪零金币开店，亲手做饭送餐，再招员工、搭建自动化流水线",
+  "description": "奶油色美食工坊，搭建自己的自动化流水线",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",

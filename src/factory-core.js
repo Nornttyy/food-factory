@@ -1,7 +1,7 @@
-import { LINK_DIRS, directionBetween, opposite, canLink, outputDirections } from './factory-links.js?v=0.10.0';
-import { RESEARCH, freshCareer, contractFor, contractComplete, validCareer } from './factory-career.js?v=0.10.0';
-import { freshBusiness, validBusiness, warehouseCapacity, warehouseUsed, wholesaleFor, MILESTONES } from './factory-business.js?v=0.10.0';
-import { freshShop, validShop, requestShop, hireStaff, updateShop, counterUsed, COUNTER_CAPACITY, automationReady } from './factory-shop.js?v=0.10.0';
+import { LINK_DIRS, directionBetween, opposite, canLink, outputDirections } from './factory-links.js?v=0.10.1';
+import { RESEARCH, freshCareer, contractFor, contractComplete, validCareer } from './factory-career.js?v=0.10.1';
+import { freshBusiness, validBusiness, warehouseCapacity, warehouseUsed, wholesaleFor, MILESTONES } from './factory-business.js?v=0.10.1';
+import { validShop, cookSeconds, STAFF } from './factory-shop.js?v=0.10.1';
 export const SAVE_KEY = 'food-factory-v1';
 export const WIDTH = 40;
 export const HEIGHT = 24;
@@ -14,20 +14,20 @@ export const ITEMS = {
   flour: { label: '面粉', sprite: 'flour' }, dough: { label: '面团', sprite: 'dough' },
   raw_donut: { label: '生面圈', sprite: 'raw_donut' }, orange: { label: '橙子', sprite: 'orange' },
   clean_orange: { label: '洗净橙子', sprite: 'orange' },
-  bread: { label: '面包', sprite: 'bread', value: 4 },
-  donut_plain: { label: '原味甜甜圈', sprite: 'donut_plain', value: 6 },
-  donut_strawberry: { label: '草莓甜甜圈', sprite: 'donut_strawberry', value: 8 },
-  orange_juice: { label: '橙汁', sprite: 'orange_juice', value: 6 },
-  butter_cookie: { label: '奶油饼干', sprite: 'butter_cookie', value: 5 },
-  steamed_bun: { label: '奶香包', sprite: 'steamed_bun', value: 6 },
-  strawberry_cake: { label: '草莓蛋糕', sprite: 'strawberry_cake', value: 10 },
-  orange_icepop: { label: '橙汁冰棒', sprite: 'orange_icepop', value: 11 },
+  bread: { label: '面包', sprite: 'bread', value: 12 },
+  donut_plain: { label: '原味甜甜圈', sprite: 'donut_plain', value: 18 },
+  donut_strawberry: { label: '草莓甜甜圈', sprite: 'donut_strawberry', value: 26 },
+  orange_juice: { label: '橙汁', sprite: 'orange_juice', value: 20 },
+  butter_cookie: { label: '奶油饼干', sprite: 'butter_cookie', value: 16 },
+  steamed_bun: { label: '奶香包', sprite: 'steamed_bun', value: 18 },
+  strawberry_cake: { label: '草莓蛋糕', sprite: 'strawberry_cake', value: 32 },
+  orange_icepop: { label: '橙汁冰棒', sprite: 'orange_icepop', value: 34 },
 };
 export const BUILDINGS = {
-  belt: { label: '传送带', sprite: 'belt_straight', category: 'logistics', cost: 35, unlock: 0, kind: 'belt' },
-  splitter: { label: '分流器', sprite: 'belt_splitter', category: 'logistics', cost: 140, unlock: 0, kind: 'splitter' },
-  merger: { label: '合流器', sprite: 'belt_merger', category: 'logistics', cost: 100, unlock: 0, kind: 'belt' },
-  depot: { label: '出货站', sprite: 'warehouse_intake', category: 'logistics', cost: 160, unlock: 0, kind: 'depot' },
+  belt: { label: '传送带', sprite: 'belt_straight', category: 'logistics', cost: 8, unlock: 0, kind: 'belt' },
+  splitter: { label: '分流器', sprite: 'belt_splitter', category: 'logistics', cost: 35, unlock: 0, kind: 'splitter' },
+  merger: { label: '合流器', sprite: 'belt_merger', category: 'logistics', cost: 25, unlock: 0, kind: 'belt' },
+  depot: { label: '出货站', sprite: 'warehouse_intake', category: 'logistics', cost: 60, unlock: 0, kind: 'depot' },
   dough_mixer: { label: '和面机', sprite: 'dough_mixer', category: 'machines', cost: 100, unlock: 0, kind: 'machine', input: 'flour', output: 'dough', duration: 2.4 },
   bread_oven: { label: '烤箱', sprite: 'bread_oven', category: 'machines', cost: 140, unlock: 0, kind: 'machine', input: 'dough', output: 'bread', duration: 3.2 },
   ring_former: { label: '成型机', sprite: 'ring_former', category: 'machines', cost: 110, unlock: 1, kind: 'machine', input: 'dough', output: 'raw_donut', duration: 2.4 },
@@ -65,6 +65,7 @@ const NEW_FOOD_ORDERS = [
   { title: '清凉一夏', wants: { orange_icepop: 8, orange_juice: 6 }, reward: 800, note: '给果汁分流，一半冷冻成冰棒' },
 ];
 export function orderFor(index, catalog = 1) {
+  // An already accepted cat-era order keeps its reward until it is claimed.
   if (catalog === 3) { const order = orderFor(index, 2); return { ...order, reward: Math.round(order.reward / 10) }; }
   if (index < ORDER_LIST.length) return structuredClone(ORDER_LIST[index]);
   if (catalog === 2) {
@@ -87,19 +88,15 @@ export function makeEntity(type, x, y, dir, id, paid = 0) {
   return { id, type, x, y, dir, level: 1, paid, input: null, output: null, progress: 0, readyAt: 0, roundRobin: 0, blocked: false, idle: 0 };
 }
 export class FactoryGame {
-  constructor({ starter = true, shop = starter } = {}) {
-    this.state = { version: 1, coins: shop ? 0 : 450, expansion: 0, orderIndex: 0, orderProgress: {}, delivered: {}, stock: {}, buildings: [], nextId: 1, time: 0, tick: 0, paused: false, speed: 1, totalSold: 0 };
+  constructor({ starter = true } = {}) {
+    this.state = { version: 1, coins: 450, expansion: 0, orderIndex: 0, orderProgress: {}, delivered: {}, stock: {}, buildings: [], nextId: 1, time: 0, tick: 0, paused: false, speed: 1, totalSold: 0 };
     this.state.career = freshCareer();
     this.state.business = freshBusiness();
-    this.state.orderCatalog = shop ? 3 : 2;
-    this.state.shop = shop ? freshShop() : null;
+    this.state.orderCatalog = 2;
     this.accumulator = 0;
     this.events = [];
-    if (starter && !shop) ['flour_hopper', 'belt', 'dough_mixer', 'belt', 'bread_oven', 'belt', 'belt', 'depot'].forEach((type, i) => this.state.buildings.push({ ...makeEntity(type, i + 1, 2, 0, this.state.nextId++), gifted: true }));
+    if (starter) ['flour_hopper', 'belt', 'dough_mixer', 'belt', 'bread_oven', 'belt', 'belt', 'depot'].forEach((type, i) => this.state.buildings.push({ ...makeEntity(type, i + 1, 2, 0, this.state.nextId++), gifted: true }));
   }
-  get automationReady() { return automationReady(this.state.shop); }
-  shopAction(kind, value) { return requestShop(this, kind, value); }
-  hire(role) { return hireStaff(this, role); }
   get area() { return AREAS[this.state.expansion]; }
   get order() { return orderFor(this.state.orderIndex, this.state.orderCatalog); }
   get unlockLevel() { return Math.min(2, this.state.orderIndex); }
@@ -120,7 +117,6 @@ export class FactoryGame {
     b.mode = mode; return { ok: true };
   }
   shipWholesale(id) {
-    if (this.state.shop && !this.state.shop.legacy && this.state.shop.served < 30) return { ok: false, message: '服务 30 位顾客后开放商店合作' };
     const offer = this.wholesaleOffers.find(offer => offer.id === id), business = this.state.business;
     if (!offer) return { ok: false, message: '合作货单已更新，请重新选择' };
     if (Object.entries(offer.wants).some(([item, n]) => (business.warehouse[item] || 0) < n)) return { ok: false, message: '仓库还没备齐这些美味' };
@@ -131,11 +127,6 @@ export class FactoryGame {
   sellWarehouse(item, count) {
     const b = this.state.business, value = this.salePrice(item);
     if (!value || !Number.isSafeInteger(count) || count <= 0 || (b.warehouse[item] || 0) < count) return { ok: false, message: '库存不足' };
-    if (this.state.shop) {
-      if (counterUsed(this.state.shop) + count > COUNTER_CAPACITY) return { ok: false, message: '取餐架空间不足，先送餐' };
-      b.warehouse[item] -= count; this.state.shop.counter[item] = (this.state.shop.counter[item] || 0) + count;
-      return { ok: true, reward: 0, moved: count };
-    }
     b.warehouse[item] -= count; this.state.coins += value * count;
     return { ok: true, reward: value * count };
   }
@@ -145,7 +136,7 @@ export class FactoryGame {
     b.claimed.push(id); this.state.coins += goal.coins; this.state.career.points += goal.points;
     return { ok: true, reward: goal.coins, points: goal.points };
   }
-  get offers() { return [0, 1, 2].map(slot => contractFor(this.unlockLevel, this.state.career.completed, slot, 2)); }
+  get offers() { return [0, 1, 2].map(slot => contractFor(this.unlockLevel, this.state.career.completed, slot)); }
   get contract() {
     const c = this.state.career.contract;
     return c ? { ...contractFor(c.tier, c.round, c.slot, this.state.career.catalog || 1), status: c.status, startedAt: c.startedAt, deadline: c.deadline, progress: c.progress } : null;
@@ -155,7 +146,7 @@ export class FactoryGame {
     const current = this.state.career.contract;
     if (!Number.isInteger(slot) || slot < 0 || slot > 2 || (current && current.status !== 'expired')) return { ok: false, message: '先完成或放弃当前急单' };
     const def = this.offers[slot];
-    this.state.career.catalog = 2;
+    this.state.career.catalog = 1;
     this.state.career.contract = { tier: def.tier, round: def.round, slot, status: 'active', startedAt: this.state.time, deadline: this.state.time + def.duration, progress: {} };
     return { ok: true };
   }
@@ -185,7 +176,6 @@ export class FactoryGame {
   place(type, x, y, dir = 0) {
     const def = BUILDINGS[type];
     if (!Object.hasOwn(BUILDINGS, type) || !Number.isInteger(dir) || dir < 0 || dir > 3) return { ok: false, message: '无效设备' };
-    if (!this.automationReady) return { ok: false, message: '先亲手服务 6 位顾客，再建自动化产线' };
     if (def.unlock > this.unlockLevel) return { ok: false, message: '先完成工坊订单' };
     if (!this.inside(x, y)) return { ok: false, message: '这片地还没有扩建' };
     if (this.at(x, y)) return { ok: false, message: '这里已经有设备啦' };
@@ -250,7 +240,7 @@ export class FactoryGame {
   claimOrder() {
     if (!this.orderReady) return { ok: false, message: '美味还在路上' };
     const reward = this.order.reward;
-    this.state.coins += reward; this.state.orderIndex++; this.state.orderProgress = {}; this.state.orderCatalog = this.state.shop ? 3 : 2;
+    this.state.coins += reward; this.state.orderIndex++; this.state.orderProgress = {}; this.state.orderCatalog = 2;
     return { ok: true, reward };
   }
   deliver(item, b) {
@@ -273,7 +263,7 @@ export class FactoryGame {
     if (!target || (source && !canLink(source, target))) return false;
     const def = BUILDINGS[target.type];
     if (def.kind === 'source') return false;
-    if (def.kind === 'depot') return Boolean(ITEMS[item]?.value) && (target.mode === 'store' ? this.warehouseUsed < this.warehouseCapacity : !this.state.shop || counterUsed(this.state.shop) < COUNTER_CAPACITY);
+    if (def.kind === 'depot') return Boolean(ITEMS[item]?.value) && (target.mode !== 'store' || this.warehouseUsed < this.warehouseCapacity);
     if (def.kind === 'machine') return !target.input && def.input === item;
     return !target.output;
   }
@@ -292,8 +282,6 @@ export class FactoryGame {
     const reserved = new Set();
     let storageReserved = 0;
     const storageFree = this.warehouseCapacity - this.warehouseUsed;
-    let counterReserved = 0;
-    const counterFree = s.shop ? COUNTER_CAPACITY - counterUsed(s.shop) : Infinity;
     const moves = [];
     // Rotating arbitration prevents a permanent winner at merging inputs.
     const offset = candidates.length ? s.tick % candidates.length : 0;
@@ -308,12 +296,11 @@ export class FactoryGame {
         const target = map.get(`${b.x + dx},${b.y + dy}`);
         if (target && !reserved.has(target.id) && this.canReceive(target, b.output, b)) {
           if (target.type === 'depot' && target.mode === 'store' && storageReserved >= storageFree) continue;
-          if (target.type === 'depot' && target.mode !== 'store' && counterReserved >= counterFree) continue;
           chosen = { from: b, to: target, item: b.output, dir }; break;
         }
       }
       b.blocked = !chosen;
-      if (chosen) { reserved.add(chosen.to.id); if (chosen.to.type === 'depot') { if (chosen.to.mode === 'store') storageReserved++; else counterReserved++; } moves.push(chosen); }
+      if (chosen) { reserved.add(chosen.to.id); if (chosen.to.type === 'depot' && chosen.to.mode === 'store') storageReserved++; moves.push(chosen); }
     }
     for (const { from, to, item, dir } of moves) {
       from.output = null; from.blocked = false;
@@ -323,8 +310,7 @@ export class FactoryGame {
         if (to.mode === 'store') {
           s.business.warehouse[item] = (s.business.warehouse[item] || 0) + 1;
           this.events.push({ kind: 'store', x: to.x, y: to.y, time: s.time });
-        } else if (s.shop) s.shop.counter[item] = (s.shop.counter[item] || 0) + 1;
-        else this.deliver(item, to);
+        } else this.deliver(item, to);
         to.flashUntil = s.time + 0.5;
       }
       else if (def.kind === 'machine') { to.input = item; to.progress = 0; }
@@ -343,7 +329,6 @@ export class FactoryGame {
         b.input = null; b.output = def.output; b.progress = 0; b.readyAt = s.time + STEP;
       }
     }
-    updateShop(this, STEP);
     if (s.career.contract?.status === 'active' && s.time >= s.career.contract.deadline) s.career.contract.status = 'expired';
   }
   serialize() {
@@ -362,8 +347,7 @@ export class FactoryGame {
       // Finish the already accepted legacy order before switching to the new menu.
       if (s.orderCatalog === undefined) s.orderCatalog = 1;
       if (![1, 2, 3].includes(s.orderCatalog)) return false;
-      if (s.shop === undefined) s.shop = freshShop(true, s.totalSold);
-      if (!validShop(s.shop, s)) return false;
+      if (s.shop !== undefined && !validShop(s.shop, s)) return false;
       if (!validCareer(s.career, s)) return false;
       if (s.business.claimed.some(id => { const goal = MILESTONES.find(goal => goal.id === id); return goal.progress(s) < goal.target; })) return false;
       const record = value => value && typeof value === 'object' && !Array.isArray(value) && Object.entries(value).every(([key, n]) => ITEMS[key]?.value && integer(n));
@@ -384,12 +368,36 @@ export class FactoryGame {
         if (b.gifted !== undefined && typeof b.gifted !== 'boolean') return false;
         if (b.mode !== undefined && (b.type !== 'depot' || !['sell', 'store'].includes(b.mode))) return false;
         if (b.gifted) gifts[b.type] = (gifts[b.type] || 0) + 1;
-        let maxPaid = b.gifted ? 0 : def.cost;
+        // Historical cat-era purchases refund their actual payment, not today's price.
+        let maxPaid = b.gifted ? 0 : Math.max(def.cost, { belt: 35, splitter: 140, merger: 100, depot: 160 }[b.type] || 0);
         for (let level = 1; level < b.level; level++) maxPaid += upgradeCost({ type: b.type, level });
         if (b.paid > maxPaid || (!['source', 'machine'].includes(def.kind) && b.level !== 1)) return false;
         ids.add(b.id); cells.add(`${b.x},${b.y}`);
       }
       if (Object.entries(gifts).some(([type, n]) => n > (giftLimits[type] || 0))) return false;
+      if (s.shop) {
+        const shop = s.shop;
+        const price = item => Math.round(ITEMS[item].value * (1 + s.career.research.value * .1));
+        let credit = Object.entries(shop.counter).reduce((sum, [item, count]) => sum + price(item) * count, 0);
+        for (const [role, a] of [['player', shop.player], ...Object.entries(shop.staff)]) if (a) {
+          if (role !== 'player') credit += STAFF[role].cost;
+          if (a.holding) credit += price(a.holding);
+          if (a.task?.kind === 'cook' && a.work + 1e-8 >= cookSeconds(a.task.item, role)) credit += price(a.task.item);
+        }
+        if (!shop.legacy) {
+          s.coins = Math.max(s.coins, 450);
+          for (const [type, limit] of Object.entries(giftLimits)) s.stock[type] = (s.stock[type] || 0) + limit - (gifts[type] || 0);
+          if (!s.buildings.length) {
+            for (const [i, type] of ['flour_hopper', 'belt', 'dough_mixer', 'belt', 'bread_oven', 'belt', 'belt', 'depot'].entries()) {
+              s.stock[type]--; s.buildings.push({ ...makeEntity(type, i + 1, 2, 0, s.nextId++), gifted: true });
+            }
+          }
+        }
+        // Compensation is not a sale and cannot complete ordinary/timed orders.
+        s.coins += credit;
+        if (!integer(s.coins) || !integer(s.nextId)) return false;
+      }
+      delete s.shop;
       this.state = { ...s, buildings: s.buildings.map(b => ({ ...b, motion: undefined, blocked: false, idle: 0 })) };
       this.accumulator = 0; this.events = [];
       return true;
