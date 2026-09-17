@@ -1,4 +1,4 @@
-import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS, durationFor } from './factory-core.js';
+import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js';
 import { CELL, FactoryCamera, jellyPose, foodPose } from './factory-feel.js';
 import { conveyorPorts, connectedPorts } from './factory-links.js';
 export class FactoryAssets {
@@ -194,7 +194,7 @@ export class FactoryRenderer {
     const working = !b.output && (b.input || def.kind === 'source');
     const pulse = this.pulses.get(b.id), pose = jellyPose(pulse ? (timestamp - pulse.start) / 1000 : 1, pulse?.kind, this.reduced);
     // Work phase follows simulation progress so pauses and dialogs freeze this motion.
-    const squash = !this.reduced && working && def.duration ? Math.sin(b.progress / durationFor(b) * Math.PI * 4) * .085 : 0;
+    const squash = !this.reduced && working && def.duration ? Math.sin(b.progress / game.duration(b) * Math.PI * 4) * .085 : 0;
     ctx.save(); ctx.fillStyle = '#92765524'; ctx.beginPath(); ctx.ellipse(x + 36, y + 58, 25 * pose.sx, 7, 0, 0, Math.PI * 2); ctx.fill();
     ctx.translate(x + 36, y + 62 + pose.y); ctx.rotate(pose.angle); ctx.scale(pose.sx * (1 + squash), pose.sy / (1 + squash));
     this.assets.draw(ctx, def.sprite, -31, -62, 62, 60);
@@ -204,7 +204,7 @@ export class FactoryRenderer {
     if (def.kind !== 'depot') arrow(ctx, x + 36 + DIRS[b.dir][0] * 29, y + 36 + DIRS[b.dir][1] * 29, b.dir, '#879d73', 8);
     if (def.duration) {
       round(ctx, x + 15, y + 65, 42, 3, 1.5, '#d6c7a2');
-      if (b.progress > 0) round(ctx, x + 15, y + 65, Math.max(2, 42 * b.progress / durationFor(b)), 3, 1.5, '#9daa83');
+      if (b.progress > 0) round(ctx, x + 15, y + 65, Math.max(2, 42 * b.progress / game.duration(b)), 3, 1.5, '#9daa83');
     }
     if (b.blocked) { round(ctx, x + 2, y + 2, 15, 15, 5, '#dfb097'); ctx.fillStyle = '#fff5dd'; ctx.font = 'bold 11px system-ui'; ctx.textAlign = 'center'; ctx.fillText('Ⅱ', x + 9.5, y + 13); }
     if (b.level > 1) { ctx.fillStyle = '#7f906b'; ctx.font = 'bold 9px system-ui'; ctx.textAlign = 'left'; ctx.fillText(`L${b.level}`, x + 6, y + 60); }

@@ -6,7 +6,8 @@ import { FactoryRenderer } from '../src/factory-renderer.js';
 test('factory entry loads generated atlases and wires construction, production, order and persistence controls', async () => {
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   const manifest = JSON.parse(await readFile(new URL('../assets/generated/factory/cream-v1/manifest.json', import.meta.url), 'utf8'));
-  const nodes = new Map(), storage = new Map(), frames = [], draws = [], documentListeners = {};
+  const nodes = new Map(), storage = new Map(), frames = [], draws = [], documentListeners = {}, windowListeners = {};
+  let failStorageKey = null;
   const context = new Proxy({ globalAlpha: 1, drawImage: (...args) => draws.push(args) }, { get: (t, p) => p in t ? t[p] : () => {}, set: (t, p, v) => { t[p] = v; return true; } });
   class Element {
     constructor(tag = 'div') { this.tagName = tag.toUpperCase(); this.children = []; this.style = {}; this.dataset = {}; this.listeners = {}; this.hidden = false; this.classList = { toggle() {} }; }
@@ -33,8 +34,8 @@ test('factory entry loads generated atlases and wires construction, production, 
     querySelector: selector => selector.startsWith('#') ? nodes.get(selector.slice(1)) : selector === '.orientation-hint' ? orientation : selector === 'dialog[open]' ? [...nodes.values()].find(n => n.tagName === 'DIALOG' && n.open) : null,
     querySelectorAll: () => categories,
   });
-  install('window', { devicePixelRatio: 1, addEventListener() {} });
-  install('localStorage', { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value) });
+  install('window', { devicePixelRatio: 1, addEventListener(name, callback) { windowListeners[name] = callback; } });
+  install('localStorage', { getItem: key => storage.get(key) || null, setItem: (key, value) => { if (key === failStorageKey || failStorageKey === 'all') throw new Error('Storage full'); storage.set(key, value); } });
   install('Image', class { async decode() {} });
   install('fetch', async () => ({ ok: true, json: async () => manifest }));
   install('requestAnimationFrame', callback => { frames.push(callback); return frames.length; });
@@ -42,7 +43,17 @@ test('factory entry loads generated atlases and wires construction, production, 
   try {
     const { runtime } = await import(`../src/factory-main.js?test=${Date.now()}`);
     assert.equal(runtime.assets.ready, true); assert.equal(nodes.get('loading').hidden, true); assert.equal(runtime.game.state.buildings.length, 8);
-    assert.equal(frames.length, 1); frames.shift()(performance.now() + 100); assert.ok(draws.length >= 9);
+    assert.equal(runtime.ui.screen, 'menu'); assert.equal(nodes.get('main-menu').hidden, false); assert.equal(nodes.get('factory-app').hidden, true);
+    assert.equal(frames.length, 1); frames.shift()(performance.now() + 100); assert.equal(runtime.game.state.time, 0);
+    nodes.get('factory-board').listeners.pointerdown({ button: 0, preventDefault() {}, pointerId: 100, clientX: 20, clientY: 20 });
+    assert.equal(runtime.game.state.buildings.length, 8);
+    for (const key of ['r', ' ', 'Enter', 'Delete']) windowListeners.keydown({ key, preventDefault() {} });
+    assert.equal(runtime.ui.dir, 0); assert.equal(runtime.game.state.paused, false);
+    nodes.get('menu-settings').click(); assert.equal(nodes.get('settings-dialog').open, true);
+    nodes.get('settings-motion').click(); assert.equal(JSON.parse(storage.get('food-factory-preferences-v1')).reducedMotion, true);
+    nodes.get('settings-motion').click(); nodes.get('close-settings').click();
+    nodes.get('menu-play').click(); assert.equal(runtime.ui.screen, 'workshop'); assert.equal(nodes.get('main-menu').hidden, true);
+    frames.shift()(performance.now() + 100); assert.ok(draws.length >= 9);
     assert.equal(nodes.get('order-drawer').hidden, true); assert.equal(nodes.get('inspector-panel').hidden, true); assert.equal(nodes.get('palette').hidden, true);
     nodes.get('orders-toggle').click(); assert.equal(nodes.get('order-drawer').hidden, false);
     nodes.get('close-orders').click(); assert.equal(nodes.get('order-drawer').hidden, true);
@@ -175,8 +186,69 @@ test('factory entry loads generated atlases and wires construction, production, 
     assert.equal(runtime.game.state.buildings.length, 1);
     down(strokeEvent(19, 4, 2, 'touch')); move(strokeEvent(19, 5, 2, 'touch')); up(strokeEvent(19, 5, 2, 'touch'));
     assert.equal(runtime.game.state.buildings.length, 2, 'a new single-finger stroke works after all fingers lift');
+    // Returning to the menu freezes production and preserves a deliberate pause.
+    runtime.game.state.paused = true;
+    nodes.get('menu-home').click(); const menuSave = runtime.game.serialize();
+    frames.shift()(performance.now() + 100000);
+    assert.equal(runtime.game.serialize(), menuSave); assert.equal(nodes.get('factory-app').hidden, true);
+    for (const key of ['r', ' ', 'Enter', 'Delete']) windowListeners.keydown({ key, preventDefault() {} });
+    assert.equal(runtime.game.serialize(), menuSave);
+    nodes.get('menu-play').click(); assert.equal(runtime.game.state.paused, true);
+    runtime.game.state.paused = false;
+
+    // Backup failure cannot replace an existing factory. A successful reset is reversible.
+    nodes.get('menu-home').click(); nodes.get('menu-new').click();
+    const beforeReset = runtime.game.serialize(), savedBeforeReset = storage.get('food-factory-v1');
+    failStorageKey = 'food-factory-v1-before-restart'; nodes.get('restart-confirm').click();
+    assert.equal(runtime.game.serialize(), beforeReset); assert.equal(storage.get('food-factory-v1'), savedBeforeReset);
+    failStorageKey = 'food-factory-v1'; nodes.get('restart-confirm').click();
+    assert.equal(runtime.game.serialize(), beforeReset); assert.equal(storage.get('food-factory-v1'), savedBeforeReset);
+    failStorageKey = null; nodes.get('restart-cancel').click(); assert.equal(runtime.game.serialize(), beforeReset);
+    nodes.get('menu-new').click(); nodes.get('restart-confirm').click();
+    assert.equal(storage.get('food-factory-v1-before-restart'), beforeReset);
+    assert.equal(runtime.game.state.buildings.length, 8); assert.equal(runtime.game.state.totalSold, 0); assert.equal(runtime.game.state.career.points, 0);
+    nodes.get('menu-home').click(); assert.equal(nodes.get('menu-restore').hidden, false);
+    nodes.get('menu-restore').click(); nodes.get('restart-confirm').click();
+    assert.equal(runtime.game.serialize(), beforeReset); assert.equal(runtime.ui.screen, 'workshop');
+
+    // The career dialog offers contracts, freezes time while choosing, and pays once.
+    runtime.game.state.orderIndex = 0;
+    nodes.get('career-toggle').click(); assert.equal(nodes.get('career-dialog').open, true);
+    assert.equal(nodes.get('contract-offers').children.length, 3);
+    const beforeChoice = runtime.game.state.time; frames.shift()(performance.now() + 200000); assert.equal(runtime.game.state.time, beforeChoice);
+    nodes.get('contract-offers').children[0].children.find(el => el.dataset?.contract === '0').click();
+    assert.equal(nodes.get('career-dialog').open, false); assert.equal(runtime.game.contract.status, 'active');
+    for (let i = 0; i < 6; i++) runtime.game.deliver('bread', { x: 1, y: 1 });
+    nodes.get('career-toggle').click(); const pointsBefore = runtime.game.state.career.points;
+    nodes.get('contract-action').click(); assert.equal(runtime.game.state.career.points, pointsBefore + 1);
+    nodes.get('career-research-tab').click(); assert.equal(nodes.get('research-view').hidden, false);
+    nodes.get('research-cards').children[0].children.find(el => el.dataset?.research === 'production').click();
+    assert.equal(runtime.game.state.career.research.production, 1); assert.equal(runtime.game.state.career.points, pointsBefore);
+    nodes.get('close-career').click();
     nodes.get('help').click(); assert.equal(nodes.get('help-dialog').open, true); nodes.get('help-done').click(); assert.equal(nodes.get('help-dialog').open, false);
     nodes.get('portrait-continue').click(); assert.equal(orientation.hidden, true);
+    // Reload an old-format save into the menu, retaining explicit settings over OS defaults.
+    const legacy = JSON.parse(storage.get('food-factory-v1')); delete legacy.career;
+    storage.set('food-factory-v1', JSON.stringify(legacy));
+    window.matchMedia = () => ({ matches: true, addEventListener() {} });
+    const { runtime: reloaded } = await import(`../src/factory-main.js?legacy=${Date.now()}`);
+    assert.equal(reloaded.ui.screen, 'menu'); assert.equal(reloaded.game.state.coins, legacy.coins);
+    assert.equal(reloaded.game.state.career.points, 0); assert.equal(reloaded.ui.reducedMotion, false);
+    assert.match(nodes.get('menu-play').textContent, /继续经营/);
+    storage.set('food-factory-preferences-v1', '{');
+    await import(`../src/factory-main.js?bad-preference=${Date.now()}`);
+    assert.equal(nodes.get('menu-restore').hidden, false, 'damaged settings must not hide an existing backup');
+    // Even if the initial corrupt-save backup fails, reset never substitutes a fresh
+    // factory for the original raw backup until the user explicitly confirms it.
+    storage.set('food-factory-v1', '{broken'); failStorageKey = 'all';
+    const { runtime: protectedRun } = await import(`../src/factory-main.js?protected=${Date.now()}`);
+    nodes.get('menu-play').click(); assert.equal(storage.get('food-factory-v1'), '{broken');
+    nodes.get('menu-home').click(); nodes.get('menu-new').click();
+    const protectedBefore = protectedRun.game.serialize(); nodes.get('restart-confirm').click();
+    assert.equal(protectedRun.game.serialize(), protectedBefore); assert.equal(storage.get('food-factory-v1'), '{broken');
+    failStorageKey = null; nodes.get('restart-confirm').click();
+    assert.equal(storage.get('food-factory-v1-before-restart'), '{broken');
+    assert.equal(JSON.parse(storage.get('food-factory-v1')).version, 1);
   } finally {
     for (const [name, descriptor] of savedGlobals) { if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name]; }
   }

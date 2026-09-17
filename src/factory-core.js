@@ -1,4 +1,5 @@
 import { LINK_DIRS, directionBetween, opposite, canLink, outputDirections } from './factory-links.js';
+import { RESEARCH, freshCareer, contractFor, contractComplete, validCareer } from './factory-career.js';
 export const SAVE_KEY = 'food-factory-v1';
 export const WIDTH = 14;
 export const HEIGHT = 8;
@@ -43,13 +44,18 @@ export function orderFor(index) {
   return { title: ['街角早餐', '甜蜜派对', '果园来信'][n % 3], wants: { [item]: Math.min(80, 12 + n * 3) }, reward: Math.min(2400, 400 + n * 100), note: '新的订单，新的日常' };
 }
 export function upgradeCost(building) { return Math.round(BUILDINGS[building.type].cost * (0.65 + building.level * 0.35)); }
-export function durationFor(building) { return (BUILDINGS[building.type].duration || 0.4) / (1 + (building.level - 1) * 0.5); }
+export function durationFor(building, research = {}) {
+  const machine = Boolean(BUILDINGS[building.type].duration);
+  if (!machine) return (4 - (research.transport || 0)) / 10;
+  return BUILDINGS[building.type].duration / (1 + (building.level - 1) * 0.5) / (1 + (research.production || 0) * .15);
+}
 export function makeEntity(type, x, y, dir, id, paid = 0) {
   return { id, type, x, y, dir, level: 1, paid, input: null, output: null, progress: 0, readyAt: 0, roundRobin: 0, blocked: false, idle: 0 };
 }
 export class FactoryGame {
   constructor({ starter = true } = {}) {
     this.state = { version: 1, coins: 450, expansion: 0, orderIndex: 0, orderProgress: {}, delivered: {}, stock: {}, buildings: [], nextId: 1, time: 0, tick: 0, paused: false, speed: 1, totalSold: 0 };
+    this.state.career = freshCareer();
     this.accumulator = 0;
     this.events = [];
     if (starter) ['flour_hopper', 'belt', 'dough_mixer', 'belt', 'bread_oven', 'belt', 'belt', 'depot'].forEach((type, i) => this.state.buildings.push({ ...makeEntity(type, i + 1, 2, 0, this.state.nextId++), gifted: true }));
@@ -58,6 +64,40 @@ export class FactoryGame {
   get order() { return orderFor(this.state.orderIndex); }
   get unlockLevel() { return Math.min(2, this.state.orderIndex); }
   get expansionCost() { return [350, 900, null][this.state.expansion]; }
+  get offers() { return [0, 1, 2].map(slot => contractFor(this.unlockLevel, this.state.career.completed, slot)); }
+  get contract() {
+    const c = this.state.career.contract;
+    return c ? { ...contractFor(c.tier, c.round, c.slot), status: c.status, startedAt: c.startedAt, deadline: c.deadline, progress: c.progress } : null;
+  }
+  duration(building) { return durationFor(building, this.state.career.research); }
+  acceptContract(slot) {
+    const current = this.state.career.contract;
+    if (!Number.isInteger(slot) || slot < 0 || slot > 2 || (current && current.status !== 'expired')) return { ok: false, message: '先完成或放弃当前急单' };
+    const def = this.offers[slot];
+    this.state.career.contract = { tier: def.tier, round: def.round, slot, status: 'active', startedAt: this.state.time, deadline: this.state.time + def.duration, progress: {} };
+    return { ok: true };
+  }
+  cancelContract() {
+    if (!this.state.career.contract || this.state.career.contract.status === 'ready') return { ok: false };
+    this.state.career.contract = null; return { ok: true };
+  }
+  claimContract() {
+    const c = this.contract;
+    if (!c || c.status !== 'ready') return { ok: false, message: '急单尚未完成' };
+    this.state.coins += c.reward; this.state.career.points += c.points; this.state.career.completed++;
+    this.state.career.contract = null;
+    return { ok: true, reward: c.reward, points: c.points };
+  }
+  research(key) {
+    const career = this.state.career;
+    if (!Object.hasOwn(RESEARCH, key) || career.research[key] >= 3) return { ok: false, message: '研究已满级' };
+    const cost = career.research[key] + 1;
+    if (career.points < cost) return { ok: false, message: '完成急单，获得研究点' };
+    const progress = this.state.buildings.map(b => b.progress / this.duration(b));
+    career.points -= cost; career.research[key]++;
+    this.state.buildings.forEach((b, i) => b.progress = progress[i] * this.duration(b));
+    return { ok: true };
+  }
   at(x, y) { return this.state.buildings.find(b => b.x === x && b.y === y); }
   inside(x, y) { const [w, h] = this.area; return Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < w && y < h; }
   place(type, x, y, dir = 0) {
@@ -112,9 +152,9 @@ export class FactoryGame {
     if (b.level >= 3) return { ok: false, message: '已经是最高等级' };
     const cost = upgradeCost(b);
     if (this.state.coins < cost) return { ok: false, message: '金币还不够' };
-    const completion = Math.min(1, b.progress / durationFor(b));
+    const completion = Math.min(1, b.progress / this.duration(b));
     this.state.coins -= cost; b.paid += cost; b.level++;
-    b.progress = completion * durationFor(b);
+    b.progress = completion * this.duration(b);
     return { ok: true };
   }
   expand() {
@@ -131,12 +171,18 @@ export class FactoryGame {
     return { ok: true, reward };
   }
   deliver(item, b) {
-    const value = ITEMS[item]?.value;
+    const value = Math.round((ITEMS[item]?.value || 0) * (1 + this.state.career.research.value * .1));
     if (!value) return false;
     this.state.coins += value;
     this.state.totalSold++;
     this.state.delivered[item] = (this.state.delivered[item] || 0) + 1;
     if (this.order.wants[item]) this.state.orderProgress[item] = Math.min(this.order.wants[item], (this.state.orderProgress[item] || 0) + 1);
+    const c = this.contract;
+    if (c?.status === 'active' && this.state.time <= c.deadline && c.wants[item]) {
+      const live = this.state.career.contract;
+      live.progress[item] = Math.min(c.wants[item], (live.progress[item] || 0) + 1);
+      if (contractComplete(live)) live.status = 'ready';
+    }
     this.events.push({ kind: 'sale', x: b.x, y: b.y, value, time: this.state.time });
     return true;
   }
@@ -159,7 +205,7 @@ export class FactoryGame {
     this.events = this.events.filter(e => s.time - e.time < 1.5);
     const map = new Map(s.buildings.map(b => [`${b.x},${b.y}`, b]));
     // Eligibility is a start-of-tick snapshot. No item can be transferred twice in one tick.
-    const candidates = s.buildings.filter(b => b.output && b.readyAt <= s.time);
+    const candidates = s.buildings.filter(b => b.output && b.readyAt <= s.time + 1e-9);
     const reserved = new Set();
     const moves = [];
     // Rotating arbitration prevents a permanent winner at merging inputs.
@@ -185,19 +231,21 @@ export class FactoryGame {
       if (def.kind === 'depot') { this.deliver(item, to); to.flashUntil = s.time + 0.5; }
       else if (def.kind === 'machine') { to.input = item; to.progress = 0; }
       else {
-        to.output = item; to.readyAt = s.time + 0.4;
-        to.motion = { x: from.x, y: from.y, start: s.time, duration: 0.4 };
+        const travel = this.duration(to);
+        to.output = item; to.readyAt = s.time + travel;
+        to.motion = { x: from.x, y: from.y, start: s.time, duration: travel };
       }
     }
     for (const b of s.buildings) {
       const def = BUILDINGS[b.type];
       if (def.kind !== 'source' && def.kind !== 'machine') continue;
       if (b.output || (def.kind === 'machine' && !b.input)) { b.idle += STEP; continue; }
-      b.idle = 0; b.blocked = false; b.progress = Math.min(durationFor(b), b.progress + STEP);
-      if (b.progress + 1e-9 >= durationFor(b)) {
+      b.idle = 0; b.blocked = false; b.progress = Math.min(this.duration(b), b.progress + STEP);
+      if (b.progress + 1e-9 >= this.duration(b)) {
         b.input = null; b.output = def.output; b.progress = 0; b.readyAt = s.time + STEP;
       }
     }
+    if (s.career.contract?.status === 'active' && s.time >= s.career.contract.deadline) s.career.contract.status = 'expired';
   }
   serialize() {
     return JSON.stringify({ ...this.state, buildings: this.state.buildings.map(({ motion, flashUntil, ...b }) => b) });
@@ -209,6 +257,8 @@ export class FactoryGame {
       const integer = (v, max = 1e12) => Number.isSafeInteger(v) && v >= 0 && v <= max;
       const nonnegative = v => Number.isFinite(v) && v >= 0 && v <= 1e12;
       if (!s || s.version !== 1 || !integer(s.coins) || !integer(s.expansion, 2) || !integer(s.orderIndex, 100000) || !integer(s.totalSold) || !integer(s.nextId) || !integer(s.tick) || !nonnegative(s.time) || ![1, 2].includes(s.speed) || typeof s.paused !== 'boolean' || !Array.isArray(s.buildings) || s.buildings.length > WIDTH * HEIGHT) return false;
+      if (s.career === undefined) s.career = freshCareer();
+      if (!validCareer(s.career, s)) return false;
       const record = value => value && typeof value === 'object' && !Array.isArray(value) && Object.entries(value).every(([key, n]) => ITEMS[key]?.value && integer(n));
       if (!record(s.delivered) || !record(s.orderProgress)) return false;
       const wants = orderFor(s.orderIndex).wants;
@@ -220,7 +270,7 @@ export class FactoryGame {
       const ids = new Set(), cells = new Set();
       for (const b of s.buildings) {
         const def = BUILDINGS[b.type];
-        if (!Object.hasOwn(BUILDINGS, b.type) || def.unlock > Math.min(s.orderIndex, 2) || !integer(b.id) || b.id >= s.nextId || !integer(b.x, w - 1) || !integer(b.y, h - 1) || !integer(b.dir, 3) || !integer(b.level, 3) || b.level < 1 || !integer(b.paid) || !nonnegative(b.progress) || b.progress > durationFor(b) + 0.1 || !nonnegative(b.readyAt) || b.readyAt > s.time + 1 || !integer(b.roundRobin, 1)) return false;
+        if (!Object.hasOwn(BUILDINGS, b.type) || def.unlock > Math.min(s.orderIndex, 2) || !integer(b.id) || b.id >= s.nextId || !integer(b.x, w - 1) || !integer(b.y, h - 1) || !integer(b.dir, 3) || b.level < 1 || !integer(b.level, 3) || !integer(b.paid) || !nonnegative(b.progress) || b.progress > durationFor(b, s.career.research) + 0.1 || !nonnegative(b.readyAt) || b.readyAt > s.time + 1 || !integer(b.roundRobin, 1)) return false;
         if (ids.has(b.id) || cells.has(`${b.x},${b.y}`)) return false;
         if (b.input !== null && (def.kind !== 'machine' || b.input !== def.input)) return false;
         if (b.output !== null && (!ITEMS[b.output] || def.kind === 'depot' || (['source', 'machine'].includes(def.kind) && b.output !== def.output))) return false;

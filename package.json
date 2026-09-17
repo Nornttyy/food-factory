@@ -1,6 +1,6 @@
 {
   "name": "food-factory",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "description": "奶油色美食自动化工坊",
   "private": true,
   "type": "module",
