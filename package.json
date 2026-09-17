@@ -1,0 +1,17 @@
+{
+  "name": "food-factory",
+  "version": "0.6.2",
+  "description": "奶油色美食自动化工坊",
+  "private": true,
+  "type": "module",
+  "homepage": "https://nornttyy.github.io/food-factory/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Nornttyy/food-factory.git"
+  },
+  "scripts": {
+    "start": "python3 -m http.server 8766",
+    "test": "node --test tests/*.test.mjs",
+    "build": "node scripts/build-factory.mjs"
+  }
+}

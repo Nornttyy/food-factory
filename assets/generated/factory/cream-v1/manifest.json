@@ -1,0 +1,605 @@
+{
+  "version": 1,
+  "style": "cream-flat-cartoon",
+  "palette": {
+    "cream": "#FFF2D9",
+    "biscuit": "#E7CEA7",
+    "peach": "#E4B69F",
+    "sage": "#B9C7AD",
+    "cocoa": "#846A57"
+  },
+  "atlases": {
+    "machines": {
+      "file": "machines-v1.png",
+      "width": 1254,
+      "height": 1254,
+      "columns": 3,
+      "rows": 3
+    },
+    "foods": {
+      "file": "foods-v1.png",
+      "width": 1254,
+      "height": 1254,
+      "columns": 4,
+      "rows": 4
+    },
+    "logistics": {
+      "file": "logistics-v1.png",
+      "width": 1254,
+      "height": 1254,
+      "columns": 3,
+      "rows": 3
+    }
+  },
+  "sprites": [
+    {
+      "id": "flour_hopper",
+      "label": "面粉料斗",
+      "atlas": "machines",
+      "frame": {
+        "x": 70,
+        "y": 54,
+        "w": 298,
+        "h": 363
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 1
+      },
+      "category": "machine",
+      "animated": false
+    },
+    {
+      "id": "dough_mixer",
+      "label": "和面机",
+      "atlas": "machines",
+      "frame": {
+        "x": 483,
+        "y": 60,
+        "w": 289,
+        "h": 358
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 1
+      },
+      "category": "machine",
+      "animated": false
+    },
+    {
+      "id": "bread_oven",
+      "label": "烤箱",
+      "atlas": "machines",
+      "frame": {
+        "x": 886,
+        "y": 62,
+        "w": 297,
+        "h": 355
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 1
+      },
+      "category": "machine",
+      "animated": false
+    },
+    {
+      "id": "ring_former",
+      "label": "面圈成型机",
+      "atlas": "machines",
+      "frame": {
+        "x": 75,
+        "y": 453,
+        "w": 291,
+        "h": 350
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 1
+      },
+      "category": "machine",
+      "animated": false
+    },
+    {
+      "id": "donut_fryer",
+      "label": "炸锅",
+      "atlas": "machines",
+      "frame": {
+        "x": 452,
+        "y": 491,
+        "w": 350,
+        "h": 306
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 1
+      },
+      "category": "machine",
+      "animated": false
+    },
+    {
+      "id": "icing_machine",
+      "label": "淋酱机",
+      "atlas": "machines",
+      "frame": {
+        "x": 892,
+        "y": 455,
+        "w": 283,
+        "h": 348
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 1
+      },
+      "category": "machine",
+      "animated": false
+    },
+    {
+      "id": "fruit_washer",
+      "label": "水果清洗机",
+      "atlas": "machines",
+      "frame": {
+        "x": 67,
+        "y": 854,
+        "w": 308,
+        "h": 343
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 1
+      },
+      "category": "machine",
+      "animated": false
+    },
+    {
+      "id": "juice_press",
+      "label": "榨汁机",
+      "atlas": "machines",
+      "frame": {
+        "x": 482,
+        "y": 836,
+        "w": 290,
+        "h": 361
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 1
+      },
+      "category": "machine",
+      "animated": false
+    },
+    {
+      "id": "packing_machine",
+      "label": "包装机",
+      "atlas": "machines",
+      "frame": {
+        "x": 881,
+        "y": 853,
+        "w": 306,
+        "h": 344
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 1
+      },
+      "category": "machine",
+      "animated": false
+    },
+    {
+      "id": "flour",
+      "label": "面粉",
+      "atlas": "foods",
+      "frame": {
+        "x": 26,
+        "y": 40,
+        "w": 269,
+        "h": 283
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "item"
+    },
+    {
+      "id": "water",
+      "label": "水",
+      "atlas": "foods",
+      "frame": {
+        "x": 377,
+        "y": 55,
+        "w": 184,
+        "h": 257
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "item"
+    },
+    {
+      "id": "sugar",
+      "label": "糖",
+      "atlas": "foods",
+      "frame": {
+        "x": 653,
+        "y": 67,
+        "w": 255,
+        "h": 244
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "item"
+    },
+    {
+      "id": "orange",
+      "label": "橙子",
+      "atlas": "foods",
+      "frame": {
+        "x": 962,
+        "y": 46,
+        "w": 252,
+        "h": 272
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "item"
+    },
+    {
+      "id": "dough",
+      "label": "面团",
+      "atlas": "foods",
+      "frame": {
+        "x": 26,
+        "y": 377,
+        "w": 277,
+        "h": 239
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "item"
+    },
+    {
+      "id": "raw_donut",
+      "label": "生面圈",
+      "atlas": "foods",
+      "frame": {
+        "x": 334,
+        "y": 355,
+        "w": 275,
+        "h": 266
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "item"
+    },
+    {
+      "id": "milk",
+      "label": "牛奶",
+      "atlas": "foods",
+      "frame": {
+        "x": 688,
+        "y": 332,
+        "w": 185,
+        "h": 294
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "item"
+    },
+    {
+      "id": "chocolate",
+      "label": "巧克力",
+      "atlas": "foods",
+      "frame": {
+        "x": 974,
+        "y": 362,
+        "w": 245,
+        "h": 247
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "item"
+    },
+    {
+      "id": "bread",
+      "label": "面包",
+      "atlas": "foods",
+      "frame": {
+        "x": 23,
+        "y": 676,
+        "w": 299,
+        "h": 218
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "item"
+    },
+    {
+      "id": "donut_plain",
+      "label": "原味甜甜圈",
+      "atlas": "foods",
+      "frame": {
+        "x": 338,
+        "y": 660,
+        "w": 268,
+        "h": 247
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "item"
+    },
+    {
+      "id": "donut_strawberry",
+      "label": "草莓甜甜圈",
+      "atlas": "foods",
+      "frame": {
+        "x": 642,
+        "y": 657,
+        "w": 275,
+        "h": 247
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "item"
+    },
+    {
+      "id": "donut_chocolate",
+      "label": "巧克力甜甜圈",
+      "atlas": "foods",
+      "frame": {
+        "x": 952,
+        "y": 659,
+        "w": 280,
+        "h": 247
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "item"
+    },
+    {
+      "id": "orange_juice",
+      "label": "橙汁",
+      "atlas": "foods",
+      "frame": {
+        "x": 60,
+        "y": 905,
+        "w": 203,
+        "h": 315
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "item"
+    },
+    {
+      "id": "strawberry",
+      "label": "草莓",
+      "atlas": "foods",
+      "frame": {
+        "x": 353,
+        "y": 945,
+        "w": 216,
+        "h": 252
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "item"
+    },
+    {
+      "id": "cream",
+      "label": "奶油",
+      "atlas": "foods",
+      "frame": {
+        "x": 638,
+        "y": 944,
+        "w": 288,
+        "h": 264
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "item"
+    },
+    {
+      "id": "pastry_box",
+      "label": "糕点盒",
+      "atlas": "foods",
+      "frame": {
+        "x": 938,
+        "y": 952,
+        "w": 310,
+        "h": 257
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "item"
+    },
+    {
+      "id": "belt_straight",
+      "label": "直传送带",
+      "atlas": "logistics",
+      "frame": {
+        "x": 48,
+        "y": 129,
+        "w": 367,
+        "h": 173
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "logistics",
+      "gridSeamsVerified": false
+    },
+    {
+      "id": "belt_corner",
+      "label": "转弯传送带",
+      "atlas": "logistics",
+      "frame": {
+        "x": 444,
+        "y": 75,
+        "w": 337,
+        "h": 315
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "logistics",
+      "gridSeamsVerified": false
+    },
+    {
+      "id": "belt_splitter",
+      "label": "分流器",
+      "atlas": "logistics",
+      "frame": {
+        "x": 844,
+        "y": 77,
+        "w": 365,
+        "h": 314
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "logistics",
+      "gridSeamsVerified": false
+    },
+    {
+      "id": "belt_merger",
+      "label": "合流器",
+      "atlas": "logistics",
+      "frame": {
+        "x": 48,
+        "y": 429,
+        "w": 367,
+        "h": 301
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "logistics",
+      "gridSeamsVerified": false
+    },
+    {
+      "id": "buffer_crate",
+      "label": "缓存箱",
+      "atlas": "logistics",
+      "frame": {
+        "x": 445,
+        "y": 429,
+        "w": 364,
+        "h": 353
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "logistics",
+      "gridSeamsVerified": false
+    },
+    {
+      "id": "warehouse_intake",
+      "label": "入库站",
+      "atlas": "logistics",
+      "frame": {
+        "x": 841,
+        "y": 442,
+        "w": 371,
+        "h": 346
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "logistics",
+      "gridSeamsVerified": false
+    },
+    {
+      "id": "floor_cream",
+      "label": "奶油色地板",
+      "atlas": "logistics",
+      "frame": {
+        "x": 73,
+        "y": 837,
+        "w": 323,
+        "h": 326
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "floor",
+      "gridSeamsVerified": false
+    },
+    {
+      "id": "floor_biscuit",
+      "label": "饼干色地板",
+      "atlas": "logistics",
+      "frame": {
+        "x": 465,
+        "y": 837,
+        "w": 324,
+        "h": 326
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "floor",
+      "gridSeamsVerified": false
+    },
+    {
+      "id": "dispatch_counter",
+      "label": "出货台",
+      "atlas": "logistics",
+      "frame": {
+        "x": 841,
+        "y": 850,
+        "w": 371,
+        "h": 322
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "category": "logistics",
+      "gridSeamsVerified": false
+    }
+  ],
+  "notes": [
+    "裁切框为根据实际图像边界标注的像素坐标，不按名义网格等分；橙汁瓶盖跨越了名义行边界。",
+    "PNG 保留生成器的 alpha；极低 alpha 的外围像素未进行人工清理。请在正常 alpha 合成背景上查看。",
+    "机器与食品为可独立绘制的静态 sprite。设备工作状态/分件动画尚未制作。",
+    "物流图块用于外观与布局原型；弯道/分流接口及地板边缘尚未达到网格无缝拼接标准，不作为最终 tile set。",
+    "这是素材交付，不包含食品工厂玩法或广告、付费功能。"
+  ]
+}

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content="奶油色美食自动化工坊。连接传送带，制作面包、甜甜圈和果汁，让小工坊慢慢长大。" />
+    <meta name="theme-color" content="#fff2d9" />
+    <meta name="color-scheme" content="light" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://nornttyy.github.io/food-factory/" />
+    <meta property="og:title" content="美食工坊｜自动化流水线" />
+    <meta property="og:description" content="摆好机器，接上小路，让美味自己流动。" />
+    <meta property="og:image" content="https://nornttyy.github.io/food-factory/public/og.png" />
+    <meta property="og:image:width" content="1672" />
+    <meta property="og:image:height" content="941" />
+    <meta property="og:image:alt" content="美食工坊：奶油色机器与传送带连接面包、甜甜圈和橙汁产线" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://nornttyy.github.io/food-factory/public/og.png" />
+    <meta name="twitter:title" content="美食工坊｜自动化流水线" />
+    <meta name="twitter:description" content="摆好机器，接上小路，让美味自己流动。" />
+    <title>美食工坊｜自动化流水线</title>
+    <link rel="canonical" href="https://nornttyy.github.io/food-factory/" />
+    <link rel="icon" href="data:," />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="stylesheet" href="./factory.css" />
+    <link rel="stylesheet" href="./factory-layout.css" />
+  </head>
+  <body>
+    <main id="factory-app" class="factory-app" aria-label="美食自动化工坊">
+      <header class="topbar">
+        <div class="brand"><span class="brand-mark">食</span><h1>美食工坊</h1></div>
+        <div class="hud-actions">
+          <div id="wallet" class="wallet"><span>●</span><strong id="coins">450</strong></div>
+          <button id="orders-toggle" class="order-pill" aria-expanded="false" aria-controls="order-drawer"><span>订单</span><strong id="order-summary">0 / 4</strong><i id="order-badge" hidden></i></button>
+          <button id="pause" class="icon-button" aria-label="暂停生产">Ⅱ</button>
+          <button id="speed" class="icon-button" aria-label="切换生产速度">1×</button>
+          <button id="help" class="icon-button" aria-label="玩法说明">?</button>
+        </div>
+      </header>
+      <section class="workspace">
+        <div class="workshop">
+          <div class="board-wrap"><canvas id="factory-board" width="1008" height="576" tabindex="0" aria-label="工坊画布，选择下方设备后点击空格建造">你的浏览器不支持 Canvas。</canvas><div id="loading" class="loading">正在准备工坊…</div><div id="pause-overlay" class="pause-overlay" hidden><button id="resume">▷ 已暂停 · 点击继续</button></div></div>
+          <div class="workshop-bar"><span id="factory-level">起步工坊</span><button id="expand" class="soft-button">＋ 扩建 · 350</button></div>
+          <div class="board-footer"><span id="selection-hint">选设备，点空格</span><span id="save-status">自动保存</span></div>
+        </div>
+        <aside id="order-drawer" class="sidebar" hidden>
+          <section class="order-panel"><div class="panel-heading"><h2>工坊订单 <small id="order-number">01</small></h2><button id="close-orders" class="close-button" aria-label="收起订单">×</button></div><div id="orders"></div></section>
+        </aside>
+        <section id="inspector-panel" class="inspector" hidden><div class="panel-heading"><h2 id="inspector-title">设备详情</h2><button id="close-inspector" class="close-button" aria-label="收起设备详情">×</button></div><div id="inspector-content"></div></section>
+        <nav class="camera-controls" aria-label="视角工具">
+          <button id="move-tool" class="icon-button" aria-label="拖动画布" title="拖动画布">✥</button>
+          <button id="zoom-out" class="icon-button" aria-label="缩小画布">−</button>
+          <button id="zoom-reset" class="zoom-label" aria-label="适应工坊视角">100%</button>
+          <button id="zoom-in" class="icon-button" aria-label="放大画布">＋</button>
+          <button id="focus-view" class="icon-button" aria-pressed="false" aria-label="收起界面，专注工坊">⛶</button>
+        </nav>
+      </section>
+      <section id="build-dock" class="build-dock" aria-label="建造工具">
+        <div class="dock-top">
+          <button id="dock-toggle" class="dock-handle" aria-expanded="false" aria-controls="palette">建造 ⌃</button>
+          <nav class="categories" aria-label="设备分类"><button data-category="logistics" class="active">运输</button><button data-category="machines">加工</button><button data-category="sources">原料</button></nav>
+          <div class="edit-tools"><button id="select-tool" class="active" aria-label="选择设备">↖ 选择</button><button id="rotate">↻ <span id="direction">朝右</span></button><button id="remove-tool" aria-label="拆除设备">⌫ 拆除</button></div>
+        </div>
+        <div id="palette" class="palette" hidden></div>
+      </section>
+    </main>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+    <dialog id="help-dialog"><button id="close-help" class="dialog-close" aria-label="关闭">×</button><span class="section-label">一间小工坊的开始</span><h2>让美味，自己流动。</h2><p>选设备 → 点空格 → 接到出货站</p><p>箭头是出口。传送带可以按住拖着铺。</p><p>点机器可升级；拆除清空物品并返还实付费用。初始赠送设备收回后，可免费重放。</p><p class="muted">R 旋转 · 空格暂停 · Esc 选择<br>方向键选格 + Enter 放置<br>滚轮或 ＋ / − 缩放，✥ 拖动画布，⛶ 收起界面<br>进度只保存在当前浏览器，不在离线时生产。</p><button id="motion-toggle" class="soft-button" aria-pressed="false">Q 弹动效：开</button><button id="open-recipes" class="soft-button">查看配方</button><button id="help-done" class="primary-button">开始开工</button></dialog>
+    <dialog id="recipe-dialog"><button id="close-recipes" class="dialog-close" aria-label="关闭配方">×</button><span class="section-label">工坊食谱</span><h2>三种美味，慢慢做好。</h2><p><strong>面包</strong><br>面粉料斗 → 和面机 → 烤箱 → 出货站</p><p><strong>草莓甜甜圈</strong><br>面粉料斗 → 和面机 → 成型机 → 炸锅 → 淋酱机 → 出货站</p><p><strong>橙汁</strong><br>橙子料斗 → 清洗机 → 榨汁机 → 出货站</p><p class="muted">机器可直接相邻连接，也能用传送带延长。<br>分流器可把面团分给面包和甜甜圈两条支线。<br>基础售价：面包 12 / 原味甜甜圈 18 / 草莓甜甜圈 26 / 橙汁 20</p></dialog>
+    <div class="orientation-hint"><span>↻</span><small>横过来，工坊更宽敞</small><button id="portrait-continue">继续竖屏试玩</button></div>
+    <noscript>需要启用 JavaScript 才能开始游戏。</noscript>
+    <script type="module" src="./src/factory-main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "name": "美食工坊",
+  "short_name": "美食工坊",
+  "description": "奶油色美食工坊，搭建自己的自动化流水线",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#fff2d9",
+  "theme_color": "#fff2d9"
+}
