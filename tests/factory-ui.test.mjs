@@ -53,6 +53,26 @@ test('factory entry loads generated atlases and wires construction, production, 
     nodes.get('settings-motion').click(); assert.equal(JSON.parse(storage.get('food-factory-preferences-v1')).reducedMotion, true);
     nodes.get('settings-motion').click(); nodes.get('close-settings').click();
     nodes.get('menu-play').click(); assert.equal(runtime.ui.screen, 'workshop'); assert.equal(nodes.get('main-menu').hidden, true);
+    assert.equal(runtime.practice.step, 0, 'a first-time player starts in an isolated practice factory');
+    assert.equal(nodes.get('tutorial-card').hidden, false); assert.equal(storage.has('food-factory-v1'), false);
+    const realBeforePractice = runtime.practice.realGame.serialize();
+    frames.shift()(performance.now() + 100); assert.equal(runtime.game.state.time, 0, 'production waits for the belt lesson');
+    nodes.get('palette').children.find(b => b.dataset.building === 'belt').click(); assert.equal(runtime.practice.step, 1);
+    const tutorialPoint = (x, y) => ({ clientX: runtime.renderer.transform.x + (x + .5) * 72 * runtime.renderer.transform.scale, clientY: runtime.renderer.transform.y + (y + .5) * 72 * runtime.renderer.transform.scale });
+    const tutorialTap = (x, y) => { nodes.get('factory-board').listeners.pointerdown({ button: 0, preventDefault() {}, pointerId: 90, ...tutorialPoint(x, y) }); nodes.get('factory-board').listeners.pointerup(); };
+    tutorialTap(0, 0); assert.equal(runtime.game.at(0, 0), undefined); assert.equal(runtime.practice.step, 1);
+    nodes.get('rotate').click(); assert.equal(runtime.ui.dir, 0);
+    tutorialTap(6, 2); assert.equal(runtime.practice.step, 2); assert.equal(runtime.game.at(6, 2).dir, 0);
+    nodes.get('speed').click(); assert.equal(runtime.game.state.speed, 2);
+    for (let i = 0; i < 100; i++) runtime.game.update(.1);
+    frames.shift()(performance.now() + 1000); assert.equal(runtime.practice.step, 3);
+    tutorialTap(5, 2); nodes.get('upgrade-building').click(); assert.equal(runtime.practice.step, 4);
+    for (let i = 0; i < 100; i++) runtime.game.update(.1);
+    frames.shift()(performance.now() + 3000); nodes.get('claim-order').click(); assert.equal(runtime.practice.step, 5);
+    assert.equal(storage.has('food-factory-v1'), false, 'practice, upgrades, rewards and autosave never write the real save');
+    assert.equal(runtime.practice.realGame.serialize(), realBeforePractice);
+    nodes.get('tutorial-exit').click(); assert.equal(runtime.practice, null); assert.equal(runtime.game.serialize(), realBeforePractice);
+    assert.equal(nodes.get('tutorial-card').hidden, true); assert.equal(nodes.get('recipe-list').children.length, 8);
     frames.shift()(performance.now() + 100); assert.ok(draws.length >= 9);
     assert.equal(nodes.get('order-drawer').hidden, true); assert.equal(nodes.get('inspector-panel').hidden, true); assert.equal(nodes.get('palette').hidden, true);
     nodes.get('orders-toggle').click(); assert.equal(nodes.get('order-drawer').hidden, false);
@@ -111,7 +131,7 @@ test('factory entry loads generated atlases and wires construction, production, 
     nodes.get('resume').click(); assert.equal(runtime.game.state.paused, false);
     nodes.get('speed').click(); assert.equal(runtime.game.state.speed, 2);
     for (let i = 0; i < 200; i++) runtime.game.update(.1);
-    frames.shift()(performance.now() + 3000);
+    frames.shift()(performance.now() + 5000);
     assert.equal(runtime.game.orderReady, true); assert.equal(nodes.get('claim-order').disabled, false);
     nodes.get('claim-order').click(); assert.equal(runtime.game.state.orderIndex, 1);
     const saved = JSON.parse(storage.get('food-factory-v1')); assert.equal(saved.orderIndex, 1);
@@ -207,9 +227,11 @@ test('factory entry loads generated atlases and wires construction, production, 
     nodes.get('menu-new').click(); nodes.get('restart-confirm').click();
     assert.equal(storage.get('food-factory-v1-before-restart'), beforeReset);
     assert.equal(runtime.game.state.buildings.length, 8); assert.equal(runtime.game.state.totalSold, 0); assert.equal(runtime.game.state.career.points, 0);
+    assert.match(nodes.get('recipe-list').children.find(card => card.dataset.food === 'steamed_bun').children[2].textContent, /第 1 单后解锁/);
     nodes.get('menu-home').click(); assert.equal(nodes.get('menu-restore').hidden, false);
     nodes.get('menu-restore').click(); nodes.get('restart-confirm').click();
     assert.equal(runtime.game.serialize(), beforeReset); assert.equal(runtime.ui.screen, 'workshop');
+    assert.match(nodes.get('recipe-list').children.find(card => card.dataset.food === 'steamed_bun').children[2].textContent, /已解锁/);
 
     // The career dialog offers contracts, freezes time while choosing, and pays once.
     runtime.game.state.orderIndex = 0;
@@ -225,6 +247,23 @@ test('factory entry loads generated atlases and wires construction, production, 
     nodes.get('research-cards').children[0].children.find(el => el.dataset?.research === 'production').click();
     assert.equal(runtime.game.state.career.research.production, 1); assert.equal(runtime.game.state.career.points, pointsBefore);
     nodes.get('close-career').click();
+    // Replaying and skipping every lesson preserves the exact real game and contract clock.
+    assert.equal(runtime.game.acceptContract(0).ok, true);
+    for (let step = 0; step <= 5; step++) {
+      nodes.get('menu-home').click(); const realSave = runtime.game.serialize(), stored = storage.get('food-factory-v1');
+      nodes.get('menu-tutorial').click(); runtime.practice.step = step;
+      runtime.game.state.coins += 500; runtime.game.state.totalSold += 10;
+      frames.shift()(performance.now() + 250000 + step * 3000);
+      documentEvent('visibilitychange', {}); windowListeners.pagehide();
+      assert.equal(storage.get('food-factory-v1'), stored); assert.equal(runtime.practice.realGame.serialize(), realSave);
+      nodes.get('tutorial-exit').click(); assert.equal(runtime.game.serialize(), realSave); assert.equal(storage.get('food-factory-v1'), stored);
+    }
+    nodes.get('menu-home').click(); const beforePracticeMenu = runtime.game.serialize();
+    nodes.get('menu-tutorial').click(); nodes.get('tutorial-retry').click(); assert.equal(runtime.practice.step, 0);
+    nodes.get('menu-home').click(); assert.equal(runtime.practice, null); assert.equal(runtime.ui.screen, 'menu');
+    assert.equal(runtime.game.serialize(), beforePracticeMenu); nodes.get('menu-play').click(); assert.equal(runtime.practice, null);
+    nodes.get('help').click(); nodes.get('help-tutorial').click(); assert.equal(runtime.practice.step, 0); assert.equal(nodes.get('help-dialog').open, false);
+    nodes.get('tutorial-exit').click(); assert.equal(runtime.game.serialize(), beforePracticeMenu);
     nodes.get('help').click(); assert.equal(nodes.get('help-dialog').open, true); nodes.get('help-done').click(); assert.equal(nodes.get('help-dialog').open, false);
     nodes.get('portrait-continue').click(); assert.equal(orientation.hidden, true);
     // Reload an old-format save into the menu, retaining explicit settings over OS defaults.
@@ -235,6 +274,7 @@ test('factory entry loads generated atlases and wires construction, production, 
     assert.equal(reloaded.ui.screen, 'menu'); assert.equal(reloaded.game.state.coins, legacy.coins);
     assert.equal(reloaded.game.state.career.points, 0); assert.equal(reloaded.ui.reducedMotion, false);
     assert.match(nodes.get('menu-play').textContent, /继续经营/);
+    storage.delete('food-factory-tutorial-v1'); nodes.get('menu-play').click(); assert.equal(reloaded.practice, null, 'legacy players are never forced into practice');
     storage.set('food-factory-preferences-v1', '{');
     await import(`../src/factory-main.js?bad-preference=${Date.now()}`);
     assert.equal(nodes.get('menu-restore').hidden, false, 'damaged settings must not hide an existing backup');

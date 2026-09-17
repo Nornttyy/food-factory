@@ -1,10 +1,10 @@
-import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.7.0';
-import { CELL, FactoryCamera, jellyPose, foodPose } from './factory-feel.js?v=0.7.0';
-import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.7.0';
+import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.8.0';
+import { CELL, FactoryCamera, jellyPose, foodPose } from './factory-feel.js?v=0.8.0';
+import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.8.0';
 export class FactoryAssets {
   constructor() { this.images = {}; this.sprites = {}; this.ready = false; }
   async load(base = './assets/generated/factory/cream-v1/') {
-    const response = await fetch(base + 'manifest.json');
+    const response = await fetch(base + 'manifest.json?v=0.8.0');
     if (!response.ok) throw new Error('素材清单读取失败');
     const manifest = await response.json();
     this.sprites = Object.fromEntries(manifest.sprites.map(sprite => [sprite.id, sprite]));
@@ -133,6 +133,13 @@ export class FactoryRenderer {
         this.assets.draw(ctx, BUILDINGS[ui.tool].sprite, x * CELL + 8, y * CELL + 6, 56, 56, .5);
         arrow(ctx, x * CELL + 36 + DIRS[ui.dir][0] * 28, y * CELL + 36 + DIRS[ui.dir][1] * 28, ui.dir, '#8b9e77', 8);
       }
+    }
+    if (ui.tutorialTarget) {
+      const { x, y } = ui.tutorialTarget;
+      ctx.save(); ctx.strokeStyle = '#c78442'; ctx.lineWidth = 3;
+      ctx.setLineDash([7, 5]); ctx.lineDashOffset = this.reduced ? 0 : -timestamp / 90;
+      ctx.beginPath(); ctx.roundRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2, 10); ctx.stroke();
+      arrow(ctx, x * CELL + 36, y * CELL - 9, 1, '#c78442', 10); ctx.restore();
     }
     for (const event of game.events) {
       const age = s.time - event.time;

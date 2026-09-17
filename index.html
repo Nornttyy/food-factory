@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="description" content="奶油色美食自动化工坊。连接传送带，制作面包、甜甜圈和果汁，让小工坊慢慢长大。" />
+    <meta name="description" content="奶油色美食自动化工坊。跟着新手练习连接传送带，制作面包、饼干、奶香包、蛋糕和冰棒，经营八种美味的流水线。" />
     <meta name="theme-color" content="#fff2d9" />
     <meta name="color-scheme" content="light" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -25,9 +25,9 @@
     <link rel="canonical" href="https://nornttyy.github.io/food-factory/" />
     <link rel="icon" href="data:," />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./factory.css?v=0.7.0" />
-    <link rel="stylesheet" href="./factory-layout.css?v=0.7.0" />
-    <link rel="stylesheet" href="./factory-menu.css?v=0.7.0" />
+    <link rel="stylesheet" href="./factory.css?v=0.8.0" />
+    <link rel="stylesheet" href="./factory-layout.css?v=0.8.0" />
+    <link rel="stylesheet" href="./factory-menu.css?v=0.8.0" />
   </head>
   <body class="menu-open">
     <main id="main-menu" class="main-menu" aria-label="美食工坊主菜单">
@@ -37,7 +37,7 @@
         <p id="menu-summary" class="menu-summary">从第一份面包开始。</p>
         <button id="menu-play" class="primary-button menu-play" disabled>正在准备…</button>
         <button id="menu-career" class="menu-feature" disabled><span>✦ 急单与研究</span><small id="menu-career-summary">挑战产能，解锁永久加成</small></button>
-        <div class="menu-links"><button id="menu-recipes">配方手册</button><button id="menu-settings">游戏设置</button></div>
+        <div class="menu-links"><button id="menu-tutorial" disabled>新手练习</button><button id="menu-recipes">配方手册</button><button id="menu-settings">游戏设置</button></div>
         <button id="menu-new" class="menu-reset" hidden>重新开一间</button>
         <button id="menu-restore" class="menu-reset" hidden>恢复重开前的工坊</button>
         <small class="menu-note">自动存档 · 离开菜单后开始生产</small>
@@ -80,15 +80,20 @@
         </div>
         <div id="palette" class="palette" hidden></div>
       </section>
+      <aside id="tutorial-card" class="tutorial-card" aria-labelledby="tutorial-title" hidden>
+        <div class="tutorial-top"><small id="tutorial-progress">新手练习 1 / 5</small><button id="tutorial-retry" aria-label="重新开始新手练习">重练 ↻</button></div>
+        <h2 id="tutorial-title">选一段传送带</h2><p id="tutorial-copy" role="status" aria-live="polite">在下方「运输」里，点传送带。</p>
+        <div class="tutorial-bottom"><small>独立练习 · 不动原存档</small><button id="tutorial-exit">跳过练习</button></div>
+      </aside>
     </main>
     <dialog id="career-dialog" class="career-dialog" aria-labelledby="career-title"><button id="close-career" class="dialog-close" aria-label="关闭急单与研究">×</button><span class="section-label">给你的产线，加一点新目标</span><h2 id="career-title">急单与研究 <small id="research-balance">0 研究点</small></h2><div class="career-tabs"><button id="career-contracts-tab" class="active" aria-pressed="true">限时急单</button><button id="career-research-tab" aria-pressed="false">永久研究</button></div><section id="contracts-view"><p class="muted">先备好产线，再接单。暂停不扣时，超时不扣金币。</p><div id="contract-active"></div><div id="contract-offers" class="contract-offers"></div></section><section id="research-view" hidden><p class="muted">完成急单赚研究点，选一条发展路线。</p><div id="research-cards" class="research-cards"></div></section></dialog>
     <dialog id="settings-dialog" aria-labelledby="settings-title"><button id="close-settings" class="dialog-close" aria-label="关闭设置">×</button><span class="section-label">按你喜欢的节奏</span><h2 id="settings-title">游戏设置</h2><button id="settings-motion" class="primary-button" aria-pressed="false">Q 弹动效：开</button><p class="muted">进度自动保存在当前浏览器。<br>主菜单、弹窗、后台和暂停时不会生产，也不会扣除急单时间。</p></dialog>
     <dialog id="restart-dialog" aria-labelledby="restart-title"><h2 id="restart-title">重新开一间？</h2><p id="restart-copy">当前进度会先备份，然后从新工坊开始。</p><div class="restart-actions"><button id="restart-cancel" class="soft-button">保留当前工坊</button><button id="restart-confirm" class="primary-button">备份并重新开始</button></div></dialog>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-    <dialog id="help-dialog"><button id="close-help" class="dialog-close" aria-label="关闭">×</button><span class="section-label">一间小工坊的开始</span><h2>让美味，自己流动。</h2><p>选设备 → 点空格 → 接到出货站</p><p>箭头是出口。传送带可以按住拖着铺。</p><p>点机器可升级；拆除清空物品并返还实付费用。初始赠送设备收回后，可免费重放。</p><p class="muted">R 旋转 · 空格暂停 · Esc 选择<br>方向键选格 + Enter 放置<br>滚轮或 ＋ / − 缩放，✥ 拖动画布，⛶ 收起界面<br>进度只保存在当前浏览器，不在离线时生产。</p><button id="motion-toggle" class="soft-button" aria-pressed="false">Q 弹动效：开</button><button id="open-recipes" class="soft-button">查看配方</button><button id="help-done" class="primary-button">开始开工</button></dialog>
-    <dialog id="recipe-dialog"><button id="close-recipes" class="dialog-close" aria-label="关闭配方">×</button><span class="section-label">工坊食谱</span><h2>三种美味，慢慢做好。</h2><p><strong>面包</strong><br>面粉料斗 → 和面机 → 烤箱 → 出货站</p><p><strong>草莓甜甜圈</strong><br>面粉料斗 → 和面机 → 成型机 → 炸锅 → 淋酱机 → 出货站</p><p><strong>橙汁</strong><br>橙子料斗 → 清洗机 → 榨汁机 → 出货站</p><p class="muted">机器可直接相邻连接，也能用传送带延长。<br>分流器可把面团分给面包和甜甜圈两条支线。<br>基础售价：面包 12 / 原味甜甜圈 18 / 草莓甜甜圈 26 / 橙汁 20</p></dialog>
+    <dialog id="help-dialog"><button id="close-help" class="dialog-close" aria-label="关闭">×</button><span class="section-label">一间小工坊的开始</span><h2>让美味，自己流动。</h2><p>选设备 → 点空格 → 接到出货站</p><p>箭头是出口。传送带可以按住拖着铺。</p><p>点机器可升级；拆除清空物品并返还实付费用。初始赠送设备收回后，可免费重放。</p><p class="muted">R 旋转 · 空格暂停 · Esc 选择<br>方向键选格 + Enter 放置<br>滚轮或 ＋ / − 缩放，✥ 拖动画布，⛶ 收起界面<br>进度只保存在当前浏览器，不在离线时生产。</p><button id="help-tutorial" class="soft-button">跟着练一次</button><button id="motion-toggle" class="soft-button" aria-pressed="false">Q 弹动效：开</button><button id="open-recipes" class="soft-button">查看配方</button><button id="help-done" class="primary-button">开始开工</button></dialog>
+    <dialog id="recipe-dialog" class="recipe-dialog" aria-labelledby="recipe-title"><button id="close-recipes" class="dialog-close" aria-label="关闭配方">×</button><span class="section-label">工坊食谱</span><h2 id="recipe-title">八种美味，慢慢做好。</h2><p class="muted">机器可贴着连接；分流器能把面团送到不同支线。配方辅料由机器自带。</p><div id="recipe-list" class="recipe-list"></div></dialog>
     <div class="orientation-hint"><span>↻</span><small>横过来，工坊更宽敞</small><button id="portrait-continue">继续竖屏试玩</button></div>
     <noscript>需要启用 JavaScript 才能开始游戏。</noscript>
-    <script type="module" src="./src/factory-main.js?v=0.7.0"></script>
+    <script type="module" src="./src/factory-main.js?v=0.8.0"></script>
   </body>
 </html>

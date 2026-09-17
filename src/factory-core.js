@@ -1,5 +1,5 @@
-import { LINK_DIRS, directionBetween, opposite, canLink, outputDirections } from './factory-links.js?v=0.7.0';
-import { RESEARCH, freshCareer, contractFor, contractComplete, validCareer } from './factory-career.js?v=0.7.0';
+import { LINK_DIRS, directionBetween, opposite, canLink, outputDirections } from './factory-links.js?v=0.8.0';
+import { RESEARCH, freshCareer, contractFor, contractComplete, validCareer } from './factory-career.js?v=0.8.0';
 export const SAVE_KEY = 'food-factory-v1';
 export const WIDTH = 14;
 export const HEIGHT = 8;
@@ -14,6 +14,10 @@ export const ITEMS = {
   donut_plain: { label: '原味甜甜圈', sprite: 'donut_plain', value: 18 },
   donut_strawberry: { label: '草莓甜甜圈', sprite: 'donut_strawberry', value: 26 },
   orange_juice: { label: '橙汁', sprite: 'orange_juice', value: 20 },
+  butter_cookie: { label: '奶油饼干', sprite: 'butter_cookie', value: 16 },
+  steamed_bun: { label: '奶香包', sprite: 'steamed_bun', value: 18 },
+  strawberry_cake: { label: '草莓蛋糕', sprite: 'strawberry_cake', value: 32 },
+  orange_icepop: { label: '橙汁冰棒', sprite: 'orange_icepop', value: 34 },
 };
 export const BUILDINGS = {
   belt: { label: '传送带', sprite: 'belt_straight', category: 'logistics', cost: 8, unlock: 0, kind: 'belt' },
@@ -29,15 +33,40 @@ export const BUILDINGS = {
   juice_press: { label: '榨汁机', sprite: 'juice_press', category: 'machines', cost: 150, unlock: 2, kind: 'machine', input: 'clean_orange', output: 'orange_juice', duration: 2.8 },
   flour_hopper: { label: '面粉料斗', sprite: 'flour_hopper', category: 'sources', cost: 80, unlock: 0, kind: 'source', output: 'flour', duration: 2.2 },
   fruit_hopper: { label: '橙子料斗', sprite: 'buffer_crate', category: 'sources', cost: 90, unlock: 2, kind: 'source', output: 'orange', duration: 2.2 },
+  cookie_oven: { label: '曲奇烤炉', sprite: 'cookie_oven', category: 'machines', cost: 160, unlock: 0, kind: 'machine', input: 'dough', output: 'butter_cookie', duration: 4.2 },
+  bun_steamer: { label: '小蒸笼', sprite: 'bun_steamer', category: 'machines', cost: 180, unlock: 1, kind: 'machine', input: 'dough', output: 'steamed_bun', duration: 4.2 },
+  cake_station: { label: '蛋糕工台', sprite: 'cake_station', category: 'machines', cost: 260, unlock: 2, kind: 'machine', input: 'dough', output: 'strawberry_cake', duration: 6 },
+  icepop_freezer: { label: '冰棒冷柜', sprite: 'icepop_freezer', category: 'machines', cost: 220, unlock: 2, kind: 'machine', input: 'orange_juice', output: 'orange_icepop', duration: 3.8 },
 };
+export const FOOD_RECIPES = [
+  ['bread', ['flour_hopper', 'dough_mixer', 'bread_oven']],
+  ['butter_cookie', ['flour_hopper', 'dough_mixer', 'cookie_oven']],
+  ['donut_plain', ['flour_hopper', 'dough_mixer', 'ring_former', 'donut_fryer']],
+  ['donut_strawberry', ['flour_hopper', 'dough_mixer', 'ring_former', 'donut_fryer', 'icing_machine']],
+  ['steamed_bun', ['flour_hopper', 'dough_mixer', 'bun_steamer']],
+  ['orange_juice', ['fruit_hopper', 'fruit_washer', 'juice_press']],
+  ['strawberry_cake', ['flour_hopper', 'dough_mixer', 'cake_station']],
+  ['orange_icepop', ['fruit_hopper', 'fruit_washer', 'juice_press', 'icepop_freezer']],
+];
 const ORDER_LIST = [
-  { title: '早餐店开张', wants: { bread: 4 }, reward: 380, note: '解锁甜甜圈设备' },
-  { title: '下午茶时间', wants: { donut_strawberry: 4 }, reward: 420, note: '解锁果汁设备' },
-  { title: '一杯好心情', wants: { orange_juice: 5 }, reward: 480, note: '三条产线，自由搭配' },
+  { title: '早餐店开张', wants: { bread: 4 }, reward: 380, note: '解锁甜甜圈与奶香包' },
+  { title: '下午茶时间', wants: { donut_strawberry: 4 }, reward: 420, note: '解锁果汁、蛋糕与冰棒' },
+  { title: '一杯好心情', wants: { orange_juice: 5 }, reward: 480, note: '八种美味，自由搭配' },
   { title: '野餐小分队', wants: { bread: 10, donut_strawberry: 6, orange_juice: 6 }, reward: 650, note: '让每一条线忙起来' },
 ];
-export function orderFor(index) {
+const NEW_FOOD_ORDERS = [
+  { title: '曲奇试吃会', wants: { butter_cookie: 8 }, reward: 500, note: '面团分流，也能烤出小饼干' },
+  { title: '蒸笼冒热气', wants: { steamed_bun: 8, bread: 6 }, reward: 600, note: '和面机可以供应不同支线' },
+  { title: '生日小惊喜', wants: { strawberry_cake: 6 }, reward: 700, note: '慢慢加工，换取更高售价' },
+  { title: '清凉一夏', wants: { orange_icepop: 8, orange_juice: 6 }, reward: 800, note: '给果汁分流，一半冷冻成冰棒' },
+];
+export function orderFor(index, catalog = 1) {
   if (index < ORDER_LIST.length) return structuredClone(ORDER_LIST[index]);
+  if (catalog === 2) {
+    if (index < 8) return structuredClone(NEW_FOOD_ORDERS[index - 4]);
+    const n = index - 8, item = FOOD_RECIPES[n % FOOD_RECIPES.length][0];
+    return { title: `${ITEMS[item].label}专场`, wants: { [item]: Math.min(80, 12 + Math.floor(n / 8) * 3) }, reward: Math.min(2400, 500 + n * 80), note: '八种美味，轮流开工' };
+  }
   const n = index - ORDER_LIST.length;
   const items = ['bread', 'donut_strawberry', 'orange_juice'];
   const item = items[n % 3];
@@ -56,12 +85,13 @@ export class FactoryGame {
   constructor({ starter = true } = {}) {
     this.state = { version: 1, coins: 450, expansion: 0, orderIndex: 0, orderProgress: {}, delivered: {}, stock: {}, buildings: [], nextId: 1, time: 0, tick: 0, paused: false, speed: 1, totalSold: 0 };
     this.state.career = freshCareer();
+    this.state.orderCatalog = 2;
     this.accumulator = 0;
     this.events = [];
     if (starter) ['flour_hopper', 'belt', 'dough_mixer', 'belt', 'bread_oven', 'belt', 'belt', 'depot'].forEach((type, i) => this.state.buildings.push({ ...makeEntity(type, i + 1, 2, 0, this.state.nextId++), gifted: true }));
   }
   get area() { return [[10, 6], [12, 8], [14, 8]][this.state.expansion]; }
-  get order() { return orderFor(this.state.orderIndex); }
+  get order() { return orderFor(this.state.orderIndex, this.state.orderCatalog); }
   get unlockLevel() { return Math.min(2, this.state.orderIndex); }
   get expansionCost() { return [350, 900, null][this.state.expansion]; }
   get offers() { return [0, 1, 2].map(slot => contractFor(this.unlockLevel, this.state.career.completed, slot)); }
@@ -167,7 +197,7 @@ export class FactoryGame {
   claimOrder() {
     if (!this.orderReady) return { ok: false, message: '美味还在路上' };
     const reward = this.order.reward;
-    this.state.coins += reward; this.state.orderIndex++; this.state.orderProgress = {};
+    this.state.coins += reward; this.state.orderIndex++; this.state.orderProgress = {}; this.state.orderCatalog = 2;
     return { ok: true, reward };
   }
   deliver(item, b) {
@@ -258,10 +288,13 @@ export class FactoryGame {
       const nonnegative = v => Number.isFinite(v) && v >= 0 && v <= 1e12;
       if (!s || s.version !== 1 || !integer(s.coins) || !integer(s.expansion, 2) || !integer(s.orderIndex, 100000) || !integer(s.totalSold) || !integer(s.nextId) || !integer(s.tick) || !nonnegative(s.time) || ![1, 2].includes(s.speed) || typeof s.paused !== 'boolean' || !Array.isArray(s.buildings) || s.buildings.length > WIDTH * HEIGHT) return false;
       if (s.career === undefined) s.career = freshCareer();
+      // Finish the already accepted legacy order before switching to the new menu.
+      if (s.orderCatalog === undefined) s.orderCatalog = 1;
+      if (![1, 2].includes(s.orderCatalog)) return false;
       if (!validCareer(s.career, s)) return false;
       const record = value => value && typeof value === 'object' && !Array.isArray(value) && Object.entries(value).every(([key, n]) => ITEMS[key]?.value && integer(n));
       if (!record(s.delivered) || !record(s.orderProgress)) return false;
-      const wants = orderFor(s.orderIndex).wants;
+      const wants = orderFor(s.orderIndex, s.orderCatalog).wants;
       if (Object.entries(s.orderProgress).some(([key, value]) => !wants[key] || value > wants[key])) return false;
       if (!s.stock || typeof s.stock !== 'object' || Array.isArray(s.stock) || Object.entries(s.stock).some(([key, n]) => !Object.hasOwn(BUILDINGS, key) || !integer(n, 8))) return false;
       const giftLimits = { belt: 4, flour_hopper: 1, dough_mixer: 1, bread_oven: 1, depot: 1 };

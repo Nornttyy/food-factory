@@ -1,10 +1,13 @@
-import { FactoryGame, BUILDINGS, ITEMS, SAVE_KEY, DIRECTION_NAMES, upgradeCost } from './factory-core.js?v=0.7.0';
-import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.7.0';
-import { directionBetween, nextBeltCell } from './factory-links.js?v=0.7.0';
-import { RESEARCH } from './factory-career.js?v=0.7.0';
+import { FactoryGame, BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, upgradeCost } from './factory-core.js?v=0.8.0';
+import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.8.0';
+import { directionBetween, nextBeltCell } from './factory-links.js?v=0.8.0';
+import { RESEARCH } from './factory-career.js?v=0.8.0';
+import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.8.0';
 
 const $ = selector => document.querySelector(selector);
-const game = new FactoryGame();
+let game = new FactoryGame();
+let practice = null, tutorialSeen = false;
+try { tutorialSeen = localStorage.getItem(TUTORIAL_KEY) === 'seen'; } catch { /* Learning still works without storage. */ }
 const assets = new FactoryAssets();
 const canvas = $('#factory-board');
 const renderer = new FactoryRenderer(canvas, assets);
@@ -35,6 +38,7 @@ function toast(message) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => $('#toast').hidden = true, 2400);
 }
 function save() {
+  if (practice) { $('#save-status').textContent = '练习工坊 · 不影响存档'; return; }
   if (!hasSave) return;
   if (protectOriginalSave) { $('#save-status').textContent = '原存档已保留 · 本次暂不保存'; return; }
   try { localStorage.setItem(SAVE_KEY, game.serialize()); saveWorks = true; }
@@ -54,7 +58,7 @@ function action(result, message) {
   if (message) toast(message);
   save(); renderUi(true); return true;
 }
-function chooseTool(tool) { finishDrag(); ui.tool = tool; ui.selected = null; ui.inspectorOpen = false; ui.ordersOpen = false; ui.dockOpen = false; ui.focus = false; lastCell = null; renderPalette(); renderUi(true); }
+function chooseTool(tool) { if (practice && !['select', 'belt', 'pan'].includes(tool)) return; finishDrag(); ui.tool = tool; ui.selected = null; ui.inspectorOpen = false; ui.ordersOpen = false; ui.dockOpen = false; ui.focus = false; lastCell = null; renderPalette(); renderUi(true); }
 function renderPalette() {
   const palette = $('#palette'); palette.replaceChildren();
   for (const [type, def] of Object.entries(BUILDINGS)) {
@@ -62,6 +66,8 @@ function renderPalette() {
     const locked = def.unlock > game.unlockLevel;
     const button = document.createElement('button'); button.className = `build-card${ui.tool === type ? ' active' : ''}${locked ? ' locked' : ''}`;
     button.dataset.building = type; button.setAttribute('aria-pressed', String(ui.tool === type));
+    button.disabled = Boolean(practice && type !== 'belt');
+    button.classList.toggle('tutorial-highlight', Boolean(practice?.step === 0 && type === 'belt'));
     button.setAttribute('aria-label', `${def.label}，${locked ? '完成订单解锁' : `${def.cost} 金币`}`);
     button.append(assets.icon(def.sprite));
     const text = document.createElement('span'), strong = document.createElement('strong'), small = document.createElement('small');
@@ -91,7 +97,7 @@ function renderOrder() {
   claim.addEventListener('click', () => {
     const result = game.claimOrder();
     if (result.ok) { ui.ordersOpen = false; for (const b of game.state.buildings) if (b.type === 'depot') { renderer.pulse(b.id, 'upgrade'); renderer.burst(b.x, b.y, 'upgrade'); } }
-    if (action(result, game.state.orderIndex === 1 ? '甜甜圈设备解锁啦' : game.state.orderIndex === 2 ? '果汁设备解锁啦' : '新订单已送达')) { renderPalette(); bounceElement($('#wallet'), true); }
+    if (action(result, game.state.orderIndex === 1 ? '甜甜圈与奶香包解锁啦' : game.state.orderIndex === 2 ? '果汁、蛋糕与冰棒解锁啦' : '新订单已送达')) { renderPalette(); renderRecipes(); bounceElement($('#wallet'), true); }
   });
   const note = document.createElement('div'); note.className = 'unlock-note'; note.textContent = order.note;
   root.append(reward, claim, note);
@@ -124,23 +130,35 @@ function renderInspector() {
     const actions = document.createElement('div'); actions.className = 'inspector-actions';
     if (def.duration) {
       const up = document.createElement('button'); up.id = 'upgrade-building'; up.textContent = b.level >= 3 ? '已满级' : `升级 · ${upgradeCost(b)}`; up.disabled = b.level >= 3;
+      up.disabled ||= Boolean(practice && (practice.step !== 3 || b.type !== 'bread_oven'));
+      up.classList.toggle('tutorial-highlight', Boolean(practice?.step === 3 && b.type === 'bread_oven'));
       up.addEventListener('click', () => { const result = game.upgrade(b.id); if (action(result, '设备升级完成')) { renderer.pulse(b.id, 'upgrade'); renderer.burst(b.x, b.y, 'upgrade'); } }); actions.append(up);
     }
     const turn = document.createElement('button'); turn.textContent = '↻ 旋转'; turn.addEventListener('click', () => { game.rotate(b.id); renderer.pulse(b.id); save(); renderUi(true); });
     const remove = document.createElement('button'); remove.textContent = b.gifted && !b.paid ? '收回设备' : `拆除 +${b.paid}`; remove.addEventListener('click', () => removeBuilding(b));
+    turn.disabled = remove.disabled = Boolean(practice);
     actions.append(turn, remove); root.append(actions);
     const note = document.createElement('p'); note.className = 'tiny-note'; note.textContent = b.gifted ? '初始设备可免费重放；收回会清空物品' : '拆除会清空机内物品，退回实付费用'; root.append(note);
   }
 }
 function renderUi(force = false) {
+  if (practice) {
+    const next = nextLesson(practice.step, game, ui.tool);
+    if (next !== practice.step) {
+      practice.step = next;
+      if (next >= 2) { ui.tool = 'select'; ui.selected = null; ui.inspectorOpen = false; }
+      if (next === 4) ui.ordersOpen = true;
+      force = true;
+    }
+  }
   const s = game.state, b = s.buildings.find(b => b.id === ui.selected);
-  const key = JSON.stringify([s.coins, s.orderIndex, s.orderProgress, s.totalSold, s.expansion, s.paused, s.speed, s.career, s.career.contract?.status === 'active' ? Math.ceil(s.time) : 0, ui.screen, ui.careerTab, ui.tool, ui.selected, ui.dir, ui.dockOpen, ui.ordersOpen, ui.inspectorOpen, ui.focus, ui.reducedMotion, b?.level, b?.blocked, b?.input, b?.output]);
+  const key = JSON.stringify([practice?.step, s.coins, s.orderIndex, s.orderProgress, s.totalSold, s.expansion, s.paused, s.speed, s.career, s.career.contract?.status === 'active' ? Math.ceil(s.time) : 0, ui.screen, ui.careerTab, ui.tool, ui.selected, ui.dir, ui.dockOpen, ui.ordersOpen, ui.inspectorOpen, ui.focus, ui.reducedMotion, b?.level, b?.blocked, b?.input, b?.output]);
   if (!force && key === lastUi) return; lastUi = key;
   renderFront();
   $('#coins').textContent = s.coins.toLocaleString('zh-CN');
   if (s.coins > lastCoins) bounceElement($('#wallet')); lastCoins = s.coins;
   $('#factory-level').textContent = ['起步工坊', '热闹工坊', '美味大工坊'][s.expansion];
-  $('#expand').textContent = game.expansionCost === null ? '已全部扩建' : `扩建 · ${game.expansionCost}`; $('#expand').disabled = game.expansionCost === null;
+  $('#expand').textContent = game.expansionCost === null ? '已全部扩建' : `扩建 · ${game.expansionCost}`; $('#expand').disabled = Boolean(practice) || game.expansionCost === null;
   $('#order-number').textContent = String(s.orderIndex + 1).padStart(2, '0');
   $('#pause').textContent = s.paused ? '▷' : 'Ⅱ'; $('#pause').setAttribute('aria-label', s.paused ? '继续生产' : '暂停生产');
   $('#pause-overlay').hidden = !s.paused; $('#speed').textContent = `${s.speed}×`; $('#direction').textContent = DIRECTION_NAMES[ui.dir];
@@ -169,14 +187,57 @@ function renderUi(force = false) {
   if (force || orderKey !== lastOrder) { renderOrder(); lastOrder = orderKey; }
   const inspectorKey = JSON.stringify([ui.tool, ui.selected, s.orderIndex, s.totalSold, s.career.research, b?.level, b?.paid, b?.blocked, b?.input, b?.output]);
   if (force || inspectorKey !== lastInspector) { renderInspector(); lastInspector = inspectorKey; }
+  renderTutorial();
 }
 function element(tag, text, className = '') { const el = document.createElement(tag); el.textContent = text; el.className = className; return el; }
 function clockLabel(seconds) { const n = Math.max(0, Math.ceil(seconds)); return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`; }
+function renderRecipes() {
+  const root = $('#recipe-list'); root.replaceChildren();
+  for (const [item, chain] of FOOD_RECIPES) {
+    const food = ITEMS[item], unlock = Math.max(...chain.map(type => BUILDINGS[type].unlock));
+    const card = element('article', '', 'food-recipe'); card.dataset.food = item;
+    card.append(assets.icon(food.sprite), element('h3', food.label), element('small', `${food.value} 金币 / 份 · ${unlock > game.unlockLevel ? `第 ${unlock} 单后解锁` : '已解锁'}`));
+    card.append(element('p', [...chain.map(type => BUILDINGS[type].label), '出货站'].join(' → ')));
+    root.append(card);
+  }
+}
+function renderTutorial() {
+  $('#tutorial-card').hidden = !practice || ui.screen !== 'workshop';
+  $('#factory-app').classList.toggle('in-tutorial', Boolean(practice));
+  ui.tutorialTarget = practice ? LESSONS[practice.step].cell : null;
+  for (const id of ['career-toggle', 'remove-tool', 'rotate', 'focus-view']) $(`#${id}`).disabled = Boolean(practice);
+  for (const id of ['speed', 'orders-toggle', 'claim-order']) $(`#${id}`)?.classList.toggle('tutorial-highlight', Boolean(practice && (id === LESSONS[practice.step].target || (id === 'claim-order' && practice.step === 4 && game.orderReady))));
+  if (!practice) return;
+  $('#tutorial-progress').textContent = practice.step === 5 ? '练习完成' : `新手练习 ${practice.step + 1} / 5`;
+  $('#tutorial-title').textContent = LESSONS[practice.step].title;
+  $('#tutorial-copy').textContent = LESSONS[practice.step].copy;
+  $('#tutorial-exit').textContent = practice.step === 5 ? '进入我的工坊 →' : '跳过练习';
+}
+function resetEffects() { renderer.previous.clear(); renderer.pulses.clear(); renderer.particles = []; renderer.camera.fit(game.area); }
+function startTutorial() {
+  if (!assets.ready) return;
+  finishDrag(); save();
+  const realGame = practice?.realGame || game;
+  practice = { realGame, step: 0 }; game = createPractice(); tutorialSeen = true;
+  try { localStorage.setItem(TUTORIAL_KEY, 'seen'); } catch { /* No impact on the real save. */ }
+  $('#help-dialog').close(); ui.category = 'logistics'; ui.dir = 0;
+  ui.tool = 'select'; ui.selected = null; ui.inspectorOpen = false; ui.ordersOpen = false; ui.focus = false; ui.dockOpen = true;
+  document.querySelectorAll('[data-category]').forEach(button => button.classList.toggle('active', button.dataset.category === ui.category));
+  resetEffects(); renderPalette(); renderRecipes(); enterWorkshop();
+}
+function leaveTutorial(toMenu = false) {
+  if (!practice) return;
+  finishDrag(); game = practice.realGame; practice = null;
+  ui.tutorialTarget = null; ui.category = 'logistics'; ui.dir = 0; ui.ordersOpen = false; ui.focus = false;
+  resetEffects(); chooseTool('select'); renderRecipes();
+  if (toMenu) enterMenu(); else enterWorkshop();
+}
 function renderFront() {
   const s = game.state, c = game.contract, menu = ui.screen === 'menu';
   $('#main-menu').hidden = !menu; $('#factory-app').hidden = menu;
   document.body?.classList.toggle('menu-open', menu); document.body?.classList.toggle('reduced-motion', ui.reducedMotion);
   $('#menu-play').disabled = !assets.ready; $('#menu-career').disabled = !assets.ready;
+  $('#menu-tutorial').disabled = !assets.ready;
   $('#menu-play').textContent = !assets.ready ? '正在准备…' : hasSave ? '继续经营  →' : '开始经营  →';
   $('#menu-summary').textContent = hasSave ? `已交付 ${s.totalSold} 份美味 · 完成 ${s.orderIndex} 张订单\n${s.coins.toLocaleString('zh-CN')} 金币 · ${s.career.points} 研究点` : '从第一份面包开始，让美味自己流动。';
   $('#menu-new').hidden = !hasSave; $('#menu-restore').hidden = !hasBackup;
@@ -225,14 +286,15 @@ function renderCareer() {
 }
 function enterWorkshop() {
   if (!assets.ready) return;
-  finishDrag(); hasSave = true; ui.screen = 'workshop'; previousTime = performance.now();
+  finishDrag(); if (!practice) hasSave = true; ui.screen = 'workshop'; previousTime = performance.now();
   renderUi(true); renderer.resize(game.area, ui); save(); canvas.focus({ preventScroll: true });
 }
 function enterMenu() {
+  if (practice) { leaveTutorial(true); return; }
   finishDrag(); save(); ui.screen = 'menu'; ui.hover = null; ui.focus = false; ui.ordersOpen = false; ui.dockOpen = false; ui.inspectorOpen = false;
   previousTime = performance.now(); renderUi(true); $('#menu-play').focus();
 }
-function openCareer() { finishDrag(); $('#career-dialog').showModal(); renderCareer(); }
+function openCareer() { if (practice) return; finishDrag(); $('#career-dialog').showModal(); renderCareer(); }
 function requestRestart(mode) {
   restartMode = mode;
   $('#restart-title').textContent = mode === 'restore' ? '恢复之前的工坊？' : '重新开一间？';
@@ -247,6 +309,7 @@ function confirmRestart() {
     localStorage.setItem(restartMode === 'restore' ? `${SAVE_KEY}-before-restore` : BACKUP_KEY, old);
     localStorage.setItem(SAVE_KEY, candidate.serialize());
     game.restore(candidate.serialize()); hasBackup = true; hasSave = true; protectOriginalSave = false;
+    renderRecipes();
     renderer.previous.clear(); renderer.pulses.clear(); renderer.particles = []; renderer.camera.fit(game.area);
     ui.category = 'logistics'; ui.dir = 0; chooseTool('select');
     document.querySelectorAll('[data-category]').forEach(button => button.classList.toggle('active', button.dataset.category === ui.category));
@@ -260,6 +323,7 @@ function toggleMotion() {
   renderUi(true);
 }
 function removeBuilding(b) {
+  if (practice) return;
   renderer.burst(b.x, b.y, 'remove');
   const result = game.remove(b.id); ui.selected = null; ui.inspectorOpen = false;
   action(result, `${result.restocked ? '已收回，可免费重放' : `已拆除，退回 ${result.refund || 0} 金币`}${result.discarded ? ' · 物品已清空' : ''}`);
@@ -269,6 +333,7 @@ function useCell(cell, paint = false) {
   if (ui.screen !== 'workshop' || document.querySelector('dialog[open]')) return false;
   if (!game.inside(cell.x, cell.y)) { if (!paint) toast('点右上角扩建，解锁这片空地'); return false; }
   const b = game.at(cell.x, cell.y);
+  if (practice && ui.tool === 'belt' && (practice.step !== 1 || cell.x !== 6 || cell.y !== 2)) return false;
   if (ui.tool === 'remove') { if (b) removeBuilding(b); return Boolean(b); }
   if (ui.tool === 'pan') return false;
   if (ui.tool === 'belt' && b) {
@@ -294,7 +359,7 @@ canvas.addEventListener('pointerdown', event => {
   panning = event.button === 1 || ui.tool === 'pan' || ui.focus;
   if (panning) { panPoint = lastPointer; canvas.dataset.panning = 'true'; return; }
   const cell = renderer.cellAt(event.clientX, event.clientY); ui.hover = cell;
-  dragging = ui.tool === 'belt' || ui.tool === 'remove'; lastCell = cell;
+  dragging = !practice && (ui.tool === 'belt' || ui.tool === 'remove'); lastCell = cell;
   dragError = '';
   if (event.pointerType === 'touch') { pendingTouch = cell; touchOrigin = lastPointer; }
   else useCell(cell);
@@ -370,6 +435,7 @@ document.querySelectorAll('[data-category]').forEach(button => button.addEventLi
 $('#select-tool').addEventListener('click', () => chooseTool('select'));
 $('#remove-tool').addEventListener('click', () => chooseTool(ui.tool === 'remove' ? 'select' : 'remove'));
 function rotate() {
+  if (practice) return;
   if (ui.selected !== null && ui.tool === 'select') { game.rotate(ui.selected); renderer.pulse(ui.selected); } else ui.dir = (ui.dir + 1) % 4;
   save(); renderUi(true);
 }
@@ -391,7 +457,11 @@ $('#focus-view').addEventListener('click', () => { finishDrag(); ui.focus = !ui.
 canvas.addEventListener('wheel', event => { if (ui.screen !== 'workshop' || document.querySelector('dialog[open]')) return; event.preventDefault(); finishDrag(); renderer.zoom(Math.exp(-Math.max(-150, Math.min(150, event.deltaY)) * .0025), event.clientX, event.clientY); lastPointer = { x: event.clientX, y: event.clientY }; refreshHover(); }, { passive: false });
 $('#motion-toggle').addEventListener('click', toggleMotion);
 $('#settings-motion').addEventListener('click', toggleMotion);
-$('#menu-play').addEventListener('click', enterWorkshop);
+$('#menu-play').addEventListener('click', () => !hasSave && !tutorialSeen && !protectOriginalSave ? startTutorial() : enterWorkshop());
+$('#menu-tutorial').addEventListener('click', startTutorial);
+$('#help-tutorial').addEventListener('click', startTutorial);
+$('#tutorial-retry').addEventListener('click', startTutorial);
+$('#tutorial-exit').addEventListener('click', () => leaveTutorial());
 $('#menu-home').addEventListener('click', enterMenu);
 $('#menu-new').addEventListener('click', () => requestRestart('new'));
 $('#menu-restore').addEventListener('click', () => requestRestart('restore'));
@@ -432,7 +502,7 @@ window.addEventListener('pagehide', save);
 let previousTime = performance.now(), previousSave = previousTime, previousUi = 0;
 function frame(now) {
   const dt = Math.min(.1, Math.max(0, (now - previousTime) / 1000)); previousTime = now;
-  if (ui.screen === 'workshop' && !document.hidden && !document.querySelector('dialog[open]')) game.update(dt);
+  if (ui.screen === 'workshop' && !document.hidden && !document.querySelector('dialog[open]') && (!practice || (practice.step >= 2 && practice.step < 5))) game.update(dt);
   if (ui.screen === 'workshop') renderer.draw(game, ui, now);
   $('#zoom-reset').textContent = `${Math.round(renderer.camera.zoom * 100)}%`;
   if (now - previousUi > 160) { renderUi(); previousUi = now; }
@@ -440,7 +510,7 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 try {
-  await assets.load(); $('#loading').hidden = true; renderPalette(); renderUi(true);
+  await assets.load(); $('#loading').hidden = true; renderPalette(); renderRecipes(); renderUi(true);
   save(); requestAnimationFrame(frame);
 } catch (error) { $('#loading').textContent = '素材加载失败，请刷新重试'; $('#menu-play').textContent = '素材加载失败，请刷新'; console.error(error); }
-export const runtime = { game, assets, renderer, ui };
+export const runtime = { get game() { return game; }, get practice() { return practice; }, assets, renderer, ui };
