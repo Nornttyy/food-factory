@@ -52,5 +52,5 @@ test('full-window layout has no permanent sidebar column and starts with panels 
   assert.match(html, /id="order-drawer"[^>]*hidden/); assert.match(html, /id="inspector-panel"[^>]*hidden/); assert.match(html, /id="palette"[^>]*hidden/);
   assert.match(css, /\.workspace,\.workshop,\.board-wrap\{position:absolute;inset:0\}/);
   assert.doesNotMatch(css, /grid-template-columns/); assert.match(css, /focus-mode/);
-  assert.ok(html.indexOf('href="./factory.css"') < html.indexOf('href="./factory-layout.css"'), 'responsive overrides load after base styles');
+  assert.ok(html.indexOf('href="./factory.css') < html.indexOf('href="./factory-layout.css'), 'responsive overrides load after base styles');
 });

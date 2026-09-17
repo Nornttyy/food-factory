@@ -1,5 +1,5 @@
-import { LINK_DIRS, directionBetween, opposite, canLink, outputDirections } from './factory-links.js';
-import { RESEARCH, freshCareer, contractFor, contractComplete, validCareer } from './factory-career.js';
+import { LINK_DIRS, directionBetween, opposite, canLink, outputDirections } from './factory-links.js?v=0.7.0';
+import { RESEARCH, freshCareer, contractFor, contractComplete, validCareer } from './factory-career.js?v=0.7.0';
 export const SAVE_KEY = 'food-factory-v1';
 export const WIDTH = 14;
 export const HEIGHT = 8;

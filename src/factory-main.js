@@ -1,7 +1,7 @@
-import { FactoryGame, BUILDINGS, ITEMS, SAVE_KEY, DIRECTION_NAMES, upgradeCost } from './factory-core.js';
-import { FactoryAssets, FactoryRenderer } from './factory-renderer.js';
-import { directionBetween, nextBeltCell } from './factory-links.js';
-import { RESEARCH } from './factory-career.js';
+import { FactoryGame, BUILDINGS, ITEMS, SAVE_KEY, DIRECTION_NAMES, upgradeCost } from './factory-core.js?v=0.7.0';
+import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.7.0';
+import { directionBetween, nextBeltCell } from './factory-links.js?v=0.7.0';
+import { RESEARCH } from './factory-career.js?v=0.7.0';
 
 const $ = selector => document.querySelector(selector);
 const game = new FactoryGame();

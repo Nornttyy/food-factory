@@ -1,6 +1,6 @@
-import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js';
-import { CELL, FactoryCamera, jellyPose, foodPose } from './factory-feel.js';
-import { conveyorPorts, connectedPorts } from './factory-links.js';
+import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.7.0';
+import { CELL, FactoryCamera, jellyPose, foodPose } from './factory-feel.js?v=0.7.0';
+import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.7.0';
 export class FactoryAssets {
   constructor() { this.images = {}; this.sprites = {}; this.ready = false; }
   async load(base = './assets/generated/factory/cream-v1/') {
