@@ -1,6 +1,6 @@
-import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.12.0';
-import { CELL, FactoryCamera, jellyPose, foodPose } from './factory-feel.js?v=0.12.0';
-import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.12.0';
+import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.12.1';
+import { CELL, FactoryCamera, jellyPose, foodPose } from './factory-feel.js?v=0.12.1';
+import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.12.1';
 // Match the flour hopper: cream rails, cocoa outlines, sage/peach accents.
 const CREAM = { cream: '#fff2d9', biscuit: '#e7cea7', peach: '#e4b69f', sage: '#b9c7ad', cocoa: '#846a57', belt: '#b09b86' };
 const BELT_LAYERS = [[43, CREAM.cocoa], [38, CREAM.cream], [28, CREAM.belt]];
@@ -12,7 +12,7 @@ export class FactoryAssets {
     const images = {};
     onProgress(0, 1);
     const loading = (async () => {
-      const response = await fetch(base + 'manifest.json?v=0.12.0', { signal: controller.signal });
+      const response = await fetch(base + 'manifest.json?v=0.12.1', { signal: controller.signal });
       if (!response.ok) throw new Error('素材清单读取失败');
       const manifest = await response.json();
       if (stopped) return;
@@ -60,11 +60,64 @@ function arrow(ctx, x, y, dir, color, size = 8) {
   ctx.save(); ctx.translate(x, y); ctx.rotate(dir * Math.PI / 2);
   ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(size * .7, 0); ctx.lineTo(-size * .5, -size * .65); ctx.lineTo(-size * .5, size * .65); ctx.closePath(); ctx.fill(); ctx.restore();
 }
+// One native track drawing for the board, rotated ghost and build/inspector icons.
+// Port positions stay exactly on the cell boundary; artwork never changes routing.
+export function drawConveyor(ctx, b, geometry, time = 0, duration = 1) {
+  const x = b.x * CELL + CELL / 2, y = b.y * CELL + CELL / 2;
+  const { inputs, outputs, ports, blockedEnds } = geometry;
+  ctx.save(); ctx.lineCap = 'butt'; ctx.lineJoin = 'round';
+  for (const [width, color] of BELT_LAYERS) {
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath();
+    for (const input of inputs) for (const output of outputs) {
+      const [ix, iy] = DIRS[input], [ox, oy] = DIRS[output];
+      ctx.moveTo(x + ix * CELL / 2, y + iy * CELL / 2); ctx.lineTo(x, y); ctx.lineTo(x + ox * CELL / 2, y + oy * CELL / 2);
+    }
+    ctx.stroke();
+  }
+  const offset = time * 12 / duration % 13;
+  ctx.strokeStyle = CREAM.cocoa; ctx.lineWidth = 1;
+  for (const dir of ports) {
+    const [dx, dy] = DIRS[dir], phase = outputs.includes(dir) ? offset : 13 - offset;
+    for (let n = 8 + phase; n < 35; n += 13) { ctx.beginPath(); ctx.moveTo(x + dx * n - dy * 10, y + dy * n + dx * 10); ctx.lineTo(x + dx * n + dy * 10, y + dy * n - dx * 10); ctx.stroke(); }
+  }
+  if (b.type === 'splitter') {
+    // A small cream junction distinguishes the device from an ordinary T belt.
+    round(ctx, x - 8, y - 8, 16, 16, 5, CREAM.cream, CREAM.cocoa);
+    ctx.save();
+    ctx.strokeStyle = CREAM.cocoa; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (const side of ports) { ctx.moveTo(x, y); ctx.lineTo(x + DIRS[side][0] * 4, y + DIRS[side][1] * 4); }
+    ctx.stroke(); ctx.restore();
+    for (const side of inputs) arrow(ctx, x + DIRS[side][0] * 28, y + DIRS[side][1] * 28, (side + 2) % 4, CREAM.sage, 6);
+  }
+  for (const dir of outputs) {
+    const distance = b.type === 'splitter' ? 28 : 19;
+    arrow(ctx, x + DIRS[dir][0] * distance, y + DIRS[dir][1] * distance, dir, CREAM.peach, 8);
+  }
+  for (const dir of blockedEnds) {
+    const [dx, dy] = DIRS[dir]; ctx.strokeStyle = '#ce8e74'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(x + dx * 34 - dy * 13, y + dy * 34 + dx * 13); ctx.lineTo(x + dx * 34 + dy * 13, y + dy * 34 - dx * 13); ctx.stroke();
+  }
+  if (b.blocked) { ctx.fillStyle = '#d99b7d'; ctx.beginPath(); ctx.arc(b.x * CELL + 61, b.y * CELL + 10, 3, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+}
 export class FactoryRenderer {
   constructor(canvas, assets) {
     this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.assets = assets;
     this.camera = new FactoryCamera(); this.transform = { scale: 1, x: 0, y: 0 };
     this.pulses = new Map(); this.previous = new Map(); this.particles = []; this.salesSeen = new WeakSet(); this.now = 0; this.reduced = false;
+  }
+  buildingIcon(building, size = 64, game = null) {
+    const def = BUILDINGS[building.type];
+    if (building.type !== 'splitter') return this.assets.icon(def.sprite, size);
+    const canvas = document.createElement('canvas'); canvas.width = size * 2; canvas.height = size * 2;
+    const b = { x: 0, y: 0, dir: 0, ...building };
+    const geometry = conveyorPorts(b, (x, y) => game?.at(x, y));
+    const ctx = canvas.getContext('2d'), padding = canvas.width * .06;
+    ctx.save(); ctx.translate(padding, padding); ctx.scale((canvas.width - padding * 2) / CELL, (canvas.height - padding * 2) / CELL);
+    drawConveyor(ctx, { ...b, x: 0, y: 0, blocked: false }, geometry);
+    ctx.restore(); canvas.setAttribute('aria-hidden', 'true');
+    return canvas;
   }
   resize(area = [WIDTH, HEIGHT], ui = {}) {
     const rect = this.canvas.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -164,8 +217,7 @@ export class FactoryRenderer {
       const { x, y } = ui.hover, occupied = game.at(x, y);
       round(ctx, x * CELL + 2, y * CELL + 2, 68, 68, 7, ui.tool === 'remove' ? '#d9987e44' : '#92a67422', ui.tool === 'remove' ? '#c18b70' : '#9eac87');
       if (BUILDINGS[ui.tool] && !occupied) {
-        this.assets.draw(ctx, BUILDINGS[ui.tool].sprite, x * CELL + 8, y * CELL + 6, 56, 56, .5);
-        arrow(ctx, x * CELL + 36 + DIRS[ui.dir][0] * 28, y * CELL + 36 + DIRS[ui.dir][1] * 28, ui.dir, '#8b9e77', 8);
+        this.drawBuildingPreview({ type: ui.tool, x, y, dir: ui.dir }, game);
       }
     }
     if (ui.tutorialTarget) {
@@ -186,31 +238,18 @@ export class FactoryRenderer {
       ctx.beginPath(); ctx.arc(p.x + p.vx * age * 2, p.y + p.vy * age * 2 + age * age * 68, p.size * (1 - age * .6), 0, Math.PI * 2); ctx.fill(); ctx.restore();
     }
   }
+  drawBuildingPreview(b, game) {
+    if (b.type === 'splitter') {
+      this.ctx.save(); this.ctx.globalAlpha *= .5;
+      this.drawBelt(b, game); this.ctx.restore();
+      return;
+    }
+    this.assets.draw(this.ctx, BUILDINGS[b.type].sprite, b.x * CELL + 8, b.y * CELL + 6, 56, 56, .5);
+    arrow(this.ctx, b.x * CELL + 36 + DIRS[b.dir][0] * 28, b.y * CELL + 36 + DIRS[b.dir][1] * 28, b.dir, '#8b9e77', 8);
+  }
   drawBelt(b, game) {
-    const ctx = this.ctx, x = b.x * CELL + 36, y = b.y * CELL + 36;
-    const { inputs, outputs, ports, blockedEnds } = conveyorPorts(b, (x, y) => this.grid ? this.grid.get(`${x},${y}`) : game.at(x, y));
-    ctx.lineCap = 'butt'; ctx.lineJoin = 'round';
-    for (const [width, color] of BELT_LAYERS) {
-      ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath();
-      for (const input of inputs) for (const output of outputs) {
-        const [ix, iy] = DIRS[input], [ox, oy] = DIRS[output];
-        ctx.moveTo(x + ix * 36, y + iy * 36); ctx.lineTo(x, y); ctx.lineTo(x + ox * 36, y + oy * 36);
-      }
-      ctx.stroke();
-    }
-    const offset = game.state.time * 12 / game.duration(b) % 13;
-    ctx.strokeStyle = CREAM.cocoa; ctx.lineWidth = 1;
-    for (const dir of ports) {
-      const [dx, dy] = DIRS[dir], phase = outputs.includes(dir) ? offset : 13 - offset;
-      for (let n = 8 + phase; n < 35; n += 13) { ctx.beginPath(); ctx.moveTo(x + dx * n - dy * 10, y + dy * n + dx * 10); ctx.lineTo(x + dx * n + dy * 10, y + dy * n - dx * 10); ctx.stroke(); }
-    }
-    arrow(ctx, x + DIRS[b.dir][0] * 19, y + DIRS[b.dir][1] * 19, b.dir, CREAM.peach, 8);
-    if (b.type === 'splitter') { const d = (b.dir + 1) % 4; arrow(ctx, x + DIRS[d][0] * 20, y + DIRS[d][1] * 20, d, CREAM.peach, 8); }
-    for (const dir of blockedEnds) {
-      const [dx, dy] = DIRS[dir]; ctx.strokeStyle = '#ce8e74'; ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.moveTo(x + dx * 34 - dy * 13, y + dy * 34 + dx * 13); ctx.lineTo(x + dx * 34 + dy * 13, y + dy * 34 - dx * 13); ctx.stroke();
-    }
-    if (b.blocked) { ctx.fillStyle = '#d99b7d'; ctx.beginPath(); ctx.arc(b.x * CELL + 61, b.y * CELL + 10, 3, 0, Math.PI * 2); ctx.fill(); }
+    const geometry = conveyorPorts(b, (x, y) => this.grid ? this.grid.get(`${x},${y}`) : game.at(x, y));
+    drawConveyor(this.ctx, b, geometry, game.state.time, game.duration(b));
   }
   drawMachineConnections(b, ports) {
     const ctx = this.ctx, x = b.x * CELL + CELL / 2, y = b.y * CELL + CELL / 2;

@@ -1,9 +1,9 @@
-import { FactoryGame, BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, AREAS, WIDTH, HEIGHT, upgradeCost, isTransport, transportCount } from './factory-core.js?v=0.12.0';
-import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.12.0';
-import { directionBetween, nextBeltCell } from './factory-links.js?v=0.12.0';
-import { RESEARCH } from './factory-career.js?v=0.12.0';
-import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.12.0';
-import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS } from './factory-business.js?v=0.12.0';
+import { FactoryGame, BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, AREAS, WIDTH, HEIGHT, upgradeCost, isTransport, transportCount } from './factory-core.js?v=0.12.1';
+import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.12.1';
+import { directionBetween, nextBeltCell } from './factory-links.js?v=0.12.1';
+import { RESEARCH } from './factory-career.js?v=0.12.1';
+import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.12.1';
+import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS } from './factory-business.js?v=0.12.1';
 
 const $ = selector => document.querySelector(selector);
 let game = new FactoryGame();
@@ -81,7 +81,7 @@ function renderPalette() {
     button.disabled = Boolean(practice && type !== 'belt');
     button.classList.toggle('tutorial-highlight', Boolean(practice?.step === 0 && type === 'belt'));
     button.setAttribute('aria-label', `${def.label}，${locked ? '完成订单解锁' : `${def.cost} 金币`}`);
-    button.append(assets.icon(def.sprite));
+    button.append(renderer.buildingIcon({ type, dir: ui.dir }));
     const text = document.createElement('span'), strong = document.createElement('strong'), small = document.createElement('small');
     strong.textContent = def.label; small.textContent = locked ? `第 ${def.unlock} 单后解锁` : game.state.stock[type] ? `免费重放 ×${game.state.stock[type]}` : `${def.cost} 金币`;
     text.append(strong, small); button.append(text);
@@ -133,7 +133,7 @@ function renderInspector() {
     const recipe = document.createElement('button'); recipe.className = 'recipe-button'; recipe.textContent = '查看配方 ↗'; recipe.addEventListener('click', () => $('#recipe-dialog').showModal()); root.append(recipe); return;
   }
   $('#inspector-title').textContent = b ? `${def.label} · Lv.${b.level}` : def.label;
-  const icon = assets.icon(def.sprite); icon.className = 'inspector-art'; root.append(icon);
+  const icon = renderer.buildingIcon(b || { type: ui.tool, dir: ui.dir }, 64, b ? game : null); icon.className = 'inspector-art'; root.append(icon);
   const info = document.createElement('p'); info.className = 'machine-info';
   const status = b ? (b.blocked ? (b.type === 'depot' ? '仓库已满' : '出口堵住了') : b.type === 'depot' ? (b.input ? '正在出货' : '等待成品') : b.output ? '等待运出' : b.input || def.kind === 'source' ? '正在生产' : '等待原料') : `${def.cost} 金币 / 台`;
   info.textContent = recipeLabel(def); info.append(document.createElement('br'));
@@ -508,7 +508,7 @@ $('#remove-tool').addEventListener('click', () => chooseTool(ui.tool === 'remove
 function rotate() {
   if (practice) return;
   if (ui.selected !== null && ui.tool === 'select') { game.rotate(ui.selected); renderer.pulse(ui.selected); } else ui.dir = (ui.dir + 1) % 4;
-  save(); renderUi(true);
+  renderPalette(); save(); renderUi(true);
 }
 $('#rotate').addEventListener('click', rotate);
 function pause() { game.state.paused = !game.state.paused; save(); renderUi(true); }
