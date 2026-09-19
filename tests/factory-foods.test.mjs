@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { FactoryGame, BUILDINGS, ITEMS, FOOD_RECIPES, orderFor } from '../src/factory-core.js';
 import { createPractice, nextLesson, LESSONS } from '../src/factory-tutorial.js';
+import { PACK_RECIPES } from '../src/factory-packing.js';
 
 const simulate = (game, seconds) => { for (let n = 0; n < seconds * 10; n++) game.update(.1); };
 
@@ -11,7 +12,7 @@ test('all eight complete food chains produce, sell, restore, and have generated 
   const sprites = new Set(manifest.sprites.map(s => s.id));
   assert.equal(FOOD_RECIPES.length, 8);
   assert.equal(new Set(FOOD_RECIPES.map(([item]) => item)).size, 8);
-  assert.deepEqual(FOOD_RECIPES.map(([item]) => item).sort(), Object.keys(ITEMS).filter(item => ITEMS[item].value).sort());
+  assert.deepEqual([...FOOD_RECIPES.map(([item]) => item), ...Object.keys(PACK_RECIPES)].sort(), Object.keys(ITEMS).filter(item => ITEMS[item].value).sort());
   for (const [food, recipe] of FOOD_RECIPES) {
     const game = new FactoryGame({ starter: false }); game.state.coins = 10000; game.state.orderIndex = 2;
     for (const [x, type] of [...recipe, 'depot'].entries()) {

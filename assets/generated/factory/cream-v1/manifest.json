@@ -9,6 +9,7 @@
     "cocoa": "#846A57"
   },
   "atlases": {
+    "packing": { "file": "packing-table-v1.png", "width": 1254, "height": 1254, "columns": 1, "rows": 1 },
     "service": { "file": "service-parts-v1.png", "width": 1254, "height": 1254, "columns": 4, "rows": 4 },
     "expansion": { "file": "expansion-v2.png", "width": 1536, "height": 1024, "columns": 4, "rows": 2 },
     "machines": {
@@ -34,6 +35,7 @@
     }
   },
   "sprites": [
+    {"id":"packing_table","label":"套餐打包台","atlas":"packing","frame":{"x":140,"y":55,"w":960,"h":1120},"anchor":{"x":0.5,"y":0.5},"category":"machine"},
     {"id":"cat_cream_head","label":"cat_cream_head","atlas":"service","frame":{"x":53,"y":78,"w":297,"h":250},"anchor":{"x":0.5,"y":0.5},"category":"character"},
     {"id":"cat_cream_body","label":"cat_cream_body","atlas":"service","frame":{"x":403,"y":123,"w":253,"h":205},"anchor":{"x":0.5,"y":0.5},"category":"character"},
     {"id":"cat_cream_hand_l","label":"cat_cream_hand_l","atlas":"service","frame":{"x":753,"y":162,"w":135,"h":130},"anchor":{"x":0.5,"y":0.5},"category":"character"},

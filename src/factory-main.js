@@ -1,14 +1,18 @@
-import { BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, WIDTH, HEIGHT, upgradeCost, isTransport, transportCount } from './factory-core.js?v=0.18.0';
-import { AutomaticFactoryGame as FactoryGame } from './factory-automation.js?v=0.18.0';
-import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.18.0';
-import { directionBetween, nextBeltCell } from './factory-links.js?v=0.18.0';
-import { RESEARCH } from './factory-career.js?v=0.18.0';
-import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.18.0';
-import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS } from './factory-business.js?v=0.18.0';
+import { BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, WIDTH, HEIGHT, upgradeCost, isTransport, transportCount } from './factory-core.js?v=0.19.0';
+import { AutomaticFactoryGame as FactoryGame, createPackingTrial } from './factory-automation.js?v=0.19.0';
+import { PACKING_SAVE_KEY, PACK_RECIPES, PACK_GOALS, TRIAL_BUILDINGS, ingredientsReady } from './factory-packing.js?v=0.19.0';
+import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.19.0';
+import { directionBetween, nextBeltCell } from './factory-links.js?v=0.19.0';
+import { RESEARCH } from './factory-career.js?v=0.19.0';
+import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.19.0';
+import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS, WAREHOUSE_FOODS } from './factory-business.js?v=0.19.0';
 
 const $ = selector => document.querySelector(selector);
 let game = new FactoryGame();
 let practice = null, tutorialSeen = false;
+let packingSession = null, packingGame = null, protectPackingSave = false;
+const allRecipes = [...FOOD_RECIPES, ...Object.entries(PACK_RECIPES).map(([item, recipe]) => [item, [recipe.machine]])];
+function visibleRecipes() { return game.state.packingTrial ? allRecipes.filter(([item]) => ['bread', 'donut_plain', 'orange_juice', ...Object.keys(PACK_RECIPES)].includes(item)) : allRecipes; }
 try { tutorialSeen = localStorage.getItem(TUTORIAL_KEY) === 'seen'; } catch { /* Learning still works without storage. */ }
 const assets = new FactoryAssets();
 const canvas = $('#factory-board');
@@ -41,6 +45,12 @@ function toast(message) {
 }
 function save() {
   if (practice) { $('#save-status').textContent = '练习工坊 · 不影响存档'; return; }
+  if (packingSession) {
+    if (protectPackingSave) { $('#save-status').textContent = '套餐存档已保留 · 本次暂不保存'; return; }
+    try { localStorage.setItem(PACKING_SAVE_KEY, game.serialize()); $('#save-status').textContent = '套餐试营 · 独立存档'; }
+    catch { $('#save-status').textContent = '无法保存套餐试营 · 请勿关闭'; }
+    return;
+  }
   if (!hasSave) return;
   if (protectOriginalSave) { $('#save-status').textContent = '原存档已保留 · 本次暂不保存'; return; }
   try { localStorage.setItem(SAVE_KEY, game.serialize()); saveWorks = true; }
@@ -80,6 +90,7 @@ function renderPalette() {
   const palette = $('#palette'); palette.replaceChildren();
   for (const [type, def] of Object.entries(BUILDINGS)) {
     if (def.category !== ui.category) continue;
+    if (game.state.packingTrial && !TRIAL_BUILDINGS.includes(type)) continue;
     const locked = def.unlock > game.unlockLevel;
     const button = document.createElement('button'); button.className = `build-card${ui.tool === type ? ' active' : ''}${locked ? ' locked' : ''}`;
     button.dataset.building = type; button.setAttribute('aria-pressed', String(ui.tool === type));
@@ -114,12 +125,13 @@ function renderOrder() {
   claim.addEventListener('click', () => {
     const result = game.claimOrder();
     if (result.ok) { ui.ordersOpen = false; for (const b of game.state.buildings) if (b.type === 'depot') { renderer.pulse(b.id, 'upgrade'); renderer.burst(b.x, b.y, 'upgrade'); } }
-    if (action(result, game.state.orderIndex === 1 ? '甜甜圈与奶香包解锁啦' : game.state.orderIndex === 2 ? '果汁、蛋糕与冰棒解锁啦' : '新订单已送达')) { renderPalette(); renderRecipes(); bounceElement($('#wallet'), true); }
+    if (action(result, game.state.packingTrial ? '套餐目标完成' : game.state.orderIndex === 1 ? '甜甜圈与奶香包解锁啦' : game.state.orderIndex === 2 ? '果汁、蛋糕与冰棒解锁啦' : '新订单已送达')) { renderPalette(); renderRecipes(); bounceElement($('#wallet'), true); }
   });
   const note = document.createElement('div'); note.className = 'unlock-note'; note.textContent = order.note;
   root.append(reward, claim, note);
 }
 function recipeLabel(def) {
+  if (def.kind === 'assembler') return `${Object.entries(def.ingredients).map(([item, n]) => `${ITEMS[item].label} ×${n}`).join(' ＋ ')} → ${ITEMS[def.output].label}`;
   if (def.kind === 'source') return `持续供应 ${ITEMS[def.output].label}`;
   if (def.kind === 'machine') return `${ITEMS[def.input].label} → ${ITEMS[def.output].label}`;
   if (def.kind === 'depot') return '自动售卖成品，也可切换自动入库';
@@ -140,10 +152,17 @@ function renderInspector() {
   $('#inspector-title').textContent = b ? `${def.label} · Lv.${b.level}` : def.label;
   const icon = renderer.buildingIcon(b || { type: ui.tool, dir: ui.dir }, 64, b ? game : null); icon.className = 'inspector-art'; root.append(icon);
   const info = document.createElement('p'); info.className = 'machine-info';
-  const status = b ? (b.blocked ? b.type === 'depot' && b.mode === 'store' ? '合作仓库已满' : '出口堵住了' : b.type === 'depot' ? (b.input ? '正在出货' : '等待成品') : b.output ? '等待运出' : b.input || def.kind === 'source' ? '正在生产' : '等待原料') : `${def.cost} 金币 / 台`;
+  const status = b ? (b.blocked ? b.type === 'depot' && b.mode === 'store' ? '合作仓库已满' : '出口堵住了' : b.type === 'depot' ? (b.input ? '正在出货' : '等待成品') : b.output ? '等待运出' : b.input || def.kind === 'source' || def.kind === 'assembler' && ingredientsReady(b, def) ? '正在生产' : '等待原料') : `${def.cost} 金币 / 台`;
   info.textContent = recipeLabel(def); info.append(document.createElement('br'));
   info.append(document.createTextNode(b ? (isTransport(b) ? `${game.duration(b).toFixed(1)} 秒 / 格 · ${transportCount(b)}/2 件 · ${status}` : `${game.duration(b).toFixed(1)} 秒 / 份 · ${status}`) : `${def.cost} 金币 · 点空格摆放`)); root.append(info);
   if (b) {
+    if (def.ingredients) {
+      for (const [item, count] of Object.entries(def.ingredients)) {
+        const row = element('div', '', 'packing-ingredient');
+        row.append(assets.icon(ITEMS[item].sprite, 28), element('span', `${ITEMS[item].label} ${b.ingredients[item] || 0}/${count}`)); root.append(row);
+      }
+      root.append(element('small', '箭头口出货，其余三面进料；配齐后自动打包。', 'tiny-note'));
+    }
     const actions = document.createElement('div'); actions.className = 'inspector-actions';
     if (b.type === 'depot') {
       const mode = element('button', b.mode === 'store' ? '入库中 · 切换自动售卖' : '售卖中 · 切换自动入库', 'soft-button'); mode.id = 'depot-mode'; mode.disabled = Boolean(practice);
@@ -160,6 +179,10 @@ function renderInspector() {
     const remove = document.createElement('button'); remove.textContent = b.gifted && !b.paid ? '收回设备' : `拆除 +${b.paid}`; remove.addEventListener('click', () => removeBuilding(b));
     turn.disabled = remove.disabled = Boolean(practice);
     actions.append(turn, remove); root.append(actions);
+    if (!practice && (b.input || b.output || b.buffer || Object.values(b.ingredients || {}).some(Boolean))) {
+      const clear = element('button', '清空物品 · 不售卖', 'soft-button'); clear.id = 'clear-building';
+      clear.addEventListener('click', () => action(game.clearContents(b.id), '仅清空这台设备内的物品')); root.append(clear);
+    }
     const note = document.createElement('p'); note.className = 'tiny-note'; note.textContent = b.gifted ? '初始设备可免费重放；收回会清空物品' : '拆除会清空机内物品，退回实付费用'; root.append(note);
   }
 }
@@ -175,14 +198,14 @@ function renderUi(force = false) {
     }
   }
   const s = game.state, b = s.buildings.find(b => b.id === ui.selected);
-  const key = JSON.stringify([practice?.step, s.coins, s.orderIndex, s.orderProgress, s.totalSold, s.expansion, s.paused, s.speed, s.career, s.business, s.career.contract?.status === 'active' ? Math.ceil(s.time) : 0, ui.screen, ui.careerTab, ui.businessTab, ui.mapOpen, ui.tool, ui.selected, ui.dir, ui.dockOpen, ui.ordersOpen, ui.inspectorOpen, ui.focus, ui.reducedMotion, b?.mode, b?.level, b?.blocked, b?.input, b?.output, b?.buffer?.item]);
+  const key = JSON.stringify([s.packingTrial, b?.ingredients, practice?.step, s.coins, s.orderIndex, s.orderProgress, s.totalSold, s.expansion, s.paused, s.speed, s.career, s.business, s.career.contract?.status === 'active' ? Math.ceil(s.time) : 0, ui.screen, ui.careerTab, ui.businessTab, ui.mapOpen, ui.tool, ui.selected, ui.dir, ui.dockOpen, ui.ordersOpen, ui.inspectorOpen, ui.focus, ui.reducedMotion, b?.mode, b?.level, b?.blocked, b?.input, b?.output, b?.buffer?.item]);
   if (!force && key === lastUi) return; lastUi = key;
   renderFront();
   $('#coins').textContent = s.coins.toLocaleString('zh-CN');
   if (s.coins > lastCoins) bounceElement($('#wallet')); lastCoins = s.coins;
   $('#factory-level').textContent = `${game.area.join(' × ')} 格工坊`;
   $('#expand').textContent = game.expansionCost === null ? '已全部扩建' : `扩建 ${game.nextArea.join('×')} · ${game.expansionCost}`; $('#expand').disabled = Boolean(practice) || game.expansionCost === null;
-  $('#order-number').textContent = String(s.orderIndex + 1).padStart(2, '0');
+  $('#order-number').textContent = String(s.packingTrial ? Math.min(3, s.packingTrial.goal + 1) : s.orderIndex + 1).padStart(2, '0');
   $('#pause').textContent = s.paused ? '▷' : 'Ⅱ'; $('#pause').setAttribute('aria-label', s.paused ? '继续生产' : '暂停生产');
   $('#pause-overlay').hidden = !s.paused; $('#speed').textContent = `${s.speed}×`; $('#direction').textContent = DIRECTION_NAMES[ui.dir];
   $('#select-tool').classList.toggle('active', ui.tool === 'select'); $('#remove-tool').classList.toggle('active', ui.tool === 'remove');
@@ -206,11 +229,12 @@ function renderUi(force = false) {
   canvas.dataset.pan = String(ui.tool === 'pan');
   $('#motion-toggle').textContent = ui.reducedMotion ? 'Q 弹动效：关' : 'Q 弹动效：开';
   $('#motion-toggle').setAttribute('aria-pressed', String(ui.reducedMotion));
-  const orderKey = JSON.stringify([s.orderIndex, s.orderProgress]);
+  const orderKey = JSON.stringify([s.packingTrial, s.orderIndex, s.orderProgress]);
   if (force || orderKey !== lastOrder) { renderOrder(); lastOrder = orderKey; }
-  const inspectorKey = JSON.stringify([ui.tool, ui.selected, s.orderIndex, s.totalSold, s.career.research, b?.mode, game.warehouseUsed, game.warehouseCapacity, b?.level, b?.paid, b?.blocked, b?.input, b?.output, b?.buffer?.item]);
+  const inspectorKey = JSON.stringify([b?.ingredients, ui.tool, ui.selected, s.orderIndex, s.totalSold, s.career.research, b?.mode, game.warehouseUsed, game.warehouseCapacity, b?.level, b?.paid, b?.blocked, b?.input, b?.output, b?.buffer?.item]);
   if (force || inspectorKey !== lastInspector) { renderInspector(); lastInspector = inspectorKey; }
   renderTutorial();
+  renderPackingGoal();
   $('#minimap-panel').hidden = !ui.mapOpen || ui.screen !== 'workshop' || ui.focus || ui.inspectorOpen || ui.ordersOpen;
   $('#map-toggle').setAttribute('aria-expanded', String(ui.mapOpen));
   $('#map-area').textContent = `已开放 ${game.area.join('×')} / ${WIDTH}×${HEIGHT}`;
@@ -219,11 +243,11 @@ function element(tag, text, className = '') { const el = document.createElement(
 function clockLabel(seconds) { const n = Math.max(0, Math.ceil(seconds)); return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`; }
 function renderRecipes() {
   const root = $('#recipe-list'); root.replaceChildren();
-  for (const [item, chain] of FOOD_RECIPES) {
+  for (const [item, chain] of visibleRecipes()) {
     const food = ITEMS[item], unlock = Math.max(...chain.map(type => BUILDINGS[type].unlock));
     const card = element('article', '', 'food-recipe'); card.dataset.food = item;
     card.append(assets.icon(food.sprite), element('h3', food.label), element('small', `${food.value} 金币 / 份 · ${unlock > game.unlockLevel ? `第 ${unlock} 单后解锁` : '已解锁'}`));
-    card.append(element('p', [...chain.map(type => BUILDINGS[type].label), '出货口'].join(' → ')));
+    card.append(element('p', PACK_RECIPES[item] ? recipeLabel(BUILDINGS[PACK_RECIPES[item].machine]) : [...chain.map(type => BUILDINGS[type].label), '出货口'].join(' → ')));
     root.append(card);
   }
 }
@@ -236,15 +260,22 @@ function renderQuickRecipe() {
   $('#quick-recipe').hidden = !ui.recipeOpen || ui.screen !== 'workshop' || ui.focus;
   $('#recipes-toggle').setAttribute('aria-expanded', String(ui.recipeOpen && !ui.focus));
   if (!ui.recipeOpen || !assets.ready) return;
-  const key = `${ui.recipeItem}:${game.unlockLevel}:${Boolean(practice)}`;
+  const key = `${ui.recipeItem}:${game.unlockLevel}:${Boolean(practice)}:${Boolean(game.state.packingTrial)}`;
   if (key === quickKey) return; quickKey = key;
   const select = $('#quick-recipe-food'); select.replaceChildren();
-  for (const [item, chain] of FOOD_RECIPES) {
+  for (const [item, chain] of visibleRecipes()) {
     const unlock = Math.max(...chain.map(type => BUILDINGS[type].unlock));
     const option = element('option', `${ITEMS[item].label}${unlock > game.unlockLevel ? ' · 未解锁' : ''}`); option.value = item; select.append(option);
   }
   select.value = ui.recipeItem;
-  const chain = FOOD_RECIPES.find(([item]) => item === ui.recipeItem)?.[1] || FOOD_RECIPES[0][1], root = $('#quick-recipe-chain'); root.replaceChildren();
+  const chain = allRecipes.find(([item]) => item === ui.recipeItem)?.[1] || FOOD_RECIPES[0][1], root = $('#quick-recipe-chain'); root.replaceChildren();
+  const pack = PACK_RECIPES[ui.recipeItem];
+  if (pack) {
+    for (const [item, count] of Object.entries(pack.ingredients)) {
+      const label = element('span', '', 'packing-ingredient'); label.append(assets.icon(ITEMS[item].sprite, 28), document.createTextNode(`×${count}`)); root.append(label);
+    }
+    root.append(element('span', '→'));
+  }
   [...chain, 'depot'].forEach((type, i) => {
     if (i) root.append(element('span', '→'));
     const def = BUILDINGS[type], locked = def.unlock > game.unlockLevel, button = element('button', '');
@@ -274,6 +305,38 @@ function renderTutorial() {
   $('#tutorial-exit').textContent = practice.step === 5 ? '进入我的工坊 →' : '跳过练习';
 }
 function resetEffects() { renderer.previous.clear(); renderer.pulses.clear(); renderer.particles = []; renderer.camera.fit(game.area); renderer.worldShown = false; }
+function renderPackingGoal() {
+  const trial = game.state.packingTrial, show = Boolean(trial && ui.screen === 'workshop' && !ui.focus && !ui.ordersOpen && !ui.inspectorOpen);
+  $('#packing-goal').hidden = !show;
+  $('#factory-app').classList.toggle('packing-trial', Boolean(trial));
+  if (!trial) return;
+  const done = trial.goal >= PACK_GOALS.length;
+  $('#packing-title').textContent = done ? '三项目标完成 ✓' : `${trial.goal + 1}/3 · ${game.order.title}`;
+  $('#packing-progress').textContent = done ? '继续自由搭线 · 原工坊在主菜单' : Object.entries(game.order.wants).map(([item, n]) => `${ITEMS[item].label} ${game.state.orderProgress[item] || 0}/${n}`).join(' · ');
+  $('#packing-hint').textContent = game.order.note;
+  $('#packing-claim').hidden = !game.orderReady;
+  $('#packing-claim').textContent = `完成 · +${game.order.reward}`;
+  if (!practice && trial.goal === 0 && !game.at(5, 3)) ui.tutorialTarget = { x: 5, y: 3 };
+}
+function startPacking() {
+  if (!assets.ready || packingSession) return;
+  finishDrag(); save();
+  if (!packingGame) {
+    packingGame = createPackingTrial();
+    try {
+      const raw = localStorage.getItem(PACKING_SAVE_KEY);
+      if (raw) {
+        const candidate = new FactoryGame();
+        if (candidate.restore(raw) && candidate.state.packingTrial) packingGame = candidate;
+        else { localStorage.setItem(`${PACKING_SAVE_KEY}-recovery-${Date.now()}`, raw); toast('套餐存档已备份，重新准备试营工坊'); }
+      }
+    } catch { protectPackingSave = true; toast('套餐存档暂不可写，原工坊不受影响'); }
+  }
+  packingSession = { realGame: game }; game = packingGame;
+  ui.category = 'machines'; ui.dir = 0; ui.recipeItem = game.state.packingTrial.goal === 0 ? 'breakfast_box' : 'tea_box'; ui.recipeOpen = false; ui.mapOpen = false;
+  document.querySelectorAll('[data-category]').forEach(b => b.classList.toggle('active', b.dataset.category === ui.category));
+  resetEffects(); chooseTool(game.state.packingTrial.goal === 0 && !game.at(5, 3) ? 'breakfast_packer' : 'select'); renderRecipes(); enterWorkshop();
+}
 function startTutorial() {
   if (!assets.ready) return;
   finishDrag(); save();
@@ -298,6 +361,7 @@ function renderFront() {
   document.body?.classList.toggle('menu-open', menu); document.body?.classList.toggle('reduced-motion', ui.reducedMotion);
   $('#menu-play').disabled = !assets.ready; $('#menu-career').disabled = !assets.ready;
   $('#menu-tutorial').disabled = !assets.ready;
+  $('#menu-packing').disabled = !assets.ready;
   $('#menu-business').disabled = !assets.ready;
   $('#menu-business-summary').textContent = `${BUSINESS_RANKS[businessLevel(s.business.reputation)]} · ${game.warehouseUsed}/${game.warehouseCapacity} 份库存`;
   $('#business-toggle').textContent = `仓库与合作 ${game.warehouseUsed}/${game.warehouseCapacity}`;
@@ -319,7 +383,7 @@ function renderBusiness() {
   $('#business-trade-view').hidden = !trade; $('#business-goals-view').hidden = trade;
   for (const [id, active] of [['business-trade-tab', trade], ['business-goals-tab', !trade]]) { $(`#${id}`).classList.toggle('active', active); $(`#${id}`).setAttribute('aria-pressed', String(active)); }
   const warehouse = $('#warehouse-items'); warehouse.replaceChildren();
-  for (const item of SALE_FOODS) {
+  for (const item of WAREHOUSE_FOODS.filter(item => SALE_FOODS.includes(item) || business.warehouse[item])) {
     const count = business.warehouse[item] || 0, card = element('div', '', 'warehouse-item');
     card.append(assets.icon(ITEMS[item].sprite), element('strong', `${ITEMS[item].label} · ${count}`), element('small', `合作累计 ${business.shipped[item] || 0} 份`, 'warehouse-history'));
     const sell = element('button', count ? `散卖 ${Math.min(10, count)} 份` : '暂无库存', 'soft-button'); sell.disabled = !count; sell.dataset.sellFood = item;
@@ -392,7 +456,7 @@ function renderCareer() {
 }
 function enterWorkshop() {
   if (!assets.ready) return;
-  finishDrag(); if (!practice) hasSave = true; ui.screen = 'workshop'; previousTime = performance.now();
+  finishDrag(); if (!practice && !packingSession) hasSave = true; ui.screen = 'workshop'; previousTime = performance.now();
   renderUi(true); renderer.resize(game.area, ui); save(); canvas.focus({ preventScroll: true });
   if (!practice && !renderer.worldShown) {
     renderer.worldShown = true;
@@ -401,7 +465,12 @@ function enterWorkshop() {
 }
 function enterMenu() {
   if (practice) { leaveTutorial(true); return; }
-  finishDrag(); save(); ui.screen = 'menu'; ui.hover = null; ui.focus = false; ui.ordersOpen = false; ui.dockOpen = false; ui.inspectorOpen = false;
+  finishDrag(); save();
+  if (packingSession) {
+    game = packingSession.realGame; packingSession = null; ui.recipeItem = 'bread'; ui.recipeOpen = false; ui.selected = null; ui.tool = 'select'; ui.tutorialTarget = null;
+    resetEffects(); renderPalette(); renderRecipes();
+  }
+  ui.screen = 'menu'; ui.hover = null; ui.focus = false; ui.ordersOpen = false; ui.dockOpen = false; ui.inspectorOpen = false;
   previousTime = performance.now(); renderUi(true); $('#menu-play').focus();
 }
 function openCareer() { if (practice) return; finishDrag(); $('#career-dialog').showModal(); renderCareer(); }
@@ -610,6 +679,9 @@ canvas.addEventListener('wheel', event => { if (ui.screen !== 'workshop' || docu
 $('#motion-toggle').addEventListener('click', toggleMotion);
 $('#settings-motion').addEventListener('click', toggleMotion);
 $('#menu-play').addEventListener('click', () => !hasSave && !tutorialSeen && !protectOriginalSave ? startTutorial() : enterWorkshop());
+$('#menu-packing').addEventListener('click', startPacking);
+$('#packing-claim').addEventListener('click', () => action(game.claimOrder(), '套餐目标完成'));
+$('#packing-recipe').addEventListener('click', () => { ui.recipeItem = game.state.packingTrial?.goal === 0 ? 'breakfast_box' : 'tea_box'; openQuickRecipe(); });
 $('#menu-tutorial').addEventListener('click', startTutorial);
 $('#help-tutorial').addEventListener('click', startTutorial);
 $('#tutorial-retry').addEventListener('click', startTutorial);
@@ -624,7 +696,7 @@ $('#close-settings').addEventListener('click', () => $('#settings-dialog').close
 $('#menu-recipes').addEventListener('click', () => $('#recipe-dialog').showModal());
 $('#recipes-toggle').addEventListener('click', () => { if (ui.recipeOpen) { ui.recipeOpen = false; renderQuickRecipe(); } else openQuickRecipe(); });
 $('#close-quick-recipe').addEventListener('click', () => { ui.recipeOpen = false; renderQuickRecipe(); });
-$('#quick-recipe-food').addEventListener('change', event => { if (FOOD_RECIPES.some(([item]) => item === event.target.value)) { ui.recipeItem = event.target.value; renderQuickRecipe(); } });
+$('#quick-recipe-food').addEventListener('change', event => { if (visibleRecipes().some(([item]) => item === event.target.value)) { ui.recipeItem = event.target.value; renderQuickRecipe(); } });
 $('#career-toggle').addEventListener('click', openCareer);
 $('#menu-career').addEventListener('click', openCareer);
 $('#menu-business').addEventListener('click', openBusiness);

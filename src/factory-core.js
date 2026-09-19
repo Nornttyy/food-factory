@@ -1,7 +1,8 @@
-import { LINK_DIRS, directionBetween, opposite, canLink, outputDirections } from './factory-links.js?v=0.18.0';
-import { RESEARCH, CAREER_CATALOG, freshCareer, contractFor, contractComplete, validCareer } from './factory-career.js?v=0.18.0';
-import { freshBusiness, validBusiness, warehouseCapacity, warehouseUsed, wholesaleFor, MILESTONES } from './factory-business.js?v=0.18.0';
-import { validShop, cookSeconds, STAFF, LEGACY_SHOP_PRICES } from './factory-shop.js?v=0.18.0';
+import { LINK_DIRS, directionBetween, opposite, canLink, outputDirections } from './factory-links.js?v=0.19.0';
+import { RESEARCH, CAREER_CATALOG, freshCareer, contractFor, contractComplete, validCareer } from './factory-career.js?v=0.19.0';
+import { freshBusiness, validBusiness, warehouseCapacity, warehouseUsed, wholesaleFor, MILESTONES } from './factory-business.js?v=0.19.0';
+import { validShop, cookSeconds, STAFF, LEGACY_SHOP_PRICES } from './factory-shop.js?v=0.19.0';
+import { PACK_RECIPES, PACK_GOALS, PACK_FREEPLAY, validPackingTrial, ingredientsReady } from './factory-packing.js?v=0.19.0';
 export const SAVE_KEY = 'food-factory-v1';
 export const ORDER_CATALOG = 4;
 export const FLOW_VERSION = 2;
@@ -26,6 +27,7 @@ export const ITEMS = {
   steamed_bun: { label: '奶香包', sprite: 'steamed_bun', value: 9 },
   strawberry_cake: { label: '草莓蛋糕', sprite: 'strawberry_cake', value: 16 },
   orange_icepop: { label: '橙汁冰棒', sprite: 'orange_icepop', value: 17 },
+  ...Object.fromEntries(Object.entries(PACK_RECIPES).map(([id, recipe]) => [id, { label: recipe.label, sprite: id, value: recipe.value }])),
 };
 export const BUILDINGS = {
   belt: { label: '传送带', sprite: 'belt_straight', category: 'logistics', cost: 8, unlock: 0, kind: 'belt' },
@@ -45,6 +47,7 @@ export const BUILDINGS = {
   bun_steamer: { label: '小蒸笼', sprite: 'bun_steamer', category: 'machines', cost: 180, unlock: 1, kind: 'machine', input: 'dough', output: 'steamed_bun', duration: 4.2 },
   cake_station: { label: '蛋糕工台', sprite: 'cake_station', category: 'machines', cost: 260, unlock: 2, kind: 'machine', input: 'dough', output: 'strawberry_cake', duration: 6 },
   icepop_freezer: { label: '冰棒冷柜', sprite: 'icepop_freezer', category: 'machines', cost: 220, unlock: 2, kind: 'machine', input: 'orange_juice', output: 'orange_icepop', duration: 3.8 },
+  ...Object.fromEntries(Object.entries(PACK_RECIPES).map(([item, recipe]) => [recipe.machine, { label: item === 'breakfast_box' ? '早餐打包台' : '下午茶打包台', sprite: 'packing_table', category: 'machines', cost: item === 'breakfast_box' ? 160 : 180, unlock: 2, kind: 'assembler', ingredients: recipe.ingredients, output: item, duration: 3.2 }])),
 };
 export const FOOD_RECIPES = [
   ['bread', ['flour_hopper', 'dough_mixer', 'bread_oven']],
@@ -94,7 +97,7 @@ export function durationFor(building, research = {}) {
   return PRODUCTION_TIME_SCALE * BUILDINGS[building.type].duration / (1 + (building.level - 1) * 0.5) / (1 + (research.production || 0) * .15);
 }
 export function makeEntity(type, x, y, dir, id, paid = 0) {
-  return { id, type, x, y, dir, level: 1, paid, input: null, output: null, buffer: null, progress: 0, readyAt: 0, roundRobin: 0, blocked: false, idle: 0 };
+  return { id, type, x, y, dir, level: 1, paid, input: null, output: null, buffer: null, progress: 0, readyAt: 0, roundRobin: 0, blocked: false, idle: 0, ...(BUILDINGS[type]?.kind === 'assembler' ? { ingredients: {} } : {}) };
 }
 export class FactoryGame {
   constructor({ starter = true } = {}) {
@@ -107,7 +110,7 @@ export class FactoryGame {
     if (starter) ['flour_hopper', 'belt', 'dough_mixer', 'belt', 'bread_oven', 'belt', 'belt', 'depot'].forEach((type, i) => this.state.buildings.push({ ...makeEntity(type, i + 1, 2, 0, this.state.nextId++), gifted: true }));
   }
   get area() { return AREAS[this.state.expansion]; }
-  get order() { return orderFor(this.state.orderIndex, this.state.orderCatalog); }
+  get order() { return this.state.packingTrial ? PACK_GOALS[this.state.packingTrial.goal] || PACK_FREEPLAY : orderFor(this.state.orderIndex, this.state.orderCatalog); }
   get unlockLevel() { return Math.min(2, this.state.orderIndex); }
   get expansionCost() { return EXPANSION_COSTS[this.state.expansion]; }
   get warehouseCapacity() { return warehouseCapacity(this.state.business); }
@@ -212,7 +215,7 @@ export class FactoryGame {
     this.state.coins += b.paid;
     if (b.gifted) this.state.stock[b.type] = (this.state.stock[b.type] || 0) + 1;
     this.state.buildings.splice(index, 1);
-    return { ok: true, refund: b.paid, restocked: Boolean(b.gifted), discarded: Boolean(b.input || b.output || b.buffer) };
+    return { ok: true, refund: b.paid, restocked: Boolean(b.gifted), discarded: Boolean(b.input || b.output || b.buffer || Object.values(b.ingredients || {}).some(Boolean)) };
   }
   extendBelt(fromCell, toCell) {
     const from = this.at(fromCell.x, fromCell.y), dir = directionBetween(fromCell, toCell);
@@ -236,9 +239,16 @@ export class FactoryGame {
     return { ok: true, building, created: !to, terminal: building.type === 'depot' };
   }
   rotate(id) { const b = this.state.buildings.find(b => b.id === id); if (!b) return false; b.dir = (b.dir + 1) % 4; return true; }
+  clearContents(id) {
+    const b = this.state.buildings.find(b => b.id === id);
+    if (!b) return { ok: false };
+    b.input = b.output = b.buffer = null; b.progress = 0; b.readyAt = this.state.time; b.blocked = false; b.motion = undefined;
+    if (BUILDINGS[b.type].ingredients) b.ingredients = {};
+    return { ok: true };
+  }
   upgrade(id) {
     const b = this.state.buildings.find(b => b.id === id);
-    if (!b || !['machine', 'source', 'depot'].includes(BUILDINGS[b.type].kind)) return { ok: false, message: '这台设备无需升级' };
+    if (!b || !['machine', 'source', 'depot', 'assembler'].includes(BUILDINGS[b.type].kind)) return { ok: false, message: '这台设备无需升级' };
     if (b.level >= 3) return { ok: false, message: '已经是最高等级' };
     const cost = upgradeCost(b);
     if (this.state.coins < cost) return { ok: false, message: '金币还不够' };
@@ -253,10 +263,14 @@ export class FactoryGame {
     this.state.coins -= this.expansionCost; this.state.expansion++;
     return { ok: true };
   }
-  get orderReady() { return Object.entries(this.order.wants).every(([item, count]) => (this.state.orderProgress[item] || 0) >= count); }
+  get orderReady() { return Object.keys(this.order.wants).length > 0 && Object.entries(this.order.wants).every(([item, count]) => (this.state.orderProgress[item] || 0) >= count); }
   claimOrder() {
     if (!this.orderReady) return { ok: false, message: '美味还在路上' };
     const reward = this.order.reward;
+    if (this.state.packingTrial) {
+      this.state.coins += reward; this.state.packingTrial.goal++; this.state.orderProgress = {};
+      return { ok: true, reward };
+    }
     this.state.coins += reward; this.state.orderIndex++; this.state.orderProgress = {}; this.state.orderCatalog = ORDER_CATALOG;
     return { ok: true, reward };
   }
@@ -282,6 +296,7 @@ export class FactoryGame {
     if (def.kind === 'source') return false;
     if (def.kind === 'depot') return !target.input && Boolean(ITEMS[item]?.value) && (target.mode !== 'store' || this.warehouseUsed < this.warehouseCapacity);
     if (def.kind === 'machine') return !target.input && def.input === item;
+    if (def.kind === 'assembler') return Object.hasOwn(def.ingredients, item) && (target.ingredients[item] || 0) < def.ingredients[item];
     return transportCount(target) < 2;
   }
   // Automatic dispatch powers the live factory. Archived cafe saves use an
@@ -330,14 +345,16 @@ export class FactoryGame {
       for (const dir of dirs) {
         const [dx, dy] = DIRS[dir];
         const target = map.get(`${b.x + dx},${b.y + dy}`);
-        const free = target ? (isTransport(target) ? 2 - transportCount(target) : 1) : 0;
-        if (target && (reserved.get(target.id) || 0) < free && this.canReceive(target, b.output, b)) {
+        const ingredients = target && BUILDINGS[target.type].ingredients;
+        const key = ingredients ? `${target.id}:${b.output}` : target?.id;
+        const free = target ? (ingredients ? (ingredients[b.output] || 0) - (target.ingredients[b.output] || 0) : isTransport(target) ? 2 - transportCount(target) : 1) : 0;
+        if (target && (reserved.get(key) || 0) < free && this.canReceive(target, b.output, b)) {
           if (target.type === 'depot' && target.mode === 'store' && storageReserved >= storageFree) continue;
-          chosen = { from: b, to: target, item: b.output, dir }; break;
+          chosen = { from: b, to: target, item: b.output, dir, key }; break;
         }
       }
       b.blocked = !chosen;
-      if (chosen) { reserved.set(chosen.to.id, (reserved.get(chosen.to.id) || 0) + 1); if (chosen.to.type === 'depot' && chosen.to.mode === 'store') storageReserved++; moves.push(chosen); }
+      if (chosen) { reserved.set(chosen.key, (reserved.get(chosen.key) || 0) + 1); if (chosen.to.type === 'depot' && chosen.to.mode === 'store') storageReserved++; moves.push(chosen); }
     }
     // Remove all snapshot heads before enqueueing, so arrivals cannot be forwarded
     // twice or overwrite a waiting second item when neighbors move together.
@@ -353,7 +370,8 @@ export class FactoryGame {
     }
     for (const { from, to, item } of moves) {
       const def = BUILDINGS[to.type];
-      if (def.kind === 'depot' || def.kind === 'machine') { to.input = item; to.progress = 0; to.blocked = false; }
+      if (def.kind === 'assembler') { to.ingredients[item] = (to.ingredients[item] || 0) + 1; }
+      else if (def.kind === 'depot' || def.kind === 'machine') { to.input = item; to.progress = 0; to.blocked = false; }
       else {
         const travel = this.duration(to);
         const motion = { x: from.x, y: from.y, dir: from.dir, offset: isTransport(from) ? 14 : 0, start: s.time, duration: travel };
@@ -363,11 +381,12 @@ export class FactoryGame {
     }
     for (const b of s.buildings) {
       const def = BUILDINGS[b.type];
-      if (def.kind !== 'source' && def.kind !== 'machine') continue;
-      if (b.output || (def.kind === 'machine' && !b.input)) { b.idle += STEP; continue; }
+      if (!['source', 'machine', 'assembler'].includes(def.kind)) continue;
+      if (b.output || (def.kind === 'machine' && !b.input) || (def.kind === 'assembler' && !ingredientsReady(b, def))) { b.idle += STEP; continue; }
       b.idle = 0; b.blocked = false; b.progress = Math.min(this.duration(b), b.progress + STEP);
       if (b.progress + 1e-9 >= this.duration(b)) {
         b.input = null; b.output = def.output; b.progress = 0; b.readyAt = s.time + STEP;
+        if (def.kind === 'assembler') b.ingredients = {};
       }
     }
     if (s.career.contract?.status === 'active' && s.time >= s.career.contract.deadline) s.career.contract.status = 'expired';
@@ -395,8 +414,14 @@ export class FactoryGame {
       if (s.business.claimed.some(id => { const goal = MILESTONES.find(goal => goal.id === id); return goal.progress(s) < goal.target; })) return false;
       const record = value => value && typeof value === 'object' && !Array.isArray(value) && Object.entries(value).every(([key, n]) => ITEMS[key]?.value && integer(n));
       if (!record(s.delivered) || !record(s.orderProgress)) return false;
-      const wants = orderFor(s.orderIndex, s.orderCatalog).wants;
+      if (s.packingTrial !== undefined && (!validPackingTrial(s.packingTrial) || s.orderIndex !== 2 || s.automationVersion !== 1 || s.service !== undefined || s.shop !== undefined)) return false;
+      const wants = s.packingTrial ? (PACK_GOALS[s.packingTrial.goal] || PACK_FREEPLAY).wants : orderFor(s.orderIndex, s.orderCatalog).wants;
       if (Object.entries(s.orderProgress).some(([key, value]) => !wants[key] || value > wants[key])) return false;
+      if (s.packingTrial) {
+        const required = { ...s.orderProgress };
+        for (const goal of PACK_GOALS.slice(0, s.packingTrial.goal)) for (const [item, n] of Object.entries(goal.wants)) required[item] = (required[item] || 0) + n;
+        if (Object.entries(required).some(([item, n]) => (s.delivered[item] || 0) < n)) return false;
+      }
       if (!s.stock || typeof s.stock !== 'object' || Array.isArray(s.stock) || Object.entries(s.stock).some(([key, n]) => !Object.hasOwn(BUILDINGS, key) || !integer(n, 8))) return false;
       const giftLimits = { belt: 4, flour_hopper: 1, dough_mixer: 1, bread_oven: 1, depot: 1 };
       const gifts = { ...s.stock };
@@ -412,8 +437,12 @@ export class FactoryGame {
         if (def.unlock > Math.min(s.orderIndex, 2) || !integer(b.id) || b.id >= s.nextId || !integer(b.x, w - 1) || !integer(b.y, h - 1) || !integer(b.dir, 3) || b.level < 1 || !integer(b.level, 3) || !integer(b.paid) || !nonnegative(b.progress) || b.progress > progressLimit + 0.1 || !nonnegative(b.readyAt) || b.readyAt > s.time + travelLimit + 1e-8 || !integer(b.roundRobin, 1)) return false;
         if (ids.has(b.id) || cells.has(`${b.x},${b.y}`)) return false;
         if (b.input !== null && (typeof b.input !== 'string' || !(def.kind === 'machine' ? b.input === def.input : !legacyFlow && def.kind === 'depot' && Boolean(ITEMS[b.input]?.value)))) return false;
+        if (def.kind === 'assembler') {
+          if (legacyFlow || !b.ingredients || typeof b.ingredients !== 'object' || Array.isArray(b.ingredients) || Object.entries(b.ingredients).some(([item, n]) => !Object.hasOwn(def.ingredients, item) || !integer(n, def.ingredients[item]))) return false;
+          if (b.progress > 0 && (b.output || !ingredientsReady(b, def))) return false;
+        } else if (b.ingredients !== undefined) return false;
         if (def.kind === 'depot' && !b.input && b.progress !== 0) return false;
-        if (b.output !== null && (typeof b.output !== 'string' || !Object.hasOwn(ITEMS, b.output) || def.kind === 'depot' || (['source', 'machine'].includes(def.kind) && b.output !== def.output))) return false;
+        if (b.output !== null && (typeof b.output !== 'string' || !Object.hasOwn(ITEMS, b.output) || def.kind === 'depot' || (['source', 'machine', 'assembler'].includes(def.kind) && b.output !== def.output))) return false;
         if (b.buffer !== undefined && b.buffer !== null) {
           const q = b.buffer;
           if (legacyFlow || !isTransport(b) || !b.output || typeof q !== 'object' || Array.isArray(q) || Object.keys(q).length !== 2 || !Object.hasOwn(q, 'item') || !Object.hasOwn(q, 'readyAt') || typeof q.item !== 'string' || !Object.hasOwn(ITEMS, q.item) || !nonnegative(q.readyAt) || q.readyAt < b.readyAt || q.readyAt > s.time + duration * 1.5 + 1e-8) return false;
@@ -424,7 +453,7 @@ export class FactoryGame {
         // Historical cat-era purchases refund their actual payment, not today's price.
         let maxPaid = b.gifted ? 0 : Math.max(def.cost, { belt: 35, splitter: 140, merger: 100, depot: 160 }[b.type] || 0);
         for (let level = 1; level < b.level; level++) maxPaid += upgradeCost({ type: b.type, level });
-        if (b.paid > maxPaid || (!['source', 'machine', ...(legacyFlow ? [] : ['depot'])].includes(def.kind) && b.level !== 1)) return false;
+        if (b.paid > maxPaid || (!['source', 'machine', ...(legacyFlow ? [] : ['depot', 'assembler'])].includes(def.kind) && b.level !== 1)) return false;
         ids.add(b.id); cells.add(`${b.x},${b.y}`);
         if (legacyFlow) {
           if (def.duration) b.progress = Math.min(1, b.progress / previousDuration) * duration;

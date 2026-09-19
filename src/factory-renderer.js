@@ -1,7 +1,8 @@
-import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.18.0';
-import { CELL, FactoryCamera, jellyPose, foodPose, presentationTime } from './factory-feel.js?v=0.18.0';
-import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.18.0';
-import { worldArea, yardLayout, drawYardGround } from './factory-yard.js?v=0.18.0';
+import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.19.0';
+import { CELL, FactoryCamera, jellyPose, foodPose, presentationTime } from './factory-feel.js?v=0.19.0';
+import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.19.0';
+import { worldArea, yardLayout, drawYardGround } from './factory-yard.js?v=0.19.0';
+import { PACK_RECIPES, ingredientsReady } from './factory-packing.js?v=0.19.0';
 // Match the flour hopper: cream rails, cocoa outlines, sage/peach accents.
 const CREAM = { cream: '#fff2d9', biscuit: '#e7cea7', peach: '#e4b69f', sage: '#b9c7ad', cocoa: '#846a57', belt: '#b09b86' };
 const BELT_LAYERS = [[43, CREAM.cocoa], [38, CREAM.cream], [28, CREAM.belt]];
@@ -13,7 +14,7 @@ export class FactoryAssets {
     const images = {};
     onProgress(0, 1);
     const loading = (async () => {
-      const response = await fetch(base + 'manifest.json?v=0.18.0', { signal: controller.signal });
+      const response = await fetch(base + 'manifest.json?v=0.19.0', { signal: controller.signal });
       if (!response.ok) throw new Error('素材清单读取失败');
       const manifest = await response.json();
       if (stopped) return;
@@ -40,6 +41,12 @@ export class FactoryAssets {
     } finally { clearTimeout(timer); }
   }
   draw(ctx, id, x, y, width, height, alpha = 1) {
+    if (PACK_RECIPES[id]) {
+      this.draw(ctx, 'pastry_box', x, y, width, height, alpha);
+      this.draw(ctx, id === 'breakfast_box' ? 'bread' : 'donut_plain', x + width * .02, y + height * .06, width * .58, height * .58, alpha);
+      this.draw(ctx, 'orange_juice', x + width * .5, y + height * .03, width * .43, height * .61, alpha);
+      return;
+    }
     const sprite = this.sprites[id];
     if (!sprite || !this.images[sprite.atlas]) return;
     const f = sprite.frame, scale = Math.min(width / f.w, height / f.h);
@@ -113,6 +120,11 @@ export class FactoryRenderer {
   }
   buildingIcon(building, size = 64, game = null) {
     const def = BUILDINGS[building.type];
+    if (def.kind === 'assembler') {
+      const icon = this.assets.icon(def.sprite, size);
+      this.assets.draw(icon.getContext('2d'), def.output === 'breakfast_box' ? 'bread' : 'donut_plain', size * 1.1, size * 1.05, size * .85, size * .85);
+      return icon;
+    }
     if (building.type !== 'splitter') return this.assets.icon(def.sprite, size);
     const canvas = document.createElement('canvas'); canvas.width = size * 2; canvas.height = size * 2;
     const b = { x: 0, y: 0, dir: 0, ...building };
@@ -150,7 +162,7 @@ export class FactoryRenderer {
     for (const b of game.state.buildings) {
       ids.add(b.id); const prev = this.previous.get(b.id);
       if (!prev) { if (!this.pulses.has(b.id)) this.pulse(b.id, 'place', timestamp); }
-      else if (b.output && !prev.output && ['machine', 'source'].includes(BUILDINGS[b.type].kind)) this.pulse(b.id, 'produce', timestamp);
+      else if (b.output && !prev.output && ['machine', 'source', 'assembler'].includes(BUILDINGS[b.type].kind)) this.pulse(b.id, 'produce', timestamp);
       this.previous.set(b.id, { output: b.output });
     }
     for (const id of this.previous.keys()) if (!ids.has(id)) { this.previous.delete(id); this.pulses.delete(id); }
@@ -280,7 +292,7 @@ export class FactoryRenderer {
     const ports = connectedPorts(b, (x, y) => this.grid ? this.grid.get(`${x},${y}`) : game.at(x, y));
     this.drawMachineConnections(b, ports);
     round(ctx, x + 5, y + 7, 62, 59, 10, def.kind === 'source' ? '#e7e9cd' : def.kind === 'depot' ? '#e8dcc1' : '#f0dfb7');
-    const working = !b.output && (b.input || def.kind === 'source');
+    const working = !b.output && (b.input || def.kind === 'source' || def.kind === 'assembler' && ingredientsReady(b, def));
     const pulse = this.pulses.get(b.id), pose = jellyPose(pulse ? (timestamp - pulse.start) / 1000 : 1, pulse?.kind, this.reduced);
     // Work phase follows simulation progress so pauses and dialogs freeze this motion.
     const phase = Math.min(game.duration(b), b.progress + presentationTime(game) - game.state.time);
@@ -290,6 +302,14 @@ export class FactoryRenderer {
     this.assets.draw(ctx, def.sprite, -31, -62, 62, 60);
     if (b.type === 'fruit_hopper') this.assets.draw(ctx, 'orange', -14, -47, 28, 28);
     ctx.restore();
+    if (def.ingredients) {
+      Object.entries(def.ingredients).forEach(([item, count], i) => {
+        round(ctx, x + 5 + i * 33, y + 43, 30, 17, 5, '#fff7e9');
+        this.assets.draw(ctx, ITEMS[item].sprite, x + 6 + i * 33, y + 43, 16, 16);
+        ctx.fillStyle = (b.ingredients[item] || 0) >= count ? '#6b845d' : '#98735c'; ctx.font = 'bold 8px system-ui'; ctx.textAlign = 'center';
+        ctx.fillText(`${b.ingredients[item] || 0}/${count}`, x + 27 + i * 33, y + 55);
+      });
+    }
     if (b.type === 'depot' && b.goods?.length) {
       for (let i = 0; i < Math.min(2, b.goods.length); i++) this.assets.draw(ctx, ITEMS[b.goods[i]].sprite, x + 22, y + 15 + i * 22, 26, 23);
       round(ctx, x + 48, y + 2, 21, 17, 6, '#fff2d9'); ctx.fillStyle = '#846a57'; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'center'; ctx.fillText(String(b.goods.length), x + 58, y + 14);

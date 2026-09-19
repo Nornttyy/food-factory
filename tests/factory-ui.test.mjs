@@ -75,7 +75,7 @@ test('factory entry loads generated atlases and wires construction, production, 
     assert.equal(storage.has('food-factory-v1'), false, 'practice, upgrades, rewards and autosave never write the real save');
     assert.equal(runtime.practice.realGame.serialize(), realBeforePractice);
     nodes.get('tutorial-exit').click(); assert.equal(runtime.practice, null); assert.equal(runtime.game.serialize(), realBeforePractice);
-    assert.equal(nodes.get('tutorial-card').hidden, true); assert.equal(nodes.get('recipe-list').children.length, 8);
+    assert.equal(nodes.get('tutorial-card').hidden, true); assert.equal(nodes.get('recipe-list').children.length, 10);
     frames.shift()(performance.now() + 100); assert.ok(draws.length >= 9);
     assert.equal(nodes.get('order-drawer').hidden, true); assert.equal(nodes.get('inspector-panel').hidden, true); assert.equal(nodes.get('palette').hidden, true);
     nodes.get('orders-toggle').click(); assert.equal(nodes.get('order-drawer').hidden, false);
@@ -325,7 +325,7 @@ test('factory entry loads generated atlases and wires construction, production, 
     const beforeQuick = runtime.game.serialize();
     if (runtime.game.state.paused) nodes.get('resume').click();
     nodes.get('recipes-toggle').click(); assert.equal(nodes.get('quick-recipe').hidden, false);
-    assert.equal(nodes.get('recipe-dialog').open, undefined); assert.equal(nodes.get('quick-recipe-food').children.length, 8);
+    assert.equal(nodes.get('recipe-dialog').open, undefined); assert.equal(nodes.get('quick-recipe-food').children.length, 10);
     assert.equal(runtime.game.state.automationVersion, 1);
     const quickTime = runtime.game.state.time; frames.shift()(performance.now() + 355000);
     assert.ok(runtime.game.state.time > quickTime, 'a pinned recipe must not pause production');
@@ -444,6 +444,43 @@ test('factory entry loads generated atlases and wires construction, production, 
     failStorageKey = null; nodes.get('restart-confirm').click();
     assert.equal(storage.get('food-factory-v1-before-restart'), '{broken');
     assert.equal(JSON.parse(storage.get('food-factory-v1')).version, 1);
+    // A separate, persistent package workshop never overwrites the main game.
+    nodes.get('menu-home').click();
+    const originalFactory = protectedRun.game.serialize(), originalStorage = storage.get('food-factory-v1');
+    nodes.get('menu-packing').click();
+    assert.equal(protectedRun.game.state.packingTrial.goal, 0);
+    assert.equal(protectedRun.ui.tool, 'breakfast_packer');
+    assert.deepEqual(protectedRun.ui.tutorialTarget, { x: 5, y: 3 });
+    assert.equal(nodes.get('packing-goal').hidden, false);
+    assert.equal(nodes.get('recipe-list').children.length, 5);
+    assert.equal(storage.get('food-factory-v1'), originalStorage);
+    assert.equal(JSON.parse(storage.get('food-factory-packing-v1')).packingTrial.goal, 0);
+    nodes.get('packing-recipe').click();
+    assert.equal(nodes.get('quick-recipe').hidden, false); assert.equal(nodes.get('quick-recipe-food').children.length, 5);
+    assert.equal(document.querySelector('dialog[open]'), undefined);
+    nodes.get('close-quick-recipe').click();
+    const packPoint = () => ({ clientX: protectedRun.renderer.transform.x + 5.5 * 72 * protectedRun.renderer.transform.scale, clientY: protectedRun.renderer.transform.y + 3.5 * 72 * protectedRun.renderer.transform.scale });
+    nodes.get('factory-board').listeners.pointerdown({ button: 0, preventDefault() {}, pointerId: 201, ...packPoint() }); nodes.get('factory-board').listeners.pointerup();
+    assert.equal(protectedRun.game.at(5, 3).type, 'breakfast_packer');
+    for (let n = 0; n < 500; n++) protectedRun.game.update(.1);
+    nodes.get('pause').click();
+    assert.equal(protectedRun.game.orderReady, true); assert.equal(nodes.get('packing-claim').hidden, false);
+    nodes.get('packing-claim').click(); assert.equal(protectedRun.game.state.packingTrial.goal, 1);
+    nodes.get('menu-home').click();
+    assert.equal(protectedRun.game.serialize(), originalFactory); assert.equal(storage.get('food-factory-v1'), originalStorage);
+    assert.equal(nodes.get('packing-goal').hidden, true); assert.equal(nodes.get('recipe-list').children.length, 10);
+    const { runtime: packageReload } = await import(`../src/factory-main.js?packing-reload=${Date.now()}`);
+    nodes.get('menu-packing').click();
+    assert.equal(packageReload.game.state.packingTrial.goal, 1); assert.equal(packageReload.game.state.paused, true);
+    assert.equal(packageReload.game.at(5, 3).type, 'breakfast_packer');
+    nodes.get('menu-home').click();
+    assert.equal(storage.get('food-factory-v1'), originalStorage);
+    storage.set('food-factory-packing-v1', '{broken-package'); failStorageKey = 'all';
+    const { runtime: protectedPackage } = await import(`../src/factory-main.js?packing-protected=${Date.now()}`);
+    nodes.get('menu-packing').click(); nodes.get('menu-home').click();
+    assert.equal(protectedPackage.game.state.packingTrial, undefined);
+    assert.equal(storage.get('food-factory-packing-v1'), '{broken-package');
+    assert.equal(storage.get('food-factory-v1'), originalStorage); failStorageKey = null;
   } finally {
     for (const [name, descriptor] of savedGlobals) { if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name]; }
   }

@@ -1,4 +1,5 @@
 export const SALE_FOODS = ['bread', 'butter_cookie', 'donut_plain', 'donut_strawberry', 'steamed_bun', 'orange_juice', 'strawberry_cake', 'orange_icepop'];
+export const WAREHOUSE_FOODS = [...SALE_FOODS, 'breakfast_box', 'tea_box'];
 export const BUSINESS_RANKS = ['街坊食铺', '人气作坊', '口碑工坊', '美味品牌', '招牌工坊'];
 export const REPUTATION_LEVELS = [0, 3, 9, 18, 30];
 export function businessLevel(reputation) { return REPUTATION_LEVELS.filter(n => reputation >= n).length - 1; }
@@ -34,11 +35,11 @@ export const MILESTONES = [
 ];
 export function validBusiness(business) {
   const integer = (n, max = 1e12) => Number.isSafeInteger(n) && n >= 0 && n <= max;
-  const record = value => value && typeof value === 'object' && !Array.isArray(value) && Object.entries(value).every(([item, n]) => SALE_FOODS.includes(item) && integer(n));
+  const record = (value, foods = SALE_FOODS) => value && typeof value === 'object' && !Array.isArray(value) && Object.entries(value).every(([item, n]) => foods.includes(item) && integer(n));
   const fields = ['version', 'warehouse', 'shipped', 'shipments', 'reputation', 'claimed'];
   if (!business || Object.keys(business).length !== fields.length || Object.keys(business).some(key => !fields.includes(key)) || business.version !== 1) return false;
   if (!integer(business.shipments, 100000) || !integer(business.reputation, 300000) || business.reputation < business.shipments || business.reputation > business.shipments * 3) return false;
-  if (!record(business.warehouse) || !record(business.shipped) || warehouseUsed(business) > warehouseCapacity(business)) return false;
+  if (!record(business.warehouse, WAREHOUSE_FOODS) || !record(business.shipped) || warehouseUsed(business) > warehouseCapacity(business)) return false;
   const totalShipped = Object.values(business.shipped).reduce((sum, n) => sum + n, 0);
   if (totalShipped < 12 * business.shipments || totalShipped > 96 * business.shipments || Object.values(business.shipped).some(n => n > 28 * business.shipments)) return false;
   return Array.isArray(business.claimed) && new Set(business.claimed).size === business.claimed.length && business.claimed.every(id => MILESTONES.some(goal => goal.id === id));
