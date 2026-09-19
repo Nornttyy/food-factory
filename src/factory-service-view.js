@@ -1,7 +1,7 @@
-import { ITEMS } from './factory-core.js?v=0.15.1';
-import { STAFF_COSTS } from './factory-service.js?v=0.15.1';
-import { CELL, presentationTime } from './factory-feel.js?v=0.15.1';
-import { yardLayout, serviceHit, customerPose } from './factory-yard.js?v=0.15.1';
+import { ITEMS } from './factory-core.js?v=0.16.0';
+import { STAFF_COSTS } from './factory-service.js?v=0.16.0';
+import { CELL, presentationTime } from './factory-feel.js?v=0.16.0';
+import { yardLayout, serviceHit, customerPose } from './factory-yard.js?v=0.16.0';
 
 // Four separately animated atlas parts: head, body and two round hands, no feet.
 export function drawCat(ctx, assets, { skin = 0, staff = false, time = 0, happy = false, reduced = false } = {}) {
@@ -140,7 +140,7 @@ export class ServiceView {
     this.trayNav.forEach(button => button.hidden = new Set(shelf?.goods || []).size < 5);
     this.rows.forEach(({ row }, i) => { const c = game.service.customers[i]; row.textContent = `送给猫猫${i + 1}：${ITEMS[c.want].label}`; row.disabled = !active || !this.selection || c.cooldown > 0 || game.reserved(c.id); });
     const n = game.service.workers.length;
-    this.hire.textContent = n === 3 ? '员工已满' : game.service.served < 4 ? `招募 · 先送 ${game.service.served}/4 份` : `招募员工 · ${STAFF_COSTS[n]}`;
+    this.hire.textContent = n === 3 ? '员工已满' : game.service.served < 4 ? `招募 ${STAFF_COSTS[n]} · 先送 ${game.service.served}/4 份` : `招募员工 · ${STAFF_COSTS[n]}`;
     this.hire.disabled = !active || !this.canRecruit() || n === 3 || game.service.served < 4 || game.state.coins < STAFF_COSTS[n];
   }
   draw(ctx, game) {

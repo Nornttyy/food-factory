@@ -1,7 +1,7 @@
-import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.15.1';
-import { CELL, FactoryCamera, jellyPose, foodPose, presentationTime } from './factory-feel.js?v=0.15.1';
-import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.15.1';
-import { worldArea, yardLayout, drawYardGround } from './factory-yard.js?v=0.15.1';
+import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.16.0';
+import { CELL, FactoryCamera, jellyPose, foodPose, presentationTime } from './factory-feel.js?v=0.16.0';
+import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.16.0';
+import { worldArea, yardLayout, drawYardGround } from './factory-yard.js?v=0.16.0';
 // Match the flour hopper: cream rails, cocoa outlines, sage/peach accents.
 const CREAM = { cream: '#fff2d9', biscuit: '#e7cea7', peach: '#e4b69f', sage: '#b9c7ad', cocoa: '#846a57', belt: '#b09b86' };
 const BELT_LAYERS = [[43, CREAM.cocoa], [38, CREAM.cream], [28, CREAM.belt]];
@@ -13,7 +13,7 @@ export class FactoryAssets {
     const images = {};
     onProgress(0, 1);
     const loading = (async () => {
-      const response = await fetch(base + 'manifest.json?v=0.15.1', { signal: controller.signal });
+      const response = await fetch(base + 'manifest.json?v=0.16.0', { signal: controller.signal });
       if (!response.ok) throw new Error('素材清单读取失败');
       const manifest = await response.json();
       if (stopped) return;
@@ -181,7 +181,7 @@ export class FactoryRenderer {
       ctx.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2);
       if (active) { ctx.fillStyle = '#dfd0ad'; ctx.fillRect(x * CELL + 4, y * CELL + 4, 2, 2); }
     }
-    if (game.expansionCost !== null) {
+    if (game.expansionCost !== null && !game.service) {
       ctx.save(); ctx.strokeStyle = '#c3bda2'; ctx.setLineDash([5, 7]); ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(areaW * CELL, 0); ctx.lineTo(areaW * CELL, areaH * CELL); ctx.lineTo(0, areaH * CELL); ctx.stroke(); ctx.restore();
       ctx.fillStyle = '#b2aa8e'; ctx.textAlign = 'center'; ctx.font = '14px system-ui';

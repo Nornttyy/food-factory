@@ -10,7 +10,7 @@ import { AREAS } from '../src/factory-core.js';
 test('one world plot stays outside every expansion, without reserving any existing buildable tile', () => {
   for (const area of AREAS) {
     const yard = yardLayout(area), bounds = worldArea(area);
-    assert.ok(yard.x >= area[0]); assert.ok(yard.x + yard.width < bounds[0]); assert.ok(yard.y + yard.height < bounds[1]);
+    assert.equal(yard.x, area[0], 'the service floor touches the factory without a gap'); assert.equal(yard.x + yard.width, bounds[0]); assert.equal(yard.y + yard.height, bounds[1]);
     for (const [i, p] of yard.spots.entries()) assert.deepEqual(serviceHit(p, area), { kind: 'customer', slot: i });
     for (const [i, p] of yard.spots.entries()) assert.deepEqual(serviceHit({ x: p.x + .5, y: p.y - 1.4 }, area), { kind: 'customer', slot: i }, 'the food bubble is tappable too');
     assert.deepEqual(serviceHit(yard.hire, area), { kind: 'hire' }); assert.equal(serviceHit({ x: 8.5, y: 2.5 }, area), null);
@@ -40,12 +40,12 @@ test('walking routes avoid conveyors and machines, and sealed shelves have no ro
   for (const p of path) { assert.equal(g.at(Math.floor(p.x), Math.floor(p.y)), undefined); assert.equal(Math.abs(p.x - previous.x) + Math.abs(p.y - previous.y), 1); previous = p; }
   for (const p of shelfApproaches(shelf)) if (!g.at(Math.floor(p.x), Math.floor(p.y))) g.place('belt', Math.floor(p.x), Math.floor(p.y));
   assert.equal(findPath(g.area, g.state.buildings, start, shelfApproaches(shelf)), null);
-  g.state.totalSold = g.service.served = 4; g.shelves[0].goods = ['bread']; g.recruit(); const coins = g.state.coins;
+  g.state.totalSold = g.service.served = 4; g.state.coins = 10000; g.shelves[0].goods = ['bread']; g.recruit(); const coins = g.state.coins;
   for (let i = 0; i < 150; i++) g.update(.1);
   assert.equal(g.service.workers[0].job, null); assert.equal(g.state.coins, coins); assert.ok(g.shelves[0].goods.includes('bread'));
 });
-test('workers take real bounded steps, cannot be built over, and return to the rest area', () => {
-  const g = new CafeFactoryGame(); g.state.totalSold = g.service.served = 4; g.shelves[0].goods = ['bread']; g.state.buildings = [g.shelves[0]]; g.recruit();
+test('workers take real bounded steps, cannot be built over, and remain free to walk after delivery', () => {
+  const g = new CafeFactoryGame(); g.state.totalSold = g.service.served = 4; g.state.coins = 10000; g.shelves[0].goods = ['bread']; g.state.buildings = [g.shelves[0]]; g.recruit();
   const w = g.service.workers[0]; let carrying = false, visitedFactory = false;
   for (let n = 0; n < 210; n++) {
     const before = { x: w.x, y: w.y }; g.update(.1);
@@ -55,25 +55,25 @@ test('workers take real bounded steps, cannot be built over, and return to the r
     if (g.inside(Math.floor(w.x), Math.floor(w.y))) assert.equal(g.place('belt', Math.floor(w.x), Math.floor(w.y)).ok, false);
   }
   assert.ok(visitedFactory && carrying); assert.equal(g.service.served, 5); assert.equal(w.job, null);
-  assert.equal(w.x, yardLayout(g.area).homes[0].x); assert.equal(w.y, yardLayout(g.area).homes[0].y);
+  assert.ok(w.stroll > 0, 'an idle employee walks instead of being pinned to the rest area');
 });
 test('expansion preserves buildings and relocates the annex without losing carried food or breaking saves', () => {
-  const g = new CafeFactoryGame(); g.state.totalSold = g.service.served = 4; g.shelves[0].goods = ['bread']; g.recruit(); g.update(.1);
+  const g = new CafeFactoryGame(); g.state.totalSold = g.service.served = 4; g.state.coins = 10000; g.shelves[0].goods = ['bread']; g.recruit(); g.update(.1);
   const layout = g.state.buildings.map(b => [b.id, b.x, b.y]), job = structuredClone(g.service.workers[0].job); g.state.coins = 10000;
   g.expand(); assert.deepEqual(g.state.buildings.map(b => [b.id, b.x, b.y]), layout); assert.deepEqual(g.service.workers[0].job, job);
   assert.equal(g.service.workers[0].path, null); const restored = new CafeFactoryGame(); assert.equal(restored.restore(g.serialize()), true);
   for (let n = 0; n < 300 && restored.service.served < 5; n++) restored.update(.1); assert.equal(restored.service.served, 5);
 });
 test('legacy four-second carrying jobs migrate without a second pickup, loss or double payout', () => {
-  const g = new CafeFactoryGame(); g.state.totalSold = g.service.served = 4; g.state.buildings = [];
+  const g = new CafeFactoryGame(); g.state.totalSold = g.service.served = 4; g.state.coins = 10000; g.state.buildings = [];
   g.service.version = 1; g.service.workers = [{ id: 1, job: { customerId: 1, item: 'bread', remaining: 1.2, x: 8, y: 2 } }];
   const coins = g.state.coins, loaded = new CafeFactoryGame(); assert.equal(loaded.restore(g.serialize()), true);
-  assert.equal(loaded.service.version, 2); assert.equal(loaded.service.workers[0].job.stage, 'deliver');
+  assert.equal(loaded.service.version, 3); assert.equal(loaded.service.workers[0].job.stage, 'deliver');
   for (let n = 0; n < 300; n++) loaded.update(.1); assert.equal(loaded.state.coins, coins + 6); assert.equal(loaded.service.served, 5);
   assert.equal(loaded.restore(loaded.serialize()), true); for (let n = 0; n < 100; n++) loaded.update(.1); assert.equal(loaded.state.coins, coins + 6);
 });
 test('blocking a carrying employee preserves the meal through save/restore and resumes after opening the path', () => {
-  const g = new CafeFactoryGame(); g.state.totalSold = g.service.served = 4; g.shelves[0].goods = ['bread']; g.recruit();
+  const g = new CafeFactoryGame(); g.state.totalSold = g.service.served = 4; g.state.coins = 10000; g.shelves[0].goods = ['bread']; g.recruit();
   for (let n = 0; n < 200 && g.service.workers[0].job?.stage !== 'deliver'; n++) g.update(.1);
   assert.equal(g.service.workers[0].job.stage, 'deliver');
   for (const [x, y] of [[7, 3], [7, 4], [7, 5], [8, 5], [9, 5], [10, 5], [10, 4], [10, 3], [10, 2], [9, 2]]) assert.equal(g.place('belt', x, y).ok, true);

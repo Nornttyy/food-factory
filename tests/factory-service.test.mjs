@@ -12,9 +12,10 @@ function serveOne(game) {
   const c = game.service.customers.find(c => !c.cooldown && !game.reserved(c.id) && game.findShelf(c.want));
   return c && game.serveFromShelf(game.findShelf(c.want).id, c.want, c.id);
 }
-function unlockStaff(game) {
+function unlockStaff(game, fund = true) {
   for (let i = 0; i < 600 && game.service.served < 4; i++) { game.update(.1); serveOne(game); }
   assert.equal(game.service.served, 4);
+  if (fund) game.state.coins = Math.max(game.state.coins, STAFF_COSTS[0]);
 }
 
 test('live starter fills a finite shelf without coins, automatic sales or employees', () => {
@@ -70,15 +71,24 @@ test('shelving still waits the full initial two seconds and never sells in old s
 
 test('staff recruitment requires four deliveries, deducts increasing prices once and caps at three', () => {
   const game = new CafeFactoryGame(); assert.equal(game.recruit().ok, false); unlockStaff(game);
-  game.state.coins = 1000;
+  game.state.coins = 10000;
   for (const cost of STAFF_COSTS) { const before = game.state.coins; assert.equal(game.recruit().ok, true); assert.equal(game.state.coins, before - cost); }
   const before = game.serialize(); assert.equal(game.recruit().ok, false); assert.equal(game.serialize(), before);
-  const poor = new CafeFactoryGame(); unlockStaff(poor); poor.state.coins = 119;
+  const poor = new CafeFactoryGame(); unlockStaff(poor); poor.state.coins = STAFF_COSTS[0] - 1;
   assert.equal(poor.recruit().ok, false); assert.equal(poor.service.workers.length, 0);
+});
+test('the first employee costs more than the starting wallet and the initial four manual sales', () => {
+  assert.deepEqual(STAFF_COSTS, [600, 1500, 3000]);
+  const game = new CafeFactoryGame(); unlockStaff(game, false);
+  assert.equal(game.state.coins, 474); const before = game.serialize(); assert.equal(game.recruit().ok, false); assert.equal(game.serialize(), before);
+  game.claimOrder(); assert.equal(game.state.coins, 569); assert.equal(game.recruit().ok, false);
+  for (let n = 0; n < 600 && game.state.coins < 600; n++) { game.update(.1); serveOne(game); }
+  assert.ok(game.state.coins >= 600, 'the first employee is reachable through normal production and manual serving');
+  const coins = game.state.coins; assert.equal(game.recruit().ok, true); assert.equal(game.state.coins, coins - 600);
 });
 
 test('workers reserve distinct meals, physically fetch them, and pay only upon reaching customers', () => {
-  const game = new CafeFactoryGame(); unlockStaff(game); game.state.coins = 1000;
+  const game = new CafeFactoryGame(); unlockStaff(game); game.state.coins = 10000;
   advance(game, 50); for (let i = 0; i < 3; i++) assert.equal(game.recruit().ok, true);
   const rack = game.at(8, 2), startStock = rack.goods.length, coins = game.state.coins;
   advance(game, .1); assert.equal(rack.goods.length, startStock, 'reservation does not teleport food off the shelf');
@@ -88,7 +98,7 @@ test('workers reserve distinct meals, physically fetch them, and pay only upon r
   advance(game, 4); assert.equal(game.state.coins, coins);
   for (let i = 0; i < 300 && game.service.served < 7; i++) game.update(.1);
   assert.equal(game.state.coins, coins + 18); assert.equal(game.service.served, 7);
-  assert.ok(game.service.workers.every(w => w.job === null));
+  assert.ok(game.service.workers.every(w => !w.job || !jobs.some(j => j.customerId === w.job.customerId)), 'finished jobs cannot be paid again while employees immediately take new work');
 });
 
 test('in-flight delivery, paused time and pending shelf items survive save/resume without a second payout', () => {
@@ -104,7 +114,7 @@ test('in-flight delivery, paused time and pending shelf items survive save/resum
 });
 
 test('one food cannot be assigned to multiple employees or sold again by a racing drag', () => {
-  const game = new CafeFactoryGame(); unlockStaff(game); game.state.coins = 1000; advance(game, 2);
+  const game = new CafeFactoryGame(); unlockStaff(game); game.state.coins = 10000; advance(game, 2);
   game.state.buildings = [game.at(8, 2)]; const rack = game.shelves[0]; rack.input = null; rack.progress = 0; rack.goods = ['bread'];
   for (let i = 0; i < 3; i++) game.recruit(); const coins = game.state.coins;
   advance(game, .1); assert.equal(game.service.workers.filter(w => w.job).length, 1); assert.deepEqual(rack.goods, ['bread']);

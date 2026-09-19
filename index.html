@@ -25,10 +25,10 @@
     <link rel="canonical" href="https://nornttyy.github.io/food-factory/" />
     <link rel="icon" href="data:," />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./factory.css?v=0.15.1" />
-    <link rel="stylesheet" href="./factory-layout.css?v=0.15.1" />
-    <link rel="stylesheet" href="./factory-menu.css?v=0.15.1" />
-    <link rel="stylesheet" href="./factory-service.css?v=0.15.1" />
+    <link rel="stylesheet" href="./factory.css?v=0.16.0" />
+    <link rel="stylesheet" href="./factory-layout.css?v=0.16.0" />
+    <link rel="stylesheet" href="./factory-menu.css?v=0.16.0" />
+    <link rel="stylesheet" href="./factory-service.css?v=0.16.0" />
   </head>
   <body class="menu-open">
     <section id="loading" class="loading" aria-labelledby="loading-title" aria-busy="true">
@@ -71,7 +71,7 @@
       </header>
       <section class="workspace">
         <section id="service-tools" class="service-tools" aria-label="从地图货架拿取食物"></section>
-        <nav class="location-controls" aria-label="地图定位"><button id="factory-jump">产线</button><button id="service-jump">顾客区</button><button id="staff-jump">员工区</button></nav>
+        <nav class="location-controls" aria-label="地图定位"><button id="factory-jump">产线</button><button id="service-jump">顾客区</button><button id="staff-jump">招募处</button></nav>
         <div class="workshop">
           <div class="board-wrap"><canvas id="factory-board" width="1008" height="576" tabindex="0" aria-label="工坊画布，选择下方设备后点击空格建造">你的浏览器不支持 Canvas。</canvas><div id="pause-overlay" class="pause-overlay" hidden><button id="resume">▷ 已暂停 · 点击继续</button></div></div>
           <div class="workshop-bar"><span id="factory-level">起步工坊</span><button id="expand" class="soft-button">＋ 扩建 · 350</button><button id="recipes-toggle" class="soft-button" aria-expanded="false" aria-controls="quick-recipe">配方 F</button><button id="career-toggle" class="soft-button career-toggle">✦ 急单与研究</button><button id="business-toggle" class="soft-button business-toggle">仓库与合作</button></div>
@@ -124,10 +124,10 @@
       <button id="business-back" class="primary-button business-back">回工坊继续备货 →</button>
     </dialog>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-    <dialog id="help-dialog"><button id="close-help" class="dialog-close" aria-label="关闭">×</button><span class="section-label">一间小工坊的开始</span><h2>美味出炉，猫猫来啦。</h2><p>接产线 → 点货架拿食物 → 去顾客区送餐。</p><p>猫猫与员工都在地图里，点定位按钮可快速前往。可拖送，也能点食物再点猫猫；拖到画面边缘会移动地图。</p><p>送出 4 份后，在员工区点招募牌。员工绕开机器到货架取餐，走到顾客身边才结算；记得留通路，路程越长送得越慢。</p><p>传送带每格 2 件；货架初始存 8 份、2 秒上架一份，满了停收不丢货。点货架后选「货架」可升级。</p><p class="muted">手机：空地滑动地图，双指缩放；建造时点空格，传送带可连续画。<br>电脑：滚轮缩放，✥ 拖地图；R 旋转，F 配方，空格暂停。<br>带食物的货架不能拆。进度只保存在当前浏览器。</p><button id="help-tutorial" class="soft-button">跟着练一次</button><button id="motion-toggle" class="soft-button" aria-pressed="false">Q 弹动效：开</button><button id="open-recipes" class="soft-button">查看配方</button><button id="help-done" class="primary-button">开始开工</button></dialog>
+    <dialog id="help-dialog"><button id="close-help" class="dialog-close" aria-label="关闭">×</button><span class="section-label">一间小工坊的开始</span><h2>美味出炉，猫猫来啦。</h2><p>接产线 → 点货架拿食物 → 去顾客区送餐。</p><p>工坊、顾客区与招募处由同一片地面连通。可拖送，也能点食物再点猫猫；拖到画面边缘会移动地图。</p><p>送出 4 份后开放招募，三位员工分别需 600 / 1500 / 3000 金币。员工自由走动、就近取餐；有活立即接，不必返回招募处。已有员工不补扣费用。</p><p>员工绕开机器与传送带，走到顾客身边才结算；记得给货架留通路。传送带每格 2 件；货架初始存 8 份、2 秒上架一份，满了停收不丢货。点货架后选「货架」可升级。</p><p class="muted">手机：空地滑动地图，双指缩放；建造时点空格，传送带可连续画。<br>电脑：滚轮缩放，✥ 拖地图；R 旋转，F 配方，空格暂停。<br>带食物的货架不能拆。进度只保存在当前浏览器。</p><button id="help-tutorial" class="soft-button">跟着练一次</button><button id="motion-toggle" class="soft-button" aria-pressed="false">Q 弹动效：开</button><button id="open-recipes" class="soft-button">查看配方</button><button id="help-done" class="primary-button">开始开工</button></dialog>
     <dialog id="recipe-dialog" class="recipe-dialog" aria-labelledby="recipe-title"><button id="close-recipes" class="dialog-close" aria-label="关闭配方">×</button><span class="section-label">工坊食谱</span><h2 id="recipe-title">八种美味，慢慢做好。</h2><p class="muted">机器可贴着连接；分流器能把面团送到不同支线。配方辅料由机器自带。</p><div id="recipe-list" class="recipe-list"></div></dialog>
     <noscript><style>#loading{display:none}</style>需要启用 JavaScript 才能开始游戏。</noscript>
-    <script defer src="./src/factory-loading.js?v=0.15.1"></script>
-    <script id="factory-entry" type="module" src="./src/factory-main.js?v=0.15.1"></script>
+    <script defer src="./src/factory-loading.js?v=0.16.0"></script>
+    <script id="factory-entry" type="module" src="./src/factory-main.js?v=0.16.0"></script>
   </body>
 </html>

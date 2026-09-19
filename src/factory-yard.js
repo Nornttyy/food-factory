@@ -1,4 +1,4 @@
-import { CELL } from './factory-feel.js?v=0.15.1';
+import { CELL } from './factory-feel.js?v=0.16.0';
 
 // Map cells, never viewport pixels. Expansion moves the annex outward without
 // taking land or buildings away from an existing save.
@@ -6,7 +6,7 @@ export const worldArea = area => [area[0] + 7, Math.max(11, area[1] + 2)];
 export function yardLayout(area) {
   const x = area[0];
   return {
-    x: x + .5, y: .5, width: 6, height: 9.5,
+    x, y: 0, width: 7, height: worldArea(area)[1],
     spots: [2.5, 4.5, 6.5].map(y => ({ x: x + 5.5, y, size: 1.45 })),
     targets: [2.5, 4.5, 6.5].map(y => ({ x: x + 4.5, y })),
     homes: [1.5, 2.5, 3.5].map(dx => ({ x: x + dx, y: 8.5 })),
@@ -55,21 +55,24 @@ export function customerPose(customer, spot, age, subTick = 0, reduced = false) 
   return { ...spot, x: spot.x + (reduced ? 0 : (entering * entering + leaving * leaving) * .55), alpha: 1 - leaving * .65 };
 }
 export function drawYardGround(ctx, area, assets) {
-  const yard = yardLayout(area), [width] = worldArea(area);
+  const yard = yardLayout(area), [width, height] = worldArea(area);
   ctx.save(); ctx.scale(CELL, CELL);
-  ctx.fillStyle = '#e7d4b4'; ctx.fillRect(0, area[1], width, 1); ctx.fillRect(area[0], 0, 1, area[1]);
-  ctx.fillStyle = '#f3e7cc'; ctx.beginPath(); ctx.roundRect(yard.x, yard.y, yard.width, yard.height, .3); ctx.fill();
-  for (let y = 1; y < 10; y++) for (let x = 1; x < 6; x++) {
-    ctx.fillStyle = (x + y) % 2 ? '#ecdcc0' : '#f8ecd6'; ctx.fillRect(area[0] + x + .04, y + .04, .92, .92);
+  // Same cream tile substrate reaches the factory's exact cell edge. No half
+  // tile moat, separate rounded island, fence or expansion line cuts the join.
+  ctx.fillStyle = '#e7d4b4'; ctx.fillRect(area[0], 0, width - area[0], height); ctx.fillRect(0, area[1], area[0], height - area[1]);
+  for (let y = 0; y < height; y++) for (let x = y < area[1] ? area[0] : 0; x < width; x++) {
+    ctx.fillStyle = (x + y) % 2 ? '#f7e9d0' : '#fff2d9'; ctx.fillRect(x + 1 / CELL, y + 1 / CELL, 1 - 2 / CELL, 1 - 2 / CELL);
   }
-  ctx.strokeStyle = '#b2bd98'; ctx.lineWidth = .13; ctx.beginPath();
-  ctx.moveTo(yard.x + .15, 1.3); ctx.lineTo(yard.x + .15, .65); ctx.lineTo(yard.x + 5.85, .65); ctx.lineTo(yard.x + 5.85, 9.7); ctx.stroke();
-  ctx.fillStyle = '#81684f'; ctx.textAlign = 'center'; ctx.font = 'bold .28px system-ui'; ctx.fillText('猫猫营业区', yard.x + 3, 1.15);
+  // A continuous L-shaped public walkway touches every factory row and runs
+  // along its bottom, keeping the two areas connected even on a full old map.
+  ctx.fillStyle = '#e6dfbf'; ctx.fillRect(area[0], 0, 1, height); ctx.fillRect(0, area[1], area[0] + 1, height - area[1]);
+  ctx.strokeStyle = '#c6b89a'; ctx.lineWidth = .025;
+  for (let y = 0; y < height; y++) { ctx.beginPath(); ctx.moveTo(area[0] + .08, y + .5); ctx.lineTo(area[0] + .92, y + .5); ctx.stroke(); }
+  ctx.fillStyle = '#81684f'; ctx.textAlign = 'center'; ctx.font = 'bold .28px system-ui'; ctx.fillText('猫猫营业区', yard.x + 4, 1.15);
   for (const spot of yard.spots) {
     ctx.fillStyle = '#d5dfbb'; ctx.beginPath(); ctx.ellipse(spot.x, spot.y + .05, .63, .25, 0, 0, Math.PI * 2); ctx.fill();
     assets.draw(ctx, 'serving_plate', spot.x - 1.45, spot.y - .05, .62, .28);
   }
-  ctx.fillStyle = '#dfd5b8'; ctx.beginPath(); ctx.roundRect(yard.x + .3, 7.7, 2.8, 1.5, .2); ctx.fill();
-  ctx.font = '.19px system-ui'; ctx.fillStyle = '#887259'; ctx.fillText('员工休息处', yard.x + 1.7, 9.55);
+  ctx.font = '.19px system-ui'; ctx.fillStyle = '#887259'; ctx.fillText('员工招募处', yard.hire.x, 9.55);
   ctx.restore();
 }

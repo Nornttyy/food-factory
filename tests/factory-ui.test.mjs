@@ -406,15 +406,22 @@ test('factory entry loads generated atlases and wires construction, production, 
     assert.equal(storage.get('food-factory-v1'), classicRaw); failStorageKey = null;
     await import(`../src/factory-main.js?customer-migration=${Date.now()}`);
     assert.equal(storage.get('food-factory-v1-before-customer-counter'), classicRaw);
-    assert.equal(JSON.parse(storage.get('food-factory-v1')).service.version, 2);
+    assert.equal(JSON.parse(storage.get('food-factory-v1')).service.version, 3);
     const oldWorld = JSON.parse(storage.get('food-factory-v1')); oldWorld.service.version = 1;
     const oldWorldRaw = JSON.stringify(oldWorld); storage.set('food-factory-v1', oldWorldRaw);
     await import(`../src/factory-main.js?world-migration=${Date.now()}`);
     assert.equal(storage.get('food-factory-v1-before-world-service'), oldWorldRaw);
-    assert.equal(JSON.parse(storage.get('food-factory-v1')).service.version, 2);
+    assert.equal(JSON.parse(storage.get('food-factory-v1')).service.version, 3);
     storage.set('food-factory-v1', oldWorldRaw); failStorageKey = 'food-factory-v1-before-world-service';
     await import(`../src/factory-main.js?world-protected=${Date.now()}`);
     nodes.get('menu-play').click(); nodes.get('menu-home').click(); assert.equal(storage.get('food-factory-v1'), oldWorldRaw); failStorageKey = null;
+    oldWorld.service.version = 2; const beforeRoaming = JSON.stringify(oldWorld); storage.set('food-factory-v1', beforeRoaming);
+    failStorageKey = 'food-factory-v1-before-free-roam';
+    await import(`../src/factory-main.js?roaming-protected=${Date.now()}`);
+    nodes.get('menu-play').click(); nodes.get('menu-home').click(); assert.equal(storage.get('food-factory-v1'), beforeRoaming); failStorageKey = null;
+    await import(`../src/factory-main.js?roaming-migration=${Date.now()}`);
+    assert.equal(storage.get('food-factory-v1-before-free-roam'), beforeRoaming);
+    assert.equal(JSON.parse(storage.get('food-factory-v1')).service.version, 3);
     // Preserve the raw cat-era save before the migrated factory can auto-save.
     const catFixtures = JSON.parse(await readFile(new URL('./fixtures/cat-v010-saves.json', import.meta.url), 'utf8'));
     const catRaw = JSON.stringify(catFixtures.working);

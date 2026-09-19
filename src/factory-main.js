@@ -1,12 +1,12 @@
-import { BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, AREAS, WIDTH, HEIGHT, upgradeCost, isTransport, transportCount } from './factory-core.js?v=0.15.1';
-import { CafeFactoryGame as FactoryGame, shelfCapacity } from './factory-service.js?v=0.15.1';
-import { ServiceView } from './factory-service-view.js?v=0.15.1';
-import { yardLayout } from './factory-yard.js?v=0.15.1';
-import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.15.1';
-import { directionBetween, nextBeltCell } from './factory-links.js?v=0.15.1';
-import { RESEARCH } from './factory-career.js?v=0.15.1';
-import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.15.1';
-import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS } from './factory-business.js?v=0.15.1';
+import { BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, AREAS, WIDTH, HEIGHT, upgradeCost, isTransport, transportCount } from './factory-core.js?v=0.16.0';
+import { CafeFactoryGame as FactoryGame, shelfCapacity } from './factory-service.js?v=0.16.0';
+import { ServiceView } from './factory-service-view.js?v=0.16.0';
+import { yardLayout } from './factory-yard.js?v=0.16.0';
+import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.16.0';
+import { directionBetween, nextBeltCell } from './factory-links.js?v=0.16.0';
+import { RESEARCH } from './factory-career.js?v=0.16.0';
+import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.16.0';
+import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS } from './factory-business.js?v=0.16.0';
 
 const $ = selector => document.querySelector(selector);
 let game = new FactoryGame();
@@ -57,6 +57,10 @@ try {
     const previous = JSON.parse(stored);
     if (previous.service?.version === 1) {
       try { localStorage.setItem(`${SAVE_KEY}-before-world-service`, stored); }
+      catch { protectOriginalSave = true; toast('原存档已保留，本次试玩暂不保存'); }
+    }
+    if ([1, 2].includes(previous.service?.version)) {
+      try { localStorage.setItem(`${SAVE_KEY}-before-free-roam`, stored); }
       catch { protectOriginalSave = true; toast('原存档已保留，本次试玩暂不保存'); }
     }
     if (previous.service === undefined) {

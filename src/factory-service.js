@@ -1,13 +1,13 @@
-import { FactoryGame, ITEMS, FOOD_RECIPES, STEP, AREAS } from './factory-core.js?v=0.15.1';
-import { canLink } from './factory-links.js?v=0.15.1';
-import { worldArea, yardLayout, findPath, shelfApproaches } from './factory-yard.js?v=0.15.1';
+import { FactoryGame, ITEMS, FOOD_RECIPES, STEP, AREAS } from './factory-core.js?v=0.16.0';
+import { canLink } from './factory-links.js?v=0.16.0';
+import { worldArea, yardLayout, findPath, shelfApproaches } from './factory-yard.js?v=0.16.0';
 
-export const STAFF_COSTS = [120, 240, 400];
+export const STAFF_COSTS = [600, 1500, 3000];
 export const DELIVERY_SECONDS = 4;
 export const WALK_SPEED = 2.2;
 export const shelfCapacity = b => 4 + b.level * 4;
 const food = item => typeof item === 'string' && Object.hasOwn(ITEMS, item) && Boolean(ITEMS[item].value);
-const freshService = () => ({ version: 2, served: 0, nextId: 4, customers: [1, 2, 3].map(id => ({ id, skin: id - 1, want: 'bread', cooldown: 0, age: 0 })), workers: [] });
+const freshService = () => ({ version: 3, served: 0, nextId: 4, customers: [1, 2, 3].map(id => ({ id, skin: id - 1, want: 'bread', cooldown: 0, age: 0 })), workers: [] });
 
 export class CafeFactoryGame extends FactoryGame {
   constructor(options) { super(options); this.state.service = freshService(); this.workerPrevious = new Map(); this.unreachable = new Set(); this.initShelves(); }
@@ -47,7 +47,7 @@ export class CafeFactoryGame extends FactoryGame {
   }
   availableStock(b, item) { return Math.max(0, (b?.goods || []).filter(v => v === item).length - this.service.workers.filter(w => w.job?.stage === 'pickup' && w.job.shelfId === b?.id && w.job.item === item).length); }
   findShelf(item) { return this.shelves.find(b => this.availableStock(b, item) > 0); }
-  clearRoutes() { for (const w of this.service.workers) w.path = null; this.unreachable.clear(); }
+  clearRoutes() { for (const w of this.service.workers) { w.path = null; w.wander = null; w.wait = 0; } this.unreachable.clear(); }
   place(type, x, y, ...args) {
     if (this.service?.workers.some(w => [w, w.path?.[0]].filter(Boolean).some(p => Math.floor(p.x) === x && Math.floor(p.y) === y))) return { ok: false, message: '等员工走过这里再建造' };
     const result = super.place(type, x, y, ...args); this.initShelves(); if (result.ok) this.clearRoutes(); return result;
@@ -81,7 +81,7 @@ export class CafeFactoryGame extends FactoryGame {
     if (cost === undefined) return { ok: false, message: '员工已满' };
     if (this.service.served < 4) return { ok: false, message: '先亲手送出 4 份美味' };
     if (this.state.coins < cost) return { ok: false, message: '金币还不够' };
-    this.state.coins -= cost; this.service.workers.push({ id: count + 1, ...yardLayout(this.area).homes[count], job: null, path: null });
+    this.state.coins -= cost; this.service.workers.push({ id: count + 1, ...yardLayout(this.area).homes[count], job: null, path: null, wander: null, wait: 0, stroll: 0 });
     return { ok: true };
   }
   remove(id) {
@@ -103,7 +103,7 @@ export class CafeFactoryGame extends FactoryGame {
     const key = `${Math.floor(w.x)},${Math.floor(w.y)}:${goals.map(p => `${p.x},${p.y}`).join(';')}`;
     if (this.unreachable.has(key)) return null;
     const path = findPath(this.area, this.walkingObstacles, w, goals);
-    if (path === null) this.unreachable.add(key);
+    if (path === null) { if (this.unreachable.size >= 4096) this.unreachable.clear(); this.unreachable.add(key); }
     return path;
   }
   walk(w, goals) {
@@ -121,24 +121,55 @@ export class CafeFactoryGame extends FactoryGame {
     return w.path.length === 0;
   }
   assign(w) {
-    for (const c of this.service.customers) {
+    const yard = yardLayout(this.area), candidates = [];
+    for (const [slot, c] of this.service.customers.entries()) {
       if (c.cooldown || this.reserved(c.id)) continue;
-      for (const b of this.shelves) {
-        if (!this.availableStock(b, c.want)) continue;
-        const path = this.pathFor(w, shelfApproaches(b));
-        if (!path) continue;
-        w.job = { customerId: c.id, item: c.want, stage: 'pickup', shelfId: b.id, x: b.x, y: b.y };
-        w.path = path; return true;
-      }
+      const shelves = this.shelves.filter(b => this.availableStock(b, c.want));
+      // Do not take food if the customer is cut off from this connected space.
+      if (!shelves.length || this.pathFor(w, [yard.targets[slot]]) === null) continue;
+      for (const b of shelves) candidates.push({ c, b, target: yard.targets[slot], approaches: shelfApproaches(b) });
     }
-    return false;
+    if (!candidates.length) return false;
+    // One breadth-first search finds the nearest reachable pickup, independent
+    // of building creation order. A new job starts here, never back at a home.
+    const path = this.pathFor(w, candidates.flatMap(c => c.approaches));
+    if (!path) return false;
+    const end = path.at(-1) || w;
+    const choices = candidates.filter(c => c.approaches.some(p => Math.hypot(p.x - end.x, p.y - end.y) < 1e-8));
+    choices.sort((a, b) => Math.abs(a.target.x - end.x) + Math.abs(a.target.y - end.y) - Math.abs(b.target.x - end.x) - Math.abs(b.target.y - end.y) || a.c.id - b.c.id);
+    const { c, b } = choices[0];
+    w.job = { customerId: c.id, item: c.want, stage: 'pickup', shelfId: b.id, x: b.x, y: b.y };
+    w.path = path; w.wander = null; w.wait = 0; return true;
+  }
+  stroll(w) {
+    if (w.wait > 0) { w.wait = Math.max(0, w.wait - STEP); return; }
+    if (!w.wander) {
+      const [width, height] = this.worldArea, points = [], preferFactory = w.stroll % 2 === 0;
+      // Deterministic destinations survive save/resume. Alternating open factory
+      // tiles and the shared forecourt makes the whole map usable, not a rail.
+      const seed = (w.id * 73856093 ^ w.stroll * 19349663) >>> 0;
+      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+        if (this.walkingObstacles.has(`${x},${y}`) || Math.hypot(x + .5 - w.x, y + .5 - w.y) < 2) continue;
+        let hash = (seed ^ Math.imul(x + 1, 374761393) ^ Math.imul(y + 1, 668265263)) >>> 0;
+        hash = Math.imul(hash ^ hash >>> 13, 1274126177) >>> 0;
+        points.push({ x: x + .5, y: y + .5, score: (hash ^ hash >>> 16) >>> 0, preferred: preferFactory ? x < this.area[0] && y < this.area[1] : x >= this.area[0] });
+      }
+      points.sort((a, b) => Number(b.preferred) - Number(a.preferred) || a.score - b.score);
+      w.stroll = (w.stroll + 1) % 1000000;
+      for (const p of points.slice(0, 16)) {
+        const path = this.pathFor(w, [p]);
+        if (path?.length) { w.wander = { x: p.x, y: p.y }; w.path = path; break; }
+      }
+      if (!w.wander) { w.wait = 2; w.path = null; return; }
+    }
+    if (this.walk(w, [w.wander]) || w.path === null) { w.wander = null; w.path = null; w.wait = 1 + w.id * .4; }
   }
   stepWorker(w) {
     this.workerPrevious.set(w.id, { x: w.x, y: w.y });
     const yard = yardLayout(this.area);
     if (!w.job) {
-      // Finish returning to the rest area before accepting the next trip.
-      if (this.walk(w, [yard.homes[w.id - 1]])) { w.path = null; this.assign(w); }
+      // Work preempts wandering or resting immediately, at the current position.
+      if (!this.assign(w)) this.stroll(w);
       return;
     }
     const job = w.job;
@@ -191,6 +222,16 @@ export class CafeFactoryGame extends FactoryGame {
         if (w.job) { delete w.job.remaining; w.job.stage = 'deliver'; w.job.shelfId = null; }
       });
     }
+    if (this.service.version === 2) {
+      for (const w of this.service.workers) {
+        // Keep old in-flight food, exact positions and routes. Idle return trips
+        // become interruptible walks; recruitment prices never charge old staff.
+        w.wander = !w.job && w.path?.length ? { ...w.path.at(-1) } : null;
+        if (!w.job && !w.wander) w.path = null;
+        w.wait = 0; w.stroll = 0;
+      }
+      this.service.version = 3;
+    }
     this.workerPrevious = new Map(); this.unreachable = new Set(); this.accumulator = 0; this.events = []; return true;
   }
 }
@@ -198,7 +239,7 @@ export class CafeFactoryGame extends FactoryGame {
 export function validService(s, state) {
   const integer = (n, max = 1e12) => Number.isSafeInteger(n) && n >= 0 && n <= max;
   const finite = (n, max) => Number.isFinite(n) && n >= 0 && n <= max;
-  if (!s || ![1, 2].includes(s.version) || !integer(s.served, state.totalSold) || !integer(s.nextId) || s.nextId < 4 || !Array.isArray(s.customers) || s.customers.length !== 3 || !Array.isArray(s.workers) || s.workers.length > 3) return false;
+  if (!s || ![1, 2, 3].includes(s.version) || !integer(s.served, state.totalSold) || !integer(s.nextId) || s.nextId < 4 || !Array.isArray(s.customers) || s.customers.length !== 3 || !Array.isArray(s.workers) || s.workers.length > 3) return false;
   const ids = new Set(), jobs = new Set();
   for (const c of s.customers) {
     if (!c || !integer(c.id) || c.id < 1 || c.id >= s.nextId || ids.has(c.id) || !integer(c.skin, 2) || !food(c.want) || !finite(c.cooldown, 2) || !finite(c.age, 60)) return false;
@@ -206,10 +247,16 @@ export function validService(s, state) {
   }
   for (const [index, w] of s.workers.entries()) {
     if (!w || w.id !== index + 1 || s.served < 4) return false;
-    if (s.version === 2) {
+    if (s.version >= 2) {
       const area = AREAS[state.expansion], [width, height] = worldArea(area);
       const point = p => p && finite(p.x, width - .5) && finite(p.y, height - .5) && p.x >= .5 && p.y >= .5;
       if (!point(w) || state.buildings.some(b => b.x === Math.floor(w.x) && b.y === Math.floor(w.y))) return false;
+      if (s.version === 3) {
+        if (!finite(w.wait, 3) || !integer(w.stroll, 999999)) return false;
+        if (w.wander !== null && (!point(w.wander) || w.wander.x % 1 !== .5 || w.wander.y % 1 !== .5 || w.job !== null || w.wait > 0)) return false;
+        if (w.job !== null && (w.wait !== 0 || w.wander !== null)) return false;
+        if (!w.job && !w.wander && w.path !== null) return false;
+      }
       if (w.path !== null) {
         if (!Array.isArray(w.path) || w.path.length > width * height) return false;
         let previous = w;
@@ -218,7 +265,7 @@ export function validService(s, state) {
           previous = p;
         }
         const j = w.job, shelf = state.buildings.find(b => b.id === j?.shelfId);
-        const goals = !j ? [yardLayout(area).homes[index]] : j.stage === 'pickup' && shelf ? shelfApproaches(shelf) : [yardLayout(area).targets[s.customers.findIndex(c => c.id === j.customerId)]];
+        const goals = !j ? [s.version === 3 ? w.wander : yardLayout(area).homes[index]] : j.stage === 'pickup' && shelf ? shelfApproaches(shelf) : [yardLayout(area).targets[s.customers.findIndex(c => c.id === j.customerId)]];
         if (!goals.some(p => p && Math.hypot(previous.x - p.x, previous.y - p.y) < 1e-8)) return false;
       }
     }
@@ -226,7 +273,7 @@ export function validService(s, state) {
     const j = w.job, c = s.customers.find(c => c.id === j?.customerId);
     if (!j || !c || c.cooldown || c.want !== j.item || jobs.has(c.id) || !integer(j.x, 39) || !integer(j.y, 23)) return false;
     if (s.version === 1 && !finite(j.remaining, DELIVERY_SECONDS)) return false;
-    if (s.version === 2) {
+    if (s.version >= 2) {
       if (!['pickup', 'deliver'].includes(j.stage) || j.remaining !== undefined) return false;
       if (j.stage === 'pickup') {
         const shelf = state.buildings.find(b => b.type === 'depot' && b.id === j.shelfId);
