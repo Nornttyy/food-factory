@@ -1,6 +1,6 @@
-import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.13.0';
-import { CELL, FactoryCamera, jellyPose, foodPose } from './factory-feel.js?v=0.13.0';
-import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.13.0';
+import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.14.0';
+import { CELL, FactoryCamera, jellyPose, foodPose, presentationTime } from './factory-feel.js?v=0.14.0';
+import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.14.0';
 // Match the flour hopper: cream rails, cocoa outlines, sage/peach accents.
 const CREAM = { cream: '#fff2d9', biscuit: '#e7cea7', peach: '#e4b69f', sage: '#b9c7ad', cocoa: '#846a57', belt: '#b09b86' };
 const BELT_LAYERS = [[43, CREAM.cocoa], [38, CREAM.cream], [28, CREAM.belt]];
@@ -12,7 +12,7 @@ export class FactoryAssets {
     const images = {};
     onProgress(0, 1);
     const loading = (async () => {
-      const response = await fetch(base + 'manifest.json?v=0.13.0', { signal: controller.signal });
+      const response = await fetch(base + 'manifest.json?v=0.14.0', { signal: controller.signal });
       if (!response.ok) throw new Error('素材清单读取失败');
       const manifest = await response.json();
       if (stopped) return;
@@ -106,6 +106,9 @@ export class FactoryRenderer {
     this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.assets = assets;
     this.camera = new FactoryCamera(); this.transform = { scale: 1, x: 0, y: 0 };
     this.pulses = new Map(); this.previous = new Map(); this.particles = []; this.salesSeen = new WeakSet(); this.now = 0; this.reduced = false;
+    this.viewport = null;
+    if (typeof ResizeObserver !== 'undefined') { this.observer = new ResizeObserver(() => this.viewport = null); this.observer.observe(canvas); }
+    globalThis.window?.addEventListener?.('resize', () => this.viewport = null);
   }
   buildingIcon(building, size = 64, game = null) {
     const def = BUILDINGS[building.type];
@@ -119,8 +122,8 @@ export class FactoryRenderer {
     ctx.restore(); canvas.setAttribute('aria-hidden', 'true');
     return canvas;
   }
-  resize(area = [WIDTH, HEIGHT], ui = {}) {
-    const rect = this.canvas.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
+  resize(area = [WIDTH, HEIGHT], ui = {}, measure = true) {
+    const rect = !measure && this.viewport ? this.viewport : (this.viewport = this.canvas.getBoundingClientRect()), dpr = Math.min(window.devicePixelRatio || 1, 2);
     const w = Math.max(1, Math.round(rect.width * dpr)), h = Math.max(1, Math.round(rect.height * dpr));
     if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
     this.transform = { ...this.camera.resize(rect.width, rect.height, area, ui), dpr };
@@ -160,7 +163,7 @@ export class FactoryRenderer {
   }
   draw(game, ui, timestamp) {
     this.grid = new Map(game.state.buildings.map(b => [`${b.x},${b.y}`, b]));
-    this.now = timestamp; this.reduced = Boolean(ui.reducedMotion); this.resize(game.area, ui); this.syncEffects(game, timestamp);
+    this.now = timestamp; this.reduced = Boolean(ui.reducedMotion); this.resize(game.area, ui, false); this.syncEffects(game, timestamp);
     const ctx = this.ctx, t = this.transform, s = game.state;
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = CREAM.biscuit; ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     ctx.setTransform(t.dpr * t.scale, 0, 0, t.dpr * t.scale, t.x * t.dpr, t.y * t.dpr);
@@ -194,7 +197,7 @@ export class FactoryRenderer {
           let x = b.x * CELL + 36 + DIRS[b.dir][0] * slot.offset, y = b.y * CELL + 36 + DIRS[b.dir][1] * slot.offset;
           let progress = 1;
           if (slot.motion) {
-            const m = slot.motion, elapsed = s.time + (s.paused ? 0 : Math.min(game.accumulator, .1)) - m.start;
+            const m = slot.motion, elapsed = presentationTime(game) - m.start;
             progress = Math.min(1, Math.max(0, elapsed / m.duration));
             const dir = DIRS[m.dir ?? b.dir], startX = m.x * CELL + 36 + dir[0] * (m.offset || 0), startY = m.y * CELL + 36 + dir[1] * (m.offset || 0);
             x = startX + (x - startX) * progress; y = startY + (y - startY) * progress;
@@ -228,7 +231,7 @@ export class FactoryRenderer {
       arrow(ctx, x * CELL + 36, y * CELL - 9, 1, '#c78442', 10); ctx.restore();
     }
     for (const event of game.events) {
-      const age = s.time - event.time;
+      const age = presentationTime(game) - event.time;
       ctx.save(); ctx.globalAlpha = Math.max(0, 1 - age / 1.5); ctx.fillStyle = '#79915e'; ctx.textAlign = 'center'; ctx.font = 'bold 16px system-ui';
       ctx.fillText(event.kind === 'shelf' ? '上架' : event.kind === 'store' ? '入库 +1' : `+${event.value}`, event.x * CELL + 36, event.y * CELL - age * 25); ctx.restore();
     }
@@ -249,7 +252,7 @@ export class FactoryRenderer {
   }
   drawBelt(b, game) {
     const geometry = conveyorPorts(b, (x, y) => this.grid ? this.grid.get(`${x},${y}`) : game.at(x, y));
-    drawConveyor(this.ctx, b, geometry, game.state.time, game.duration(b));
+    drawConveyor(this.ctx, b, geometry, presentationTime(game), game.duration(b));
   }
   drawMachineConnections(b, ports) {
     const ctx = this.ctx, x = b.x * CELL + CELL / 2, y = b.y * CELL + CELL / 2;
@@ -274,7 +277,8 @@ export class FactoryRenderer {
     const working = !b.output && (b.input || def.kind === 'source');
     const pulse = this.pulses.get(b.id), pose = jellyPose(pulse ? (timestamp - pulse.start) / 1000 : 1, pulse?.kind, this.reduced);
     // Work phase follows simulation progress so pauses and dialogs freeze this motion.
-    const squash = !this.reduced && working && (def.duration || def.kind === 'depot') ? Math.sin(b.progress / game.duration(b) * Math.PI * 4) * .085 : 0;
+    const phase = Math.min(game.duration(b), b.progress + presentationTime(game) - game.state.time);
+    const squash = !this.reduced && working && (def.duration || def.kind === 'depot') ? Math.sin(phase / game.duration(b) * Math.PI * 4) * .085 : 0;
     ctx.save(); ctx.fillStyle = '#92765524'; ctx.beginPath(); ctx.ellipse(x + 36, y + 58, 25 * pose.sx, 7, 0, 0, Math.PI * 2); ctx.fill();
     ctx.translate(x + 36, y + 62 + pose.y); ctx.rotate(pose.angle); ctx.scale(pose.sx * (1 + squash), pose.sy / (1 + squash));
     this.assets.draw(ctx, def.sprite, -31, -62, 62, 60);

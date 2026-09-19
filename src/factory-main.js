@@ -1,11 +1,11 @@
-import { BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, AREAS, WIDTH, HEIGHT, upgradeCost, isTransport, transportCount } from './factory-core.js?v=0.13.0';
-import { CafeFactoryGame as FactoryGame, shelfCapacity } from './factory-service.js?v=0.13.0';
-import { ServiceView } from './factory-service-view.js?v=0.13.0';
-import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.13.0';
-import { directionBetween, nextBeltCell } from './factory-links.js?v=0.13.0';
-import { RESEARCH } from './factory-career.js?v=0.13.0';
-import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.13.0';
-import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS } from './factory-business.js?v=0.13.0';
+import { BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, AREAS, WIDTH, HEIGHT, upgradeCost, isTransport, transportCount } from './factory-core.js?v=0.14.0';
+import { CafeFactoryGame as FactoryGame, shelfCapacity } from './factory-service.js?v=0.14.0';
+import { ServiceView } from './factory-service-view.js?v=0.14.0';
+import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.14.0';
+import { directionBetween, nextBeltCell } from './factory-links.js?v=0.14.0';
+import { RESEARCH } from './factory-career.js?v=0.14.0';
+import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.14.0';
+import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS } from './factory-business.js?v=0.14.0';
 
 const $ = selector => document.querySelector(selector);
 let game = new FactoryGame();
@@ -15,7 +15,7 @@ try { tutorialSeen = localStorage.getItem(TUTORIAL_KEY) === 'seen'; } catch { /*
 const assets = new FactoryAssets();
 const canvas = $('#factory-board');
 const renderer = new FactoryRenderer(canvas, assets);
-const ui = { screen: 'menu', customerArea: true, careerTab: 'contracts', businessTab: 'trade', mapOpen: false, category: 'logistics', tool: 'select', dir: 0, selected: null, hover: null, dockOpen: false, ordersOpen: false, inspectorOpen: false, focus: false, reducedMotion: false };
+const ui = { screen: 'menu', customerArea: true, recipeOpen: false, recipeItem: 'bread', careerTab: 'contracts', businessTab: 'trade', mapOpen: false, category: 'logistics', tool: 'select', dir: 0, selected: null, hover: null, dockOpen: false, ordersOpen: false, inspectorOpen: false, focus: false, reducedMotion: false };
 const PREFERENCES_KEY = 'food-factory-preferences-v1', BACKUP_KEY = `${SAVE_KEY}-before-restart`;
 let hasSave = false, hasBackup = false, restartMode = 'new', explicitMotion = false;
 const motionQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)');
@@ -137,7 +137,7 @@ function renderInspector() {
     const p = document.createElement('p'); p.className = 'muted';
     p.textContent = game.unlockLevel === 0 ? '面粉 → 和面 → 烘烤 → 上架' : game.unlockLevel === 1 ? '面团 → 成型 → 油炸 → 淋酱' : '橙子 → 清洗 → 榨汁 → 上架'; root.append(p);
     const stats = document.createElement('div'); stats.className = 'stat-row'; stats.innerHTML = `<span>累计送餐</span><strong>${game.state.totalSold} 份</strong>`; root.append(stats);
-    const recipe = document.createElement('button'); recipe.className = 'recipe-button'; recipe.textContent = '查看配方 ↗'; recipe.addEventListener('click', () => $('#recipe-dialog').showModal()); root.append(recipe); return;
+    const recipe = document.createElement('button'); recipe.className = 'recipe-button'; recipe.textContent = '查看配方 ↗'; recipe.addEventListener('click', () => openQuickRecipe()); root.append(recipe); return;
   }
   $('#inspector-title').textContent = b ? `${def.label} · Lv.${b.level}` : def.label;
   const icon = renderer.buildingIcon(b || { type: ui.tool, dir: ui.dir }, 64, b ? game : null); icon.className = 'inspector-art'; root.append(icon);
@@ -168,6 +168,7 @@ function renderInspector() {
 }
 function renderUi(force = false) {
   serviceView?.render();
+  renderQuickRecipe();
   if (practice) {
     const next = nextLesson(practice.step, game, ui.tool);
     if (next !== practice.step) {
@@ -229,6 +230,40 @@ function renderRecipes() {
     card.append(element('p', [...chain.map(type => BUILDINGS[type].label), '货物架'].join(' → ')));
     root.append(card);
   }
+}
+let quickKey = '';
+function openQuickRecipe() {
+  finishDrag(); ui.recipeOpen = true; ui.focus = false;
+  renderQuickRecipe();
+}
+function renderQuickRecipe() {
+  $('#quick-recipe').hidden = !ui.recipeOpen || ui.screen !== 'workshop' || ui.focus;
+  $('#recipes-toggle').setAttribute('aria-expanded', String(ui.recipeOpen && !ui.focus));
+  if (!ui.recipeOpen || !assets.ready) return;
+  const key = `${ui.recipeItem}:${game.unlockLevel}:${Boolean(practice)}`;
+  if (key === quickKey) return; quickKey = key;
+  const select = $('#quick-recipe-food'); select.replaceChildren();
+  for (const [item, chain] of FOOD_RECIPES) {
+    const unlock = Math.max(...chain.map(type => BUILDINGS[type].unlock));
+    const option = element('option', `${ITEMS[item].label}${unlock > game.unlockLevel ? ' · 未解锁' : ''}`); option.value = item; select.append(option);
+  }
+  select.value = ui.recipeItem;
+  const chain = FOOD_RECIPES.find(([item]) => item === ui.recipeItem)?.[1] || FOOD_RECIPES[0][1], root = $('#quick-recipe-chain'); root.replaceChildren();
+  [...chain, 'depot'].forEach((type, i) => {
+    if (i) root.append(element('span', '→'));
+    const def = BUILDINGS[type], locked = def.unlock > game.unlockLevel, button = element('button', '');
+    button.type = 'button'; button.dataset.recipeBuilding = type; button.disabled = locked || Boolean(practice);
+    button.setAttribute('aria-label', `${def.label}，${locked ? '完成订单解锁' : `选择建造，${def.cost}金币`}`);
+    button.append(renderer.buildingIcon({ type, dir: ui.dir }, 32), document.createTextNode(def.label));
+    button.addEventListener('click', () => {
+      if (practice || def.unlock > game.unlockLevel) return;
+      ui.category = def.category;
+      document.querySelectorAll('[data-category]').forEach(b => b.classList.toggle('active', b.dataset.category === ui.category));
+      chooseTool(type); canvas.focus({ preventScroll: true });
+    }); root.append(button);
+  });
+  const unlock = Math.max(...chain.map(type => BUILDINGS[type].unlock));
+  $('#quick-recipe-note').textContent = unlock > game.unlockLevel ? `完成第 ${unlock} 单解锁 · 可先查看路线` : practice ? '练习中可查看 · 退出练习后可直接选机器' : '点机器直接建造 · 可边做边看';
 }
 function renderTutorial() {
   $('#tutorial-card').hidden = !practice || ui.screen !== 'workshop';
@@ -566,6 +601,9 @@ $('#restart-confirm').addEventListener('click', confirmRestart);
 $('#menu-settings').addEventListener('click', () => $('#settings-dialog').showModal());
 $('#close-settings').addEventListener('click', () => $('#settings-dialog').close());
 $('#menu-recipes').addEventListener('click', () => $('#recipe-dialog').showModal());
+$('#recipes-toggle').addEventListener('click', () => { if (ui.recipeOpen) { ui.recipeOpen = false; renderQuickRecipe(); } else openQuickRecipe(); });
+$('#close-quick-recipe').addEventListener('click', () => { ui.recipeOpen = false; renderQuickRecipe(); });
+$('#quick-recipe-food').addEventListener('change', event => { if (FOOD_RECIPES.some(([item]) => item === event.target.value)) { ui.recipeItem = event.target.value; renderQuickRecipe(); } });
 $('#career-toggle').addEventListener('click', openCareer);
 $('#menu-career').addEventListener('click', openCareer);
 $('#menu-business').addEventListener('click', openBusiness);
@@ -578,19 +616,20 @@ $('#business-goals-tab').addEventListener('click', () => { ui.businessTab = 'goa
 $('#close-career').addEventListener('click', () => $('#career-dialog').close());
 $('#career-contracts-tab').addEventListener('click', () => { ui.careerTab = 'contracts'; renderCareer(); });
 $('#career-research-tab').addEventListener('click', () => { ui.careerTab = 'research'; renderCareer(); });
-$('#open-recipes').addEventListener('click', () => { $('#help-dialog').close(); $('#recipe-dialog').showModal(); });
-document.addEventListener('pointerup', event => { const button = event.target?.closest?.('button'); if (button && !button.disabled && button.id !== 'loading-dough') bounceElement(button); });
+$('#open-recipes').addEventListener('click', () => { $('#help-dialog').close(); if (ui.screen === 'workshop') openQuickRecipe(); else $('#recipe-dialog').showModal(); });
+document.addEventListener('pointerup', event => { const button = event.target?.closest?.('button'); if (button && !button.disabled && button.id !== 'loading-dough' && button.dataset.customerSlot === undefined) bounceElement(button); });
 $('#help').addEventListener('click', () => $('#help-dialog').showModal());
 for (const selector of ['#close-help', '#help-done']) $(selector).addEventListener('click', () => $('#help-dialog').close());
 $('#close-recipes').addEventListener('click', () => $('#recipe-dialog').close());
 $('#portrait-continue').addEventListener('click', () => $('.orientation-hint').hidden = true);
 window.addEventListener('keydown', event => {
   if (ui.screen !== 'workshop') return;
-  if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || ['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName) || document.querySelector('dialog[open]')) return;
+  if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) || document.querySelector('dialog[open]')) return;
   if (ui.focus && event.key !== 'Escape') return;
   if (event.key.toLowerCase() === 'r') { event.preventDefault(); rotate(); }
+  if (event.key.toLowerCase() === 'f') { event.preventDefault(); if (ui.recipeOpen) { ui.recipeOpen = false; renderQuickRecipe(); } else openQuickRecipe(); }
   if (event.key === ' ' && document.activeElement?.tagName !== 'BUTTON') { event.preventDefault(); pause(); }
-  if (event.key === 'Escape') { ui.ordersOpen = false; ui.focus = false; chooseTool('select'); }
+  if (event.key === 'Escape') { ui.recipeOpen = false; ui.ordersOpen = false; ui.focus = false; chooseTool('select'); }
   if (event.key === 'Delete' || event.key === 'Backspace') { const b = game.state.buildings.find(b => b.id === ui.selected); if (b && document.activeElement === canvas) { event.preventDefault(); removeBuilding(b); } }
   if (['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'].includes(event.key) && document.activeElement === canvas) {
     event.preventDefault(); const [w, h] = game.area, pos = ui.hover || { x: 0, y: 0 };

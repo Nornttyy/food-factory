@@ -1,5 +1,5 @@
-import { FactoryGame, ITEMS, FOOD_RECIPES, STEP } from './factory-core.js?v=0.13.0';
-import { canLink } from './factory-links.js?v=0.13.0';
+import { FactoryGame, ITEMS, FOOD_RECIPES, STEP } from './factory-core.js?v=0.14.0';
+import { canLink } from './factory-links.js?v=0.14.0';
 
 export const STAFF_COSTS = [120, 240, 400];
 export const DELIVERY_SECONDS = 4;

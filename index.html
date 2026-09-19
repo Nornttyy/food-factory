@@ -25,10 +25,10 @@
     <link rel="canonical" href="https://nornttyy.github.io/food-factory/" />
     <link rel="icon" href="data:," />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./factory.css?v=0.13.0" />
-    <link rel="stylesheet" href="./factory-layout.css?v=0.13.0" />
-    <link rel="stylesheet" href="./factory-menu.css?v=0.13.0" />
-    <link rel="stylesheet" href="./factory-service.css?v=0.13.0" />
+    <link rel="stylesheet" href="./factory.css?v=0.14.0" />
+    <link rel="stylesheet" href="./factory-layout.css?v=0.14.0" />
+    <link rel="stylesheet" href="./factory-menu.css?v=0.14.0" />
+    <link rel="stylesheet" href="./factory-service.css?v=0.14.0" />
   </head>
   <body class="menu-open">
     <section id="loading" class="loading" aria-labelledby="loading-title" aria-busy="true">
@@ -70,12 +70,16 @@
         </div>
       </header>
       <section class="workspace">
-        <aside id="service-area" class="service-area" aria-label="猫猫顾客与取餐区"></aside>
+        <section id="service-area" class="service-yard" aria-label="营业区：猫猫顾客、取餐台和送餐员工"></section>
         <div class="workshop">
           <div class="board-wrap"><canvas id="factory-board" width="1008" height="576" tabindex="0" aria-label="工坊画布，选择下方设备后点击空格建造">你的浏览器不支持 Canvas。</canvas><div id="pause-overlay" class="pause-overlay" hidden><button id="resume">▷ 已暂停 · 点击继续</button></div></div>
-          <div class="workshop-bar"><span id="factory-level">起步工坊</span><button id="expand" class="soft-button">＋ 扩建 · 350</button><button id="career-toggle" class="soft-button career-toggle">✦ 急单与研究</button><button id="business-toggle" class="soft-button business-toggle">仓库与合作</button></div>
+          <div class="workshop-bar"><span id="factory-level">起步工坊</span><button id="expand" class="soft-button">＋ 扩建 · 350</button><button id="recipes-toggle" class="soft-button" aria-expanded="false" aria-controls="quick-recipe">配方 F</button><button id="career-toggle" class="soft-button career-toggle">✦ 急单与研究</button><button id="business-toggle" class="soft-button business-toggle">仓库与合作</button></div>
           <div class="board-footer"><span id="selection-hint">选设备，点空格</span><span id="save-status">自动保存</span></div>
         </div>
+        <section id="quick-recipe" class="quick-recipe" aria-label="常驻配方速查，不暂停生产" hidden>
+          <div class="quick-recipe-heading"><select id="quick-recipe-food" aria-label="选择查看的食品"></select><button id="close-quick-recipe" aria-label="收起配方">×</button></div>
+          <div id="quick-recipe-chain" class="quick-recipe-chain"></div><small id="quick-recipe-note" class="quick-recipe-note">点机器直接建造 · 可边做边看</small>
+        </section>
         <aside id="order-drawer" class="sidebar" hidden>
           <section class="order-panel"><div class="panel-heading"><h2>工坊订单 <small id="order-number">01</small></h2><button id="close-orders" class="close-button" aria-label="收起订单">×</button></div><div id="orders"></div></section>
         </aside>
@@ -123,7 +127,7 @@
     <dialog id="recipe-dialog" class="recipe-dialog" aria-labelledby="recipe-title"><button id="close-recipes" class="dialog-close" aria-label="关闭配方">×</button><span class="section-label">工坊食谱</span><h2 id="recipe-title">八种美味，慢慢做好。</h2><p class="muted">机器可贴着连接；分流器能把面团送到不同支线。配方辅料由机器自带。</p><div id="recipe-list" class="recipe-list"></div></dialog>
     <div class="orientation-hint"><span>↻</span><small>横过来，工坊更宽敞</small><button id="portrait-continue">继续竖屏试玩</button></div>
     <noscript><style>#loading{display:none}</style>需要启用 JavaScript 才能开始游戏。</noscript>
-    <script defer src="./src/factory-loading.js?v=0.13.0"></script>
-    <script id="factory-entry" type="module" src="./src/factory-main.js?v=0.13.0"></script>
+    <script defer src="./src/factory-loading.js?v=0.14.0"></script>
+    <script id="factory-entry" type="module" src="./src/factory-main.js?v=0.14.0"></script>
   </body>
 </html>

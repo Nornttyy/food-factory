@@ -321,7 +321,36 @@ test('factory entry loads generated atlases and wires construction, production, 
     nodes.get('close-minimap').click(); assert.equal(nodes.get('minimap-panel').hidden, true);
     nodes.get('menu-home').click(); const menuCamera = runtime.renderer.camera.x;
     nodes.get('factory-minimap').listeners.pointerdown({ preventDefault() {}, clientX: 1000, clientY: 570 }); assert.equal(runtime.renderer.camera.x, menuCamera);
-    assert.equal(runtime.game.restore(beforeBusinessUi), true); nodes.get('menu-play').click(); nodes.get('menu-home').click();
+    assert.equal(runtime.game.restore(beforeBusinessUi), true); nodes.get('menu-play').click();
+    // Recipe lookup stays pinned while production, serving and real canvas input continue.
+    const beforeQuick = runtime.game.serialize();
+    if (runtime.game.state.paused) nodes.get('resume').click();
+    nodes.get('recipes-toggle').click(); assert.equal(nodes.get('quick-recipe').hidden, false);
+    assert.equal(nodes.get('recipe-dialog').open, undefined); assert.equal(nodes.get('quick-recipe-food').children.length, 8);
+    assert.equal(runtime.serviceView.active(), true);
+    const quickTime = runtime.game.state.time; frames.shift()(performance.now() + 355000);
+    assert.ok(runtime.game.state.time > quickTime, 'a pinned recipe must not pause production');
+    nodes.get('quick-recipe-food').listeners.change({ target: { value: 'bread' } });
+    nodes.get('quick-recipe-chain').children.find(el => el.dataset?.recipeBuilding === 'bread_oven').click();
+    assert.equal(runtime.ui.tool, 'bread_oven'); assert.equal(runtime.ui.category, 'machines'); assert.equal(nodes.get('quick-recipe').hidden, false);
+    runtime.game.state.coins += 140;
+    let free;
+    for (let y = 0; y < runtime.game.area[1] && !free; y++) for (let x = 0; x < runtime.game.area[0] && !free; x++) if (!runtime.game.at(x, y)) free = { x, y };
+    runtime.renderer.camera.centerOn(free.x + .5, free.y + .5); runtime.renderer.resize(runtime.game.area, runtime.ui);
+    down(strokeEvent(201, free.x, free.y)); up(strokeEvent(201, free.x, free.y));
+    assert.equal(runtime.game.at(free.x, free.y).type, 'bread_oven'); assert.equal(nodes.get('quick-recipe').hidden, false);
+    runtime.game.state.orderIndex = 0;
+    nodes.get('quick-recipe-food').listeners.change({ target: { value: 'orange_icepop' } });
+    assert.match(nodes.get('quick-recipe-note').textContent, /第 2 单/);
+    const lockedFreezer = nodes.get('quick-recipe-chain').children.find(el => el.dataset?.recipeBuilding === 'icepop_freezer');
+    assert.equal(lockedFreezer.disabled, true); lockedFreezer.click(); assert.equal(runtime.ui.tool, 'bread_oven');
+    document.activeElement = nodes.get('quick-recipe-food'); const dirBeforeSelect = runtime.ui.dir;
+    windowListeners.keydown({ key: 'r', preventDefault() {} }); assert.equal(runtime.ui.dir, dirBeforeSelect);
+    nodes.get('factory-board').focus(); windowListeners.keydown({ key: 'f', preventDefault() {} }); assert.equal(nodes.get('quick-recipe').hidden, true);
+    windowListeners.keydown({ key: 'f', preventDefault() {} }); assert.equal(nodes.get('quick-recipe').hidden, false);
+    nodes.get('help').click(); nodes.get('open-recipes').click(); assert.equal(nodes.get('help-dialog').open, false); assert.equal(nodes.get('recipe-dialog').open, undefined);
+    nodes.get('close-quick-recipe').click(); assert.equal(nodes.get('quick-recipe').hidden, true);
+    runtime.game.restore(beforeQuick); nodes.get('menu-home').click();
     // Reload an old-format save into the menu, retaining explicit settings over OS defaults.
     const legacy = JSON.parse(storage.get('food-factory-v1')); delete legacy.career;
     storage.set('food-factory-v1', JSON.stringify(legacy));

@@ -1,5 +1,7 @@
-import { ITEMS } from './factory-core.js?v=0.13.0';
-import { STAFF_COSTS, DELIVERY_SECONDS } from './factory-service.js?v=0.13.0';
+import { ITEMS } from './factory-core.js?v=0.14.0';
+import { STAFF_COSTS, DELIVERY_SECONDS } from './factory-service.js?v=0.14.0';
+import { presentationTime } from './factory-feel.js?v=0.14.0';
+import { yardLayout, WorkerMotion, customerPose, drawYardGround } from './factory-yard.js?v=0.14.0';
 
 // Four independently posed atlas parts. No legs, feet or attached limb drawing.
 export function drawCat(ctx, assets, { skin = 0, staff = false, time = 0, happy = false, reduced = false } = {}) {
@@ -21,18 +23,24 @@ export function drawCat(ctx, assets, { skin = 0, staff = false, time = 0, happy 
 export class ServiceView {
   constructor({ root, assets, getGame, active, changed, notify, reduced, canRecruit = () => true }) {
     Object.assign(this, { root, assets, getGame, active, changed, notify, reduced, canRecruit });
-    this.drag = null; this.selection = null; this.rows = []; this.foods = new Map(); this.staff = [];
-    this.head = document.createElement('div'); this.head.className = 'service-heading'; this.head.textContent = '猫猫来啦';
+    this.drag = null; this.selection = null; this.rows = []; this.foods = new Map();
+    this.routes = new WorkerMotion(); this.layout = null; this.layoutDirty = true; this.lastGame = null; this.lastKey = ''; this.lastFrame = '';
+    this.scene = document.createElement('canvas'); this.scene.className = 'service-scene'; this.scene.setAttribute('aria-hidden', 'true');
+    this.ground = document.createElement('canvas');
     this.list = document.createElement('div'); this.list.className = 'customer-list';
     for (let slot = 0; slot < 3; slot++) {
       const row = document.createElement('button'); row.type = 'button'; row.className = 'customer-spot'; row.dataset.customerSlot = String(slot);
-      const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 224; canvas.className = 'cat-puppet'; canvas.setAttribute('aria-hidden', 'true');
       const bubble = document.createElement('span'); bubble.className = 'customer-want';
       const status = document.createElement('small'); status.className = 'customer-status';
-      row.append(canvas, bubble, status); this.list.append(row); this.rows.push({ row, canvas, bubble, status, want: null });
+      row.append(bubble, status); this.list.append(row); this.rows.push({ row, bubble, status, want: null, id: null, bornAt: 0 });
       row.addEventListener('click', () => { if (!this.drag && this.selection) this.drop(slot); });
     }
     this.tray = document.createElement('div'); this.tray.className = 'food-tray'; this.tray.setAttribute('aria-label', '货架上的食物');
+    this.trayNav = [-1, 1].map(direction => {
+      const button = document.createElement('button'); button.type = 'button'; button.className = `counter-scroll ${direction < 0 ? 'previous' : 'next'}`; button.textContent = direction < 0 ? '‹' : '›';
+      button.setAttribute('aria-label', direction < 0 ? '看前面的食物' : '看后面的食物');
+      button.addEventListener('click', () => this.tray.scrollBy?.({ left: direction * 100, behavior: this.reduced() ? 'auto' : 'smooth' })); return button;
+    });
     for (const [item, def] of Object.entries(ITEMS)) if (def.value) {
       const button = document.createElement('button'); button.type = 'button'; button.className = 'tray-food'; button.dataset.food = item;
       button.append(assets.icon(def.sprite, 40));
@@ -45,15 +53,13 @@ export class ServiceView {
       button.addEventListener('click', event => { if (event.detail === 0 && this.active()) { this.select(item); this.render(); } });
     }
     this.hint = document.createElement('small'); this.hint.className = 'service-hint'; this.hint.setAttribute('role', 'status'); this.hint.setAttribute('aria-live', 'polite');
-    this.workers = document.createElement('div'); this.workers.className = 'service-workers';
-    for (let i = 0; i < 3; i++) {
-      const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 224; canvas.className = 'worker-puppet';
-      this.workers.append(canvas); this.staff.push(canvas);
-    }
+    this.staffStatus = document.createElement('span'); this.staffStatus.className = 'service-sr-only';
     this.hire = document.createElement('button'); this.hire.type = 'button'; this.hire.className = 'hire-staff';
     this.hire.addEventListener('click', () => { if (this.active() && this.canRecruit()) { const result = this.getGame().recruit(); if (result.ok) this.changed(); else this.notify(result.message); this.render(); } });
     this.ghost = document.createElement('div'); this.ghost.className = 'food-drag-ghost'; this.ghost.hidden = true; this.ghost.setAttribute('aria-hidden', 'true');
-    this.root.append(this.head, this.list, this.tray, this.hint, this.workers, this.hire, this.ghost);
+    this.root.append(this.scene, this.list, this.tray, ...this.trayNav, this.hint, this.staffStatus, this.hire, this.ghost);
+    if (typeof ResizeObserver !== 'undefined') { this.observer = new ResizeObserver(() => this.layoutDirty = true); this.observer.observe(root); }
+    window.addEventListener('resize', () => this.layoutDirty = true);
     document.addEventListener('keydown', event => { if (event.key === 'Escape') this.cancel(); });
     document.addEventListener('visibilitychange', () => { if (document.hidden) this.cancel(); });
     document.addEventListener('pointerdown', event => { if (this.drag && event.pointerId !== this.drag.id) this.cancel(); });
@@ -110,6 +116,10 @@ export class ServiceView {
   render() {
     const game = this.getGame(), s = game.service, active = this.active(), stock = game.stockFoods;
     if (!active || this.selection?.game !== game || (this.selection && !game.shelves.find(b => b.id === this.selection.rackId)?.goods?.includes(this.selection.item))) this.cancel();
+    if (game !== this.lastGame || s !== this.lastService) { this.lastGame = game; this.lastService = s; this.routes.clear(); this.lastKey = ''; this.rows.forEach(r => r.id = null); }
+    const key = JSON.stringify([active, stock, s.customers.map(c => [c.id, c.want, c.cooldown > 0, game.reserved(c.id)]), s.workers.map(w => w.job?.customerId || 0), s.served, game.state.coins, this.selection?.item, this.canRecruit()]);
+    if (key === this.lastKey) return;
+    this.lastKey = key; this.lastFrame = '';
     this.rows.forEach(({ row, bubble, status }, slot) => {
       const c = s.customers[slot], busy = game.reserved(c.id), happy = c.cooldown > 0;
       row.disabled = !active || happy || busy;
@@ -128,35 +138,57 @@ export class ServiceView {
       button.classList.toggle('selected', this.selection?.item === item); count.textContent = String(n);
     }
     this.hint.textContent = this.selection ? '点猫猫，也能送餐' : Object.keys(stock).length ? '拖给猫猫 · 或点选再送' : '等美味上架…';
+    for (const button of this.trayNav) button.hidden = Object.keys(stock).length <= Math.max(1, Math.floor(((this.layout?.width || 200) - 80) / 38));
     const n = s.workers.length, cost = STAFF_COSTS[n];
     this.hire.disabled = !active || !this.canRecruit() || s.served < 4 || cost === undefined || game.state.coins < cost;
     this.hire.textContent = cost === undefined ? '员工已满 · 3/3' : s.served < 4 ? `招募员工 · 先送 ${s.served}/4 份` : `＋ 招募员工 · ${cost}`;
-    this.workers.hidden = !n;
-    this.staff.forEach((canvas, i) => { canvas.hidden = i >= n; canvas.setAttribute('aria-label', `送餐员工 ${i + 1}${s.workers[i]?.job ? '，正在送餐' : '，等待食物'}`); });
+    this.staffStatus.textContent = s.workers.map(w => `员工${w.id}${w.job ? '正在送餐' : '在取餐台待命'}`).join('，');
+  }
+  resize() {
+    if (!this.layoutDirty) return;
+    const rect = this.root.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) return;
+    this.layout = yardLayout(rect.width, rect.height); this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.scene.width = this.ground.width = Math.round(rect.width * this.dpr);
+    this.scene.height = this.ground.height = Math.round(rect.height * this.dpr);
+    const bg = this.ground.getContext('2d'); bg.setTransform(this.dpr, 0, 0, this.dpr, 0, 0); drawYardGround(bg, this.layout, this.assets);
+    this.rows.forEach(({ row }, i) => {
+      const p = this.layout.spots[i]; Object.assign(row.style, { left: `${p.x - p.size * .6}px`, top: `${p.y - p.size * .7}px`, width: `${p.size * 1.25}px`, height: `${p.size * 1.25}px` });
+    });
+    this.tray.style.top = `${this.layout.counterY - 8}px`; this.tray.style.maxHeight = '40px';
+    this.trayNav.forEach(button => button.style.top = `${this.layout.counterY - 7}px`);
+    this.hint.style.top = `${this.layout.counterY + 45}px`;
+    this.routes.clear(); this.layoutDirty = false; this.lastFrame = ''; this.lastKey = '';
   }
   draw() {
     if (this.root.hidden) return;
-    const game = this.getGame(), time = game.state.time, reduced = this.reduced();
+    this.resize(); if (!this.layout) return;
+    const game = this.getGame(), time = presentationTime(game), subTick = time - game.state.time, reduced = this.reduced();
+    if (game.service !== this.lastService) this.render();
     if (!this.active() && this.drag) this.cancel();
-    this.rows.forEach(({ canvas }, i) => {
-      const ctx = canvas.getContext('2d'), c = game.service.customers[i]; ctx.clearRect(0, 0, 256, 224); ctx.save(); ctx.scale(2, 2);
-      if (!reduced && c.age < .65) { const p = c.age / .65; ctx.globalAlpha = Math.min(1, p * 3); ctx.translate((1 - p) * 35, -Math.sin(p * Math.PI) * 8); }
-      drawCat(ctx, this.assets, { skin: c.skin, time, happy: c.cooldown > 0, reduced }); ctx.restore();
+    const frameKey = `${time}:${reduced}`; if (frameKey === this.lastFrame) return; this.lastFrame = frameKey;
+    const ctx = this.scene.getContext('2d'); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, this.scene.width, this.scene.height); ctx.drawImage(this.ground, 0, 0);
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    const actors = [];
+    this.rows.forEach((row, i) => {
+      const c = game.service.customers[i], spot = this.layout.spots[i];
+      if (row.id !== c.id) { row.id = c.id; row.bornAt = game.state.time - c.age; }
+      const pose = customerPose(c, spot, time - row.bornAt, subTick, reduced);
+      actors.push({ ...pose, size: spot.size, skin: c.skin, happy: c.cooldown > 0, staff: false });
     });
-    this.staff.forEach((canvas, i) => {
-      if (canvas.hidden) return;
-      const ctx = canvas.getContext('2d'), job = game.service.workers[i]?.job; ctx.clearRect(0, 0, 256, 224); ctx.save(); ctx.scale(2, 2);
-      drawCat(ctx, this.assets, { staff: true, time: time + i, reduced });
-      if (job) { this.assets.draw(ctx, 'serving_plate', 39, 74, 50, 20); this.assets.draw(ctx, ITEMS[job.item].sprite, 46, 59, 36, 30); }
+    game.service.workers.forEach((worker, i) => {
+      const slot = game.service.customers.findIndex(c => c.id === worker.job?.customerId), spot = this.layout.spots[slot];
+      const home = this.layout.homes[i], target = spot ? { x: spot.x - spot.size * .72, y: spot.y + 15 } : home;
+      const pose = this.routes.pose(worker, home, target, time, worker.job ? DELIVERY_SECONDS - worker.job.remaining + subTick : 0);
+      actors.push({ ...pose, size: this.layout.workerSize, alpha: 1, staff: true, food: pose.carrying ? worker.job?.item : null });
+    });
+    this.actors = actors; // Display only; never persisted or used for sales.
+    for (const actor of actors.sort((a, b) => a.y - b.y)) {
+      ctx.save(); ctx.globalAlpha = actor.alpha; ctx.fillStyle = '#9c83652a'; ctx.beginPath(); ctx.ellipse(actor.x, actor.y + actor.size * .34, actor.size * .3, actor.size * .08, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.translate(actor.x - actor.size / 2, actor.y - actor.size / 2); ctx.scale(actor.size / 128, actor.size / 128);
+      drawCat(ctx, this.assets, { skin: actor.skin || 0, staff: actor.staff, time, happy: actor.happy, reduced });
+      if (actor.food) { this.assets.draw(ctx, 'serving_plate', 39, 74, 50, 20); this.assets.draw(ctx, ITEMS[actor.food].sprite, 46, 59, 36, 30); }
       ctx.restore();
-      canvas.style.opacity = job ? '1' : '.65';
-      if (job) {
-        const slot = game.service.customers.findIndex(c => c.id === job.customerId), row = this.rows[slot]?.row;
-        const travel = 1 - job.remaining / DELIVERY_SECONDS;
-        // Floating, footless courier visibly carries the food toward its recipient.
-        const distance = row ? Math.max(0, this.workers.getBoundingClientRect().bottom - row.getBoundingClientRect().bottom) : 0;
-        canvas.style.transform = reduced ? 'none' : `translateY(${-distance * travel}px)`;
-      } else canvas.style.transform = 'none';
-    });
+    }
   }
 }

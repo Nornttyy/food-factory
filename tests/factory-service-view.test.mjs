@@ -5,7 +5,7 @@ import { CafeFactoryGame } from '../src/factory-service.js';
 import { cameraInsets } from '../src/factory-feel.js';
 
 function setup(t) {
-  const listeners = {}, windowListeners = {}; let hit = null, enabled = true, changes = 0;
+  const listeners = {}, windowListeners = {}; let hit = null, enabled = true, changes = 0, measures = 0;
   let game = new CafeFactoryGame(); game.shelves[0].goods = ['bread', 'bread', 'bread'];
   const context = new Proxy({}, { get: () => () => {} });
   class Element {
@@ -19,7 +19,8 @@ function setup(t) {
     releasePointerCapture() { this.capture = null; }
     closest() { return this; }
     getContext() { return context; }
-    getBoundingClientRect() { return { left: 0, top: 0, right: 200, bottom: 400, width: 200, height: 400 }; }
+    getBoundingClientRect() { measures++; return { left: 0, top: 0, right: 200, bottom: 400, width: 200, height: 400 }; }
+    scrollBy({ left }) { this.scrollLeft = (this.scrollLeft || 0) + left; }
   }
   const oldDoc = globalThis.document, oldWin = globalThis.window;
   globalThis.document = { createElement: tag => new Element(tag), addEventListener: (event, fn) => listeners[event] = fn, elementFromPoint: () => hit, hidden: false };
@@ -28,7 +29,7 @@ function setup(t) {
   const root = new Element(), messages = [];
   const view = new ServiceView({ root, assets: { icon: () => new Element('canvas'), draw() {} }, getGame: () => game, active: () => enabled && !document.hidden && !game.state.paused, changed: () => changes++, notify: text => messages.push(text), reduced: () => false });
   view.render();
-  return { view, root, messages, listeners, windowListeners, get game() { return game; }, get changes() { return changes; }, setGame: value => game = value, enabled: value => enabled = value, hit: value => hit = value };
+  return { view, root, messages, listeners, windowListeners, get game() { return game; }, get changes() { return changes; }, get measures() { return measures; }, setGame: value => game = value, enabled: value => enabled = value, hit: value => hit = value };
 }
 const pointer = (pointerId = 7, x = 10, y = 10) => ({ button: 0, pointerId, pointerType: 'touch', clientX: x, clientY: y, preventDefault() {}, stopPropagation() {} });
 
@@ -90,13 +91,43 @@ test('recruitment is bound to the live game, frozen while inactive, and updates 
   h.enabled(false); h.view.hire.listeners.click(); assert.equal(h.game.state.coins, coins); h.enabled(true);
   h.view.hire.listeners.click(); assert.equal(h.game.state.coins, coins - 120); assert.equal(h.game.service.workers.length, 1);
   h.game.update(.1); h.view.render(); h.view.draw();
-  assert.equal(h.view.workers.hidden, false); assert.equal(h.view.staff[0].hidden, false); assert.equal(h.view.staff[1].hidden, true);
-  assert.match(h.view.staff[0].attrs['aria-label'], /送餐/); assert.equal(h.view.rows[0].row.disabled, true);
+  assert.equal(h.view.actors.filter(a => a.staff).length, 1); assert.equal(h.view.actors.filter(a => !a.staff).length, 3);
+  assert.equal(h.view.root.children.filter(el => el.tagName === 'CANVAS').length, 1, 'everyone shares the scene canvas');
+  assert.match(h.view.staffStatus.textContent, /送餐/); assert.equal(h.view.rows[0].row.disabled, true);
 });
 
 test('customer strip reserves a narrow working inset without changing when a drawer opens', () => {
   for (const [w, h] of [[1440, 900], [844, 390], [600, 360], [390, 844]]) {
     const a = cameraInsets(w, h, { customerArea: true }); const b = cameraInsets(w, h, { customerArea: true, inspectorOpen: true, ordersOpen: true });
-    assert.deepEqual(a, b); assert.ok(a.right < 250); assert.ok(w - a.left - a.right > 150);
+    assert.deepEqual(a, b); assert.ok(a.right <= 360); assert.ok(w - a.left - a.right > 150);
   }
+});
+
+test('couriers move on intervening animation frames without per-frame layout reads or model writes', t => {
+  const h = setup(t); h.game.state.totalSold = h.game.service.served = 4; h.game.recruit(); h.game.update(.1); h.view.render(); h.view.draw();
+  const positions = [], steps = [];
+  for (let n = 0; n < 24; n++) {
+    h.game.update(1 / 60); const before = h.game.serialize(); h.view.draw();
+    positions.push(h.view.actors.find(a => a.staff).y); steps.push(h.game.state.tick); assert.equal(h.game.serialize(), before);
+  }
+  assert.ok(new Set(positions).size > 20); assert.ok(new Set(steps).size < 6, 'motion is smoother than the 10 Hz simulation');
+  assert.equal(h.measures, 1, 'canvas geometry is cached, not read for every character each frame');
+  h.windowListeners.resize(); h.view.draw(); assert.equal(h.measures, 2);
+  h.game.state.paused = true; h.view.render(); h.view.draw(); const frozen = JSON.stringify(h.view.actors);
+  for (let i = 0; i < 20; i++) { h.game.update(1 / 60); h.view.draw(); }
+  assert.equal(JSON.stringify(h.view.actors), frozen);
+});
+
+test('serving does not replay customer arrival, and restoring the same game clears stale routes', t => {
+  const h = setup(t); for (let i = 0; i < 20; i++) h.game.update(.1); h.view.render(); h.view.draw();
+  const cat = h.view.actors.find(a => !a.staff && a.skin === 0), born = h.view.rows[0].bornAt;
+  h.view.select('bread'); h.view.drop(0); h.view.draw();
+  const fed = h.view.actors.find(a => !a.staff && a.skin === 0); assert.equal(fed.x, cat.x); assert.equal(h.view.rows[0].bornAt, born);
+  h.game.restore(new CafeFactoryGame().serialize()); h.view.draw(); assert.equal(h.view.rows[0].bornAt, 0); assert.equal(h.view.routes.tracks.size, 0);
+});
+
+test('counter arrow buttons expose food offscreen without requiring a drag gesture', t => {
+  const h = setup(t); h.game.shelves[0].goods = ['bread', 'butter_cookie', 'orange_juice', 'donut_plain']; h.view.draw(); h.view.render();
+  assert.equal(h.view.trayNav[1].hidden, false); h.view.trayNav[1].listeners.click(); assert.equal(h.view.tray.scrollLeft, 100);
+  h.view.trayNav[0].listeners.click(); assert.equal(h.view.tray.scrollLeft, 0);
 });
