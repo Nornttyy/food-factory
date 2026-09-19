@@ -9,7 +9,7 @@ const assetDir = resolve(root, 'assets/generated/factory/cream-v1');
 const manifest = JSON.parse(await readFile(resolve(assetDir, 'manifest.json'), 'utf8'));
 const validation = await validateFactoryAssets(manifest, assetDir);
 if (!validation.valid) throw new Error(validation.errors.join('\n'));
-const source = ['src/factory-shop.js', 'src/factory-business.js', 'src/factory-career.js', 'src/factory-links.js', 'src/factory-core.js', 'src/factory-feel.js', 'src/factory-renderer.js', 'src/factory-tutorial.js', 'src/factory-main.js'];
+const source = ['src/factory-loading.js', 'src/factory-shop.js', 'src/factory-business.js', 'src/factory-career.js', 'src/factory-links.js', 'src/factory-core.js', 'src/factory-feel.js', 'src/factory-renderer.js', 'src/factory-tutorial.js', 'src/factory-main.js'];
 for (const file of source) execFileSync(process.execPath, ['--check', resolve(root, file)]);
 const html = await readFile(resolve(root, 'index.html'), 'utf8');
 const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]));

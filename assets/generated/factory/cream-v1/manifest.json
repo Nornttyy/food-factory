@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "style": "cream-flat-cartoon",
+  "style": "cream-hand-drawn",
   "palette": {
     "cream": "#FFF2D9",
     "biscuit": "#E7CEA7",
@@ -9,7 +9,7 @@
     "cocoa": "#846A57"
   },
   "atlases": {
-    "expansion": { "file": "expansion-v1.png", "width": 1536, "height": 1024, "columns": 4, "rows": 2 },
+    "expansion": { "file": "expansion-v2.png", "width": 1536, "height": 1024, "columns": 4, "rows": 2 },
     "machines": {
       "file": "machines-v1.png",
       "width": 1254,
@@ -33,14 +33,14 @@
     }
   },
   "sprites": [
-    { "id": "butter_cookie", "label": "奶油饼干", "atlas": "expansion", "frame": { "x": 82, "y": 155, "w": 272, "h": 248 }, "anchor": { "x": 0.5, "y": 0.5 }, "category": "item" },
-    { "id": "steamed_bun", "label": "奶香包", "atlas": "expansion", "frame": { "x": 432, "y": 143, "w": 297, "h": 271 }, "anchor": { "x": 0.5, "y": 0.5 }, "category": "item" },
-    { "id": "strawberry_cake", "label": "草莓蛋糕", "atlas": "expansion", "frame": { "x": 817, "y": 104, "w": 283, "h": 316 }, "anchor": { "x": 0.5, "y": 0.5 }, "category": "item" },
-    { "id": "orange_icepop", "label": "橙汁冰棒", "atlas": "expansion", "frame": { "x": 1234, "y": 81, "w": 219, "h": 356 }, "anchor": { "x": 0.5, "y": 0.5 }, "category": "item" },
-    { "id": "cookie_oven", "label": "曲奇烤炉", "atlas": "expansion", "frame": { "x": 43, "y": 551, "w": 339, "h": 371 }, "anchor": { "x": 0.5, "y": 1 }, "category": "machine" },
-    { "id": "bun_steamer", "label": "小蒸笼", "atlas": "expansion", "frame": { "x": 409, "y": 517, "w": 347, "h": 414 }, "anchor": { "x": 0.5, "y": 1 }, "category": "machine" },
-    { "id": "cake_station", "label": "蛋糕工台", "atlas": "expansion", "frame": { "x": 786, "y": 551, "w": 342, "h": 365 }, "anchor": { "x": 0.5, "y": 1 }, "category": "machine" },
-    { "id": "icepop_freezer", "label": "冰棒冷柜", "atlas": "expansion", "frame": { "x": 1155, "y": 573, "w": 345, "h": 351 }, "anchor": { "x": 0.5, "y": 1 }, "category": "machine" },
+    { "id": "butter_cookie", "label": "奶油饼干", "atlas": "expansion", "frame": { "x": 56, "y": 155, "w": 292, "h": 275 }, "anchor": { "x": 0.5, "y": 0.5 }, "category": "item" },
+    { "id": "steamed_bun", "label": "奶香包", "atlas": "expansion", "frame": { "x": 433, "y": 146, "w": 304, "h": 287 }, "anchor": { "x": 0.5, "y": 0.5 }, "category": "item" },
+    { "id": "strawberry_cake", "label": "草莓蛋糕", "atlas": "expansion", "frame": { "x": 810, "y": 124, "w": 310, "h": 325 }, "anchor": { "x": 0.5, "y": 0.5 }, "category": "item" },
+    { "id": "orange_icepop", "label": "橙汁冰棒", "atlas": "expansion", "frame": { "x": 1221, "y": 107, "w": 231, "h": 350 }, "anchor": { "x": 0.5, "y": 0.5 }, "category": "item" },
+    { "id": "cookie_oven", "label": "曲奇烤炉", "atlas": "expansion", "frame": { "x": 47, "y": 540, "w": 330, "h": 375 }, "anchor": { "x": 0.5, "y": 1 }, "category": "machine" },
+    { "id": "bun_steamer", "label": "小蒸笼", "atlas": "expansion", "frame": { "x": 415, "y": 515, "w": 342, "h": 416 }, "anchor": { "x": 0.5, "y": 1 }, "category": "machine" },
+    { "id": "cake_station", "label": "蛋糕工台", "atlas": "expansion", "frame": { "x": 790, "y": 549, "w": 337, "h": 371 }, "anchor": { "x": 0.5, "y": 1 }, "category": "machine" },
+    { "id": "icepop_freezer", "label": "冰棒冷柜", "atlas": "expansion", "frame": { "x": 1157, "y": 568, "w": 345, "h": 358 }, "anchor": { "x": 0.5, "y": 1 }, "category": "machine" },
     {
       "id": "flour_hopper",
       "label": "面粉料斗",
@@ -605,6 +605,7 @@
     }
   ],
   "notes": [
+    "v0.12.0 以面粉料斗为风格基准：expansion-v2 重绘 8 个扩展素材，保留原始 alpha，原有 34 个基础素材沿用；部件编号不变。",
     "裁切框为根据实际图像边界标注的像素坐标，不按名义网格等分；橙汁瓶盖跨越了名义行边界。",
     "PNG 保留生成器的 alpha；极低 alpha 的外围像素未进行人工清理。请在正常 alpha 合成背景上查看。",
     "机器与食品为可独立绘制的静态 sprite。设备工作状态/分件动画尚未制作。",

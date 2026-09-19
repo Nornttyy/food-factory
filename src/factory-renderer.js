@@ -1,17 +1,42 @@
-import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.11.0';
-import { CELL, FactoryCamera, jellyPose, foodPose } from './factory-feel.js?v=0.11.0';
-import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.11.0';
+import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.12.0';
+import { CELL, FactoryCamera, jellyPose, foodPose } from './factory-feel.js?v=0.12.0';
+import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.12.0';
+// Match the flour hopper: cream rails, cocoa outlines, sage/peach accents.
+const CREAM = { cream: '#fff2d9', biscuit: '#e7cea7', peach: '#e4b69f', sage: '#b9c7ad', cocoa: '#846a57', belt: '#b09b86' };
+const BELT_LAYERS = [[43, CREAM.cocoa], [38, CREAM.cream], [28, CREAM.belt]];
 export class FactoryAssets {
   constructor() { this.images = {}; this.sprites = {}; this.ready = false; }
-  async load(base = './assets/generated/factory/cream-v1/') {
-    const response = await fetch(base + 'manifest.json?v=0.11.0');
-    if (!response.ok) throw new Error('素材清单读取失败');
-    const manifest = await response.json();
-    this.sprites = Object.fromEntries(manifest.sprites.map(sprite => [sprite.id, sprite]));
-    await Promise.all(Object.entries(manifest.atlases).map(async ([key, atlas]) => {
-      const img = new Image(); img.src = base + atlas.file; await img.decode(); this.images[key] = img;
-    }));
-    this.ready = true;
+  async load(base = './assets/generated/factory/cream-v1/', onProgress = () => {}) {
+    const controller = new AbortController();
+    let timer, stopped = false;
+    const images = {};
+    onProgress(0, 1);
+    const loading = (async () => {
+      const response = await fetch(base + 'manifest.json?v=0.12.0', { signal: controller.signal });
+      if (!response.ok) throw new Error('素材清单读取失败');
+      const manifest = await response.json();
+      if (stopped) return;
+      const entries = Object.entries(manifest.atlases), total = entries.length + 1;
+      const sprites = Object.fromEntries(manifest.sprites.map(sprite => [sprite.id, sprite]));
+      let loaded = 1;
+      onProgress(loaded, total);
+      await Promise.all(entries.map(async ([key, atlas]) => {
+        const img = new Image(); images[key] = img;
+        img.src = base + atlas.file; await img.decode();
+        if (!stopped) onProgress(++loaded, total);
+      }));
+      return { images, sprites };
+    })();
+    try {
+      const result = await Promise.race([loading, new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error('素材加载超时')), 45000);
+      })]);
+      this.images = result.images; this.sprites = result.sprites; this.ready = true;
+    } catch (error) {
+      stopped = true; controller.abort();
+      for (const img of Object.values(images)) img.src = '';
+      throw error;
+    } finally { clearTimeout(timer); }
   }
   draw(ctx, id, x, y, width, height, alpha = 1) {
     const sprite = this.sprites[id];
@@ -84,7 +109,7 @@ export class FactoryRenderer {
     this.grid = new Map(game.state.buildings.map(b => [`${b.x},${b.y}`, b]));
     this.now = timestamp; this.reduced = Boolean(ui.reducedMotion); this.resize(game.area, ui); this.syncEffects(game, timestamp);
     const ctx = this.ctx, t = this.transform, s = game.state;
-    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#f4e9ce'; ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = CREAM.biscuit; ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     ctx.setTransform(t.dpr * t.scale, 0, 0, t.dpr * t.scale, t.x * t.dpr, t.y * t.dpr);
     const [areaW, areaH] = game.area;
     const left = Math.max(0, Math.floor(-t.x / t.scale / CELL) - 2), top = Math.max(0, Math.floor(-t.y / t.scale / CELL) - 2);
@@ -92,7 +117,7 @@ export class FactoryRenderer {
     const visible = s.buildings.filter(b => b.x >= left && b.x < right && b.y >= top && b.y < bottom);
     for (let y = top; y < bottom; y++) for (let x = left; x < right; x++) {
       const active = x < areaW && y < areaH;
-      ctx.fillStyle = active ? ((x + y) % 2 ? '#f4e6c7' : '#f8edcf') : ((x + y) % 2 ? '#e9e4d0' : '#eee9d7');
+      ctx.fillStyle = active ? ((x + y) % 2 ? '#f7e9d0' : CREAM.cream) : ((x + y) % 2 ? '#e5ddcc' : '#ebe3d3');
       ctx.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2);
       if (active) { ctx.fillStyle = '#dfd0ad'; ctx.fillRect(x * CELL + 4, y * CELL + 4, 2, 2); }
     }
@@ -165,7 +190,7 @@ export class FactoryRenderer {
     const ctx = this.ctx, x = b.x * CELL + 36, y = b.y * CELL + 36;
     const { inputs, outputs, ports, blockedEnds } = conveyorPorts(b, (x, y) => this.grid ? this.grid.get(`${x},${y}`) : game.at(x, y));
     ctx.lineCap = 'butt'; ctx.lineJoin = 'round';
-    for (const [width, color] of [[43, '#c0a786'], [38, '#ecdbb5'], [28, '#a28c76']]) {
+    for (const [width, color] of BELT_LAYERS) {
       ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath();
       for (const input of inputs) for (const output of outputs) {
         const [ix, iy] = DIRS[input], [ox, oy] = DIRS[output];
@@ -174,13 +199,13 @@ export class FactoryRenderer {
       ctx.stroke();
     }
     const offset = game.state.time * 12 / game.duration(b) % 13;
-    ctx.strokeStyle = '#8c7763'; ctx.lineWidth = 1;
+    ctx.strokeStyle = CREAM.cocoa; ctx.lineWidth = 1;
     for (const dir of ports) {
       const [dx, dy] = DIRS[dir], phase = outputs.includes(dir) ? offset : 13 - offset;
       for (let n = 8 + phase; n < 35; n += 13) { ctx.beginPath(); ctx.moveTo(x + dx * n - dy * 10, y + dy * n + dx * 10); ctx.lineTo(x + dx * n + dy * 10, y + dy * n - dx * 10); ctx.stroke(); }
     }
-    arrow(ctx, x + DIRS[b.dir][0] * 19, y + DIRS[b.dir][1] * 19, b.dir, '#ecd0ae', 8);
-    if (b.type === 'splitter') { const d = (b.dir + 1) % 4; arrow(ctx, x + DIRS[d][0] * 20, y + DIRS[d][1] * 20, d, '#edc0a3', 8); }
+    arrow(ctx, x + DIRS[b.dir][0] * 19, y + DIRS[b.dir][1] * 19, b.dir, CREAM.peach, 8);
+    if (b.type === 'splitter') { const d = (b.dir + 1) % 4; arrow(ctx, x + DIRS[d][0] * 20, y + DIRS[d][1] * 20, d, CREAM.peach, 8); }
     for (const dir of blockedEnds) {
       const [dx, dy] = DIRS[dir]; ctx.strokeStyle = '#ce8e74'; ctx.lineWidth = 4;
       ctx.beginPath(); ctx.moveTo(x + dx * 34 - dy * 13, y + dy * 34 + dx * 13); ctx.lineTo(x + dx * 34 + dy * 13, y + dy * 34 - dx * 13); ctx.stroke();
@@ -192,7 +217,7 @@ export class FactoryRenderer {
     ctx.save(); ctx.lineCap = 'butt';
     // Fixed sleeves overlap the plinth and meet the belt at the exact cell edge.
     // Only the machine artwork deforms; its physical connection stays anchored.
-    for (const [width, color] of [[43, '#c0a786'], [38, '#ecdbb5'], [28, '#a28c76']]) {
+    for (const [width, color] of BELT_LAYERS) {
       ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath();
       for (const { side } of ports) {
         const [dx, dy] = DIRS[side];

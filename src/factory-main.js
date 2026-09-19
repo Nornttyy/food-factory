@@ -1,9 +1,9 @@
-import { FactoryGame, BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, AREAS, WIDTH, HEIGHT, upgradeCost, isTransport, transportCount } from './factory-core.js?v=0.11.0';
-import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.11.0';
-import { directionBetween, nextBeltCell } from './factory-links.js?v=0.11.0';
-import { RESEARCH } from './factory-career.js?v=0.11.0';
-import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.11.0';
-import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS } from './factory-business.js?v=0.11.0';
+import { FactoryGame, BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, AREAS, WIDTH, HEIGHT, upgradeCost, isTransport, transportCount } from './factory-core.js?v=0.12.0';
+import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.12.0';
+import { directionBetween, nextBeltCell } from './factory-links.js?v=0.12.0';
+import { RESEARCH } from './factory-career.js?v=0.12.0';
+import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.12.0';
+import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS } from './factory-business.js?v=0.12.0';
 
 const $ = selector => document.querySelector(selector);
 let game = new FactoryGame();
@@ -573,7 +573,7 @@ $('#close-career').addEventListener('click', () => $('#career-dialog').close());
 $('#career-contracts-tab').addEventListener('click', () => { ui.careerTab = 'contracts'; renderCareer(); });
 $('#career-research-tab').addEventListener('click', () => { ui.careerTab = 'research'; renderCareer(); });
 $('#open-recipes').addEventListener('click', () => { $('#help-dialog').close(); $('#recipe-dialog').showModal(); });
-document.addEventListener('pointerup', event => { const button = event.target?.closest?.('button'); if (button && !button.disabled) bounceElement(button); });
+document.addEventListener('pointerup', event => { const button = event.target?.closest?.('button'); if (button && !button.disabled && button.id !== 'loading-dough') bounceElement(button); });
 $('#help').addEventListener('click', () => $('#help-dialog').showModal());
 for (const selector of ['#close-help', '#help-done']) $(selector).addEventListener('click', () => $('#help-dialog').close());
 $('#close-recipes').addEventListener('click', () => $('#recipe-dialog').close());
@@ -607,7 +607,16 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 try {
-  await assets.load(); $('#loading').hidden = true; renderPalette(); renderRecipes(); renderUi(true);
+  await assets.load(undefined, (loaded, total) => window.factoryLoading?.progress(loaded, total));
+  renderPalette(); renderRecipes(); renderUi(true);
+  window.factoryLoading?.complete();
+  $('#loading').hidden = true; $('#main-menu').inert = false;
   save(); requestAnimationFrame(frame);
-} catch (error) { $('#loading').textContent = '素材加载失败，请刷新重试'; $('#menu-play').textContent = '素材加载失败，请刷新'; console.error(error); }
+} catch (error) {
+  window.factoryLoading?.fail();
+  $('#loading-status').textContent = '没加载成功，再试一次';
+  $('#loading-retry').hidden = false;
+  if (!window.factoryLoading) $('#loading-retry').addEventListener('click', () => window.location.reload());
+  console.error(error);
+}
 export const runtime = { get game() { return game; }, get practice() { return practice; }, assets, renderer, ui };

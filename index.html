@@ -25,12 +25,25 @@
     <link rel="canonical" href="https://nornttyy.github.io/food-factory/" />
     <link rel="icon" href="data:," />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./factory.css?v=0.11.0" />
-    <link rel="stylesheet" href="./factory-layout.css?v=0.11.0" />
-    <link rel="stylesheet" href="./factory-menu.css?v=0.11.0" />
+    <link rel="stylesheet" href="./factory.css?v=0.12.0" />
+    <link rel="stylesheet" href="./factory-layout.css?v=0.12.0" />
+    <link rel="stylesheet" href="./factory-menu.css?v=0.12.0" />
   </head>
   <body class="menu-open">
-    <main id="main-menu" class="main-menu" aria-label="美食工坊主菜单">
+    <section id="loading" class="loading" aria-labelledby="loading-title" aria-busy="true">
+      <div class="loading-content">
+        <span class="section-label">揉一揉，等开工</span>
+        <h1 id="loading-title">美食工坊</h1>
+        <div class="loading-tray">
+          <button id="loading-dough" class="loading-dough" type="button" aria-label="戳戳面团"><span class="dough-face" aria-hidden="true"></span></button>
+        </div>
+        <p id="loading-count" class="loading-count" aria-live="polite">戳戳小面团</p>
+        <progress id="loading-progress" class="loading-progress" max="100" value="0" aria-label="素材加载进度"></progress>
+        <div class="loading-meta"><span id="loading-status" role="status">准备开工…</span><span id="loading-percent">0%</span></div>
+        <button id="loading-retry" class="soft-button" type="button" hidden>重新加载</button>
+      </div>
+    </section>
+    <main id="main-menu" class="main-menu" aria-label="美食工坊主菜单" inert>
       <div class="menu-scene"><img src="./public/og.png" alt="美食工坊：奶油色机器与美味流水线" width="1672" height="941" /><p>建产线 · 接急单 · 做研究</p></div>
       <section class="menu-card">
         <span class="section-label">一间属于你的美味工坊</span><h1>今天，开工啦。</h1>
@@ -57,7 +70,7 @@
       </header>
       <section class="workspace">
         <div class="workshop">
-          <div class="board-wrap"><canvas id="factory-board" width="1008" height="576" tabindex="0" aria-label="工坊画布，选择下方设备后点击空格建造">你的浏览器不支持 Canvas。</canvas><div id="loading" class="loading">正在准备工坊…</div><div id="pause-overlay" class="pause-overlay" hidden><button id="resume">▷ 已暂停 · 点击继续</button></div></div>
+          <div class="board-wrap"><canvas id="factory-board" width="1008" height="576" tabindex="0" aria-label="工坊画布，选择下方设备后点击空格建造">你的浏览器不支持 Canvas。</canvas><div id="pause-overlay" class="pause-overlay" hidden><button id="resume">▷ 已暂停 · 点击继续</button></div></div>
           <div class="workshop-bar"><span id="factory-level">起步工坊</span><button id="expand" class="soft-button">＋ 扩建 · 350</button><button id="career-toggle" class="soft-button career-toggle">✦ 急单与研究</button><button id="business-toggle" class="soft-button business-toggle">仓库与合作</button></div>
           <div class="board-footer"><span id="selection-hint">选设备，点空格</span><span id="save-status">自动保存</span></div>
         </div>
@@ -107,7 +120,8 @@
     <dialog id="help-dialog"><button id="close-help" class="dialog-close" aria-label="关闭">×</button><span class="section-label">一间小工坊的开始</span><h2>让美味，自己流动。</h2><p>选设备 → 点空格 → 接到出货站</p><p>箭头是出口。传送带可拖着铺，每格放 2 件。</p><p>点机器可升级；出货口初始 2 秒一件，可升级提速。拆除清空物品并返还实付费用。初始赠送设备收回后，可免费重放。</p><p class="muted">R 旋转 · 空格暂停 · Esc 选择<br>方向键选格 + Enter 放置<br>滚轮或 ＋ / − 缩放，✥ 拖动画布，⛶ 收起界面<br>进度只保存在当前浏览器，不在离线时生产。</p><button id="help-tutorial" class="soft-button">跟着练一次</button><button id="motion-toggle" class="soft-button" aria-pressed="false">Q 弹动效：开</button><button id="open-recipes" class="soft-button">查看配方</button><button id="help-done" class="primary-button">开始开工</button></dialog>
     <dialog id="recipe-dialog" class="recipe-dialog" aria-labelledby="recipe-title"><button id="close-recipes" class="dialog-close" aria-label="关闭配方">×</button><span class="section-label">工坊食谱</span><h2 id="recipe-title">八种美味，慢慢做好。</h2><p class="muted">机器可贴着连接；分流器能把面团送到不同支线。配方辅料由机器自带。</p><div id="recipe-list" class="recipe-list"></div></dialog>
     <div class="orientation-hint"><span>↻</span><small>横过来，工坊更宽敞</small><button id="portrait-continue">继续竖屏试玩</button></div>
-    <noscript>需要启用 JavaScript 才能开始游戏。</noscript>
-    <script type="module" src="./src/factory-main.js?v=0.11.0"></script>
+    <noscript><style>#loading{display:none}</style>需要启用 JavaScript 才能开始游戏。</noscript>
+    <script defer src="./src/factory-loading.js?v=0.12.0"></script>
+    <script id="factory-entry" type="module" src="./src/factory-main.js?v=0.12.0"></script>
   </body>
 </html>

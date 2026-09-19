@@ -7,7 +7,7 @@ test('the full browser module graph and styles share a version to bypass stale r
   const { version } = JSON.parse(await readFile(new URL('package.json', root), 'utf8'));
   const html = await readFile(new URL('index.html', root), 'utf8');
   const urls = [...html.matchAll(/(?:href|src)="(\.\/[^"?]+\.(?:css|js)[^"]*)"/g)].map(match => match[1]);
-  assert.equal(urls.length, 4);
+  assert.equal(urls.length, 5);
   const visited = new Set();
   async function visit(url) {
     assert.equal(url.search, `?v=${version}`, url.pathname);
@@ -16,7 +16,7 @@ test('the full browser module graph and styles share a version to bypass stale r
     for (const match of text.matchAll(/from '(\.\/[^']+)'/g)) await visit(new URL(match[1], url));
   }
   for (const url of urls) await visit(new URL(url, root));
-  assert.equal(visited.size, 12);
+  assert.equal(visited.size, 13);
   const renderer = await readFile(new URL('src/factory-renderer.js', root), 'utf8');
   assert.ok(renderer.includes(`manifest.json?v=${version}`), 'the sprite manifest must also bypass the prior release cache');
 });
