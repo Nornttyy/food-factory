@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="description" content="奶油色美食自动化工坊。跟着新手练习连接传送带，制作面包、饼干、奶香包、蛋糕和冰棒，经营八种美味的流水线。" />
+    <meta name="description" content="美食工坊：忙碌小厨房。双锅煎面包、亲手切草莓、装盘给猫猫出餐，用连击收入升级厨具。奶油手绘风，原自动化工坊存档保留。" />
     <meta name="theme-color" content="#fff2d9" />
     <meta name="color-scheme" content="light" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -11,25 +11,26 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://nornttyy.github.io/food-factory/" />
-    <meta property="og:title" content="美食工坊｜自动化流水线" />
-    <meta property="og:description" content="摆好机器，接上小路，让美味自己流动。" />
+    <meta property="og:title" content="美食工坊｜忙碌小厨房" />
+    <meta property="og:description" content="切一切、煎一煎，给小猫做一份热早餐。" />
     <meta property="og:image" content="https://nornttyy.github.io/food-factory/public/og.png" />
     <meta property="og:image:width" content="1672" />
     <meta property="og:image:height" content="941" />
     <meta property="og:image:alt" content="美食工坊：奶油色机器与传送带连接面包、甜甜圈和橙汁产线" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="https://nornttyy.github.io/food-factory/public/og.png" />
-    <meta name="twitter:title" content="美食工坊｜自动化流水线" />
-    <meta name="twitter:description" content="摆好机器，接上小路，让美味自己流动。" />
-    <title>美食工坊｜自动化流水线</title>
+    <meta name="twitter:title" content="美食工坊｜忙碌小厨房" />
+    <meta name="twitter:description" content="切一切、煎一煎，给小猫做一份热早餐。" />
+    <title>美食工坊｜忙碌小厨房</title>
     <link rel="canonical" href="https://nornttyy.github.io/food-factory/" />
     <link rel="icon" href="data:," />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./factory.css?v=0.20.0" />
-    <link rel="stylesheet" href="./factory-layout.css?v=0.20.0" />
-    <link rel="stylesheet" href="./factory-menu.css?v=0.20.0" />
-    <link rel="stylesheet" href="./factory-service.css?v=0.20.0" />
-    <link rel="stylesheet" href="./factory-crafting.css?v=0.20.0" />
+    <link rel="stylesheet" href="./factory.css?v=0.21.0" />
+    <link rel="stylesheet" href="./factory-layout.css?v=0.21.0" />
+    <link rel="stylesheet" href="./factory-menu.css?v=0.21.0" />
+    <link rel="stylesheet" href="./factory-service.css?v=0.21.0" />
+    <link rel="stylesheet" href="./factory-crafting.css?v=0.21.0" />
+    <link rel="stylesheet" href="./factory-kitchen.css?v=0.21.0" />
   </head>
   <body class="menu-open">
     <section id="loading" class="loading" aria-labelledby="loading-title" aria-busy="true">
@@ -46,9 +47,13 @@
       </div>
     </section>
     <main id="main-menu" class="main-menu" aria-label="美食工坊主菜单" inert>
-      <div class="menu-scene"><img src="./public/og.png" alt="美食工坊：奶油色机器与美味流水线" width="1672" height="941" /><p>接产线 · 自动出货 · 解锁美食</p></div>
+      <div class="menu-scene"><img src="./public/og.png" alt="美食工坊的奶油色美食与厨具" width="1672" height="941" /><p>切一切 · 煎一煎 · 趁热上桌</p></div>
       <section class="menu-card">
-        <span class="section-label">一间属于你的美味工坊</span><h1>今天，开工啦。</h1>
+        <span class="section-label">美食工坊 · 忙碌小厨房</span><h1>今天，亲自下厨。</h1>
+        <p id="kitchen-menu-summary" class="menu-summary">双锅开火，给小猫做一份热早餐。</p>
+        <button id="menu-kitchen" class="primary-button menu-play" disabled>进入小厨房 →</button>
+        <small class="menu-note">亲手制作 · 连击出餐 · 升级厨具</small>
+        <details class="classic-modes"><summary>原来的自动化工坊</summary>
         <p id="menu-summary" class="menu-summary">从第一份面包开始。</p>
         <button id="menu-play" class="primary-button menu-play" disabled>正在准备…</button>
         <button id="menu-craft" class="menu-feature craft-feature" disabled><span>亲手做甜甜圈 →</span><small>压面圈 · 看火候 · 涂糖霜 · 解锁量产</small></button>
@@ -58,7 +63,8 @@
         <div class="menu-links"><button id="menu-tutorial" disabled>新手练习</button><button id="menu-recipes">配方手册</button><button id="menu-settings">游戏设置</button></div>
         <button id="menu-new" class="menu-reset" hidden>重新开一间</button>
         <button id="menu-restore" class="menu-reset" hidden>恢复重开前的工坊</button>
-        <small class="menu-note">自动存档 · 离开菜单后开始生产</small>
+        </details>
+        <small class="menu-note">进度保存在此浏览器 · 原工坊存档保留</small>
       </section>
     </main>
     <main id="factory-app" class="factory-app" aria-label="美食自动化工坊" hidden>
@@ -143,8 +149,27 @@
         <small class="craft-note">研发不扣金币 · 离开制作台自动暂停</small>
       </footer>
     </main>
+    <main id="kitchen-room" class="kitchen-room" aria-label="忙碌小厨房" hidden>
+      <header class="kitchen-header"><button id="kitchen-home" class="soft-button">← 菜单</button><div><h1>忙碌小厨房</h1><small id="kitchen-day">第 1 天 · 早餐营业</small></div><div class="kitchen-score"><strong id="kitchen-coins">0 金币</strong><small id="kitchen-combo">出餐 0 份</small></div><button id="kitchen-pause" class="soft-button" aria-pressed="false">暂停</button></header>
+      <section id="kitchen-service" class="kitchen-service">
+        <div class="kitchen-status"><span id="kitchen-clock">第一单 · 慢慢来</span><span id="kitchen-goal">目标 4 份</span></div>
+        <div id="kitchen-orders" class="kitchen-orders" aria-label="顾客与订单"></div>
+        <div id="kitchen-pause-band" class="kitchen-pause-band" hidden><strong>休息一下，锅和顾客都在等你</strong><button id="kitchen-resume" class="primary-button">继续下厨</button></div>
+        <section class="kitchen-counter" aria-label="料理操作台">
+          <div class="kitchen-cooktops">
+            <button id="kitchen-pan-0" class="kitchen-station pan-station" aria-label="左煎锅"><span class="station-heading">煎锅 ①</span><span class="pan-art"><span id="kitchen-pan-food-0" class="kitchen-food"></span></span><span id="kitchen-pan-label-0">点一下，下面包</span><progress id="kitchen-pan-progress-0" max="1" value="0" aria-label="左锅火候"></progress></button>
+            <button id="kitchen-pan-1" class="kitchen-station pan-station" aria-label="右煎锅"><span class="station-heading">煎锅 ②</span><span class="pan-art"><span id="kitchen-pan-food-1" class="kitchen-food"></span></span><span id="kitchen-pan-label-1">点一下，下面包</span><progress id="kitchen-pan-progress-1" max="1" value="0" aria-label="右锅火候"></progress></button>
+            <button id="kitchen-board" class="kitchen-station board-station" aria-label="草莓砧板"><span class="station-heading">草莓砧板</span><span class="board-art"><span id="kitchen-board-food" class="kitchen-food"></span><i class="kitchen-knife" aria-hidden="true"></i></span><span id="kitchen-board-label">点一下，放草莓</span><progress id="kitchen-board-progress" max="3" value="0" aria-label="切配进度"></progress></button>
+          </div>
+          <div class="kitchen-plating"><span class="plating-label">装盘台</span><div id="kitchen-plates" class="kitchen-plates"></div><button id="kitchen-bin" class="soft-button kitchen-bin" aria-label="清空选中的餐盘">清空盘子</button></div>
+        </section>
+        <p id="kitchen-hint" class="kitchen-hint" role="status" aria-live="polite">点煎锅下面包，等金黄后装盘。</p>
+      </section>
+      <section id="kitchen-result" class="kitchen-result" aria-labelledby="kitchen-result-title" hidden><span class="section-label">打烊啦 · 明天也要热乎乎</span><h2 id="kitchen-result-title">今日小结</h2><p id="kitchen-result-stats"></p><div id="kitchen-upgrades" class="kitchen-upgrades"></div><button id="kitchen-next" class="primary-button">开始营业 →</button></section>
+      <small id="kitchen-save-status" class="kitchen-save-status">自动保存 · 离开自动暂停</small>
+    </main>
     <noscript><style>#loading{display:none}</style>需要启用 JavaScript 才能开始游戏。</noscript>
-    <script defer src="./src/factory-loading.js?v=0.20.0"></script>
-    <script id="factory-entry" type="module" src="./src/factory-main.js?v=0.20.0"></script>
+    <script defer src="./src/factory-loading.js?v=0.21.0"></script>
+    <script id="factory-entry" type="module" src="./src/factory-main.js?v=0.21.0"></script>
   </body>
 </html>

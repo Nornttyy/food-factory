@@ -1,5 +1,5 @@
-import { FactoryGame, AREAS, BUILDINGS, makeEntity } from './factory-core.js?v=0.20.0';
-import { CafeFactoryGame, COMPACT_AREAS, STAFF_COSTS } from './factory-service.js?v=0.20.0';
+import { FactoryGame, AREAS, BUILDINGS, makeEntity } from './factory-core.js?v=0.21.0';
+import { CafeFactoryGame, COMPACT_AREAS, STAFF_COSTS } from './factory-service.js?v=0.21.0';
 
 const LEGACY_STAFF_COSTS = [120, 240, 400];
 const validArea = s => Array.isArray(s.workshopArea) && s.workshopArea.length === 2 && s.workshopArea.every((n, i) => Number.isInteger(n) && n >= COMPACT_AREAS[s.expansion][i] && n <= AREAS[s.expansion][i]) && s.buildings.every(b => b.x < s.workshopArea[0] && b.y < s.workshopArea[1]);

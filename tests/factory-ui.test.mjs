@@ -8,7 +8,7 @@ test('factory entry loads generated atlases and wires construction, production, 
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   const manifest = JSON.parse(await readFile(new URL('../assets/generated/factory/cream-v1/manifest.json', import.meta.url), 'utf8'));
   const nodes = new Map(), storage = new Map(), frames = [], draws = [], documentListeners = {}, windowListeners = {};
-  let failStorageKey = null, viewport = { width: 1008, height: 576 };
+  let failStorageKey = null, viewport = { width: 1008, height: 576 }, dropTarget = null;
   const context = new Proxy({ globalAlpha: 1, drawImage: (...args) => draws.push(args) }, { get: (t, p) => p in t ? t[p] : () => {}, set: (t, p, v) => { t[p] = v; return true; } });
   class Element {
     constructor(tag = 'div') { this.tagName = tag.toUpperCase(); this.children = []; this.style = {}; this.dataset = {}; this.listeners = {}; this.hidden = false; this.classList = { toggle() {} }; }
@@ -22,6 +22,8 @@ test('factory entry loads generated atlases and wires construction, production, 
     getBoundingClientRect() { return { left: 0, top: 0, ...viewport }; }
     focus() { document.activeElement = this; }
     setPointerCapture() {}
+    remove() { this.removed = true; }
+    closest(selector) { return selector === '[data-kitchen-target]' && this.dataset.kitchenTarget ? this : null; }
     showModal() { this.open = true; }
     close() { this.open = false; }
   }
@@ -31,7 +33,7 @@ test('factory entry loads generated atlases and wires construction, production, 
   const savedGlobals = new Map();
   const install = (name, value) => { savedGlobals.set(name, Object.getOwnPropertyDescriptor(globalThis, name)); Object.defineProperty(globalThis, name, { value, writable: true, configurable: true }); };
   install('document', {
-    hidden: false, activeElement: null, addEventListener(name, callback) { (documentListeners[name] ||= []).push(callback); }, createElement: tag => new Element(tag), createTextNode: text => ({ textContent: text }),
+    hidden: false, activeElement: null, body: new Element('body'), elementFromPoint: () => dropTarget, addEventListener(name, callback) { (documentListeners[name] ||= []).push(callback); }, createElement: tag => new Element(tag), createTextNode: text => ({ textContent: text }),
     querySelector: selector => selector.startsWith('#') ? nodes.get(selector.slice(1)) : selector === '.orientation-hint' ? orientation : selector === 'dialog[open]' ? [...nodes.values()].find(n => n.tagName === 'DIALOG' && n.open) : null,
     querySelectorAll: () => categories,
   });
@@ -53,6 +55,73 @@ test('factory entry loads generated atlases and wires construction, production, 
     nodes.get('menu-settings').click(); assert.equal(nodes.get('settings-dialog').open, true);
     nodes.get('settings-motion').click(); assert.equal(JSON.parse(storage.get('food-factory-preferences-v1')).reducedMotion, true);
     nodes.get('settings-motion').click(); nodes.get('close-settings').click();
+    // The primary kitchen entry is a real hands-on scene, not the factory in new colors.
+    {
+    nodes.get('menu-kitchen').click(); assert.equal(runtime.ui.screen, 'kitchen');
+    assert.equal(nodes.get('kitchen-room').hidden, false); assert.equal(nodes.get('factory-app').hidden, true);
+    assert.equal(storage.has('food-factory-v1'), false, 'opening the kitchen cannot replace the old factory save');
+    const kitchen = runtime.kitchenView, kg = kitchen.game;
+    const tickKitchen = seconds => { for (let t = 0; t < seconds; t += .1) kitchen.step(.1); };
+    const kitchenEvent = (type, event) => documentListeners[type]?.forEach(fn => fn(event));
+    const kitchenPointer = (id, x = 10, y = 10) => ({ pointerId: id, pointerType: 'touch', isPrimary: true, button: 0, clientX: x, clientY: y, preventDefault() {} });
+    nodes.get('kitchen-pan-0').click(); nodes.get('kitchen-pan-1').click();
+    for (let i = 0; i < 4; i++) nodes.get('kitchen-board').click();
+    tickKitchen(5.1); assert.equal(kg.panStage(0), 'ready'); assert.equal(kg.shift.board.cuts, 3);
+    nodes.get('kitchen-pan-0').click(); kitchen.plateNodes[0].click();
+    assert.deepEqual(kg.shift.plates[0], ['toast']); assert.equal(kg.shift.pans[0], null);
+    kitchen.orderNodes.get(1).button.click(); assert.equal(kg.state.coins, 8); assert.equal(kg.shift.guided, false);
+    tickKitchen(1.2); assert.equal(kg.shift.orders[0].dish, 'berry');
+    // Real pointer path: pan -> plate, ready fruit -> plate, plate -> customer.
+    function dragKitchen(button, target, id) {
+      button.listeners.pointerdown(kitchenPointer(id));
+      kitchenEvent('pointermove', kitchenPointer(id, 110, 80));
+      dropTarget = target; kitchenEvent('pointerup', kitchenPointer(id, 110, 80));
+      kitchen.suppressClickUntil = 0;
+    }
+    dragKitchen(nodes.get('kitchen-pan-1'), kitchen.plateNodes[1], 601);
+    dragKitchen(nodes.get('kitchen-board'), kitchen.plateNodes[1], 602);
+    assert.deepEqual(kg.shift.plates[1], ['toast', 'fruit']);
+    dragKitchen(kitchen.plateNodes[1], kitchen.orderNodes.get(2).button, 603);
+    assert.equal(kg.state.coins, 20); assert.equal(kg.shift.combo, 2);
+    assert.equal(kg.shift.board, null); assert.deepEqual(kg.shift.plates[1], []);
+    // Invalid drop and cancelled touch preserve the food exactly.
+    nodes.get('kitchen-pan-0').click(); tickKitchen(5.1);
+    const panBefore = JSON.stringify(kg.shift.pans[0]);
+    dragKitchen(nodes.get('kitchen-pan-0'), null, 604);
+    assert.equal(JSON.stringify(kg.shift.pans[0]), panBefore);
+    nodes.get('kitchen-pan-0').listeners.pointerdown(kitchenPointer(605));
+    kitchenEvent('pointermove', kitchenPointer(605, 100, 100)); kitchenEvent('pointercancel', kitchenPointer(605));
+    dropTarget = kitchen.plateNodes[0]; kitchenEvent('pointerup', kitchenPointer(605));
+    assert.equal(JSON.stringify(kg.shift.pans[0]), panBefore); kitchen.suppressClickUntil = 0;
+    nodes.get('kitchen-pan-0').listeners.pointerdown(kitchenPointer(606));
+    kitchenEvent('pointerdown', { ...kitchenPointer(607), isPrimary: false });
+    kitchenEvent('pointerup', kitchenPointer(606)); assert.equal(kitchen.gesture, null);
+    assert.equal(JSON.stringify(kg.shift.pans[0]), panBefore); kitchen.suppressClickUntil = 0;
+    // Pausing and app backgrounding stop every timer. Escape can deliberately resume.
+    nodes.get('kitchen-pause').click(); const pausedKitchen = kg.serialize(); tickKitchen(10);
+    nodes.get('kitchen-pan-1').click(); assert.equal(kg.serialize(), pausedKitchen);
+    windowListeners.keydown({ key: 'Escape', preventDefault() {} }); assert.equal(kg.shift.paused, false);
+    windowListeners.blur(); assert.equal(kg.shift.paused, true); nodes.get('kitchen-resume').click();
+    document.hidden = true; kitchenEvent('visibilitychange'); assert.equal(kg.shift.paused, true);
+    document.hidden = false; kitchenEvent('visibilitychange'); assert.equal(kg.shift.paused, true);
+    nodes.get('kitchen-resume').click();
+    // Native keyboard button activation uses the same complete action path.
+    nodes.get('kitchen-pan-0').listeners.click({ detail: 0 }); kitchen.plateNodes[0].listeners.click({ detail: 0 });
+    assert.deepEqual(kg.shift.plates[0], ['toast']);
+    const originalFactory = runtime.game.serialize();
+    frames.shift()(performance.now() + 100); assert.equal(runtime.game.serialize(), originalFactory);
+    failStorageKey = 'food-factory-kitchen-v1'; kitchen.save(); assert.match(nodes.get('kitchen-save-status').textContent, /无法保存/);
+    failStorageKey = null; kitchen.save();
+    nodes.get('kitchen-home').click(); assert.equal(runtime.ui.screen, 'menu'); assert.equal(kg.shift.paused, true);
+    assert.equal(storage.has('food-factory-v1'), false); assert.ok(JSON.parse(storage.get('food-factory-kitchen-v1')).shift.paused);
+    nodes.get('menu-kitchen').click(); assert.equal(kg.shift.paused, true);
+    nodes.get('kitchen-resume').click(); tickKitchen(100);
+    assert.equal(nodes.get('kitchen-result').hidden, false); assert.equal(nodes.get('kitchen-service').hidden, true);
+    assert.equal(nodes.get('kitchen-upgrades').children.length, 3);
+    const dayBeforeRetry = kg.state.day; nodes.get('kitchen-next').click(); assert.equal(kg.state.day, dayBeforeRetry);
+    assert.equal(nodes.get('kitchen-service').hidden, false); nodes.get('kitchen-home').click();
+    dropTarget = null;
+    }
     nodes.get('menu-play').click(); assert.equal(runtime.ui.screen, 'workshop'); assert.equal(nodes.get('main-menu').hidden, true);
     assert.equal(runtime.practice.step, 0, 'a first-time player starts in an isolated practice factory');
     assert.equal(nodes.get('tutorial-card').hidden, false); assert.equal(storage.has('food-factory-v1'), false);
@@ -545,6 +614,22 @@ test('factory entry loads generated atlases and wires construction, production, 
     for (let i = 0; i < 12; i++) craftCanvas.listeners.keydown({ key: ' ', repeat: false, preventDefault() {} });
     mobileView.info(); nodes.get('craft-primary').click(); assert.equal(cookingReload.game.state.crafting.made, 2);
     nodes.get('craft-back').click(); nodes.get('menu-home').click();
+    // A restored kitchen is paused, and corrupt kitchen data never overwrites factory progress.
+    const factoryBeforeKitchenReload = storage.get('food-factory-v1');
+    const { runtime: kitchenReload } = await import(`../src/factory-main.js?kitchen-reload=${Date.now()}`);
+    nodes.get('menu-kitchen').click(); assert.equal(kitchenReload.kitchenView.game.shift.paused, true);
+    assert.equal(kitchenReload.kitchenView.game.state.totalServed, 2);
+    nodes.get('kitchen-home').click(); assert.equal(storage.get('food-factory-v1'), factoryBeforeKitchenReload);
+    storage.set('food-factory-kitchen-v1', '{bad-kitchen'); failStorageKey = 'all';
+    await import(`../src/factory-main.js?kitchen-protected=${Date.now()}`);
+    nodes.get('menu-kitchen').click(); nodes.get('kitchen-pan-0').click(); nodes.get('kitchen-home').click();
+    assert.equal(storage.get('food-factory-kitchen-v1'), '{bad-kitchen');
+    assert.equal(storage.get('food-factory-v1'), factoryBeforeKitchenReload);
+    failStorageKey = null;
+    await import(`../src/factory-main.js?kitchen-recovery=${Date.now()}`);
+    assert.ok([...storage.entries()].some(([key, value]) => key.startsWith('food-factory-kitchen-v1-recovery-') && value === '{bad-kitchen'));
+    nodes.get('menu-kitchen').click(); assert.equal(JSON.parse(storage.get('food-factory-kitchen-v1')).coins, 0);
+    nodes.get('kitchen-home').click(); assert.equal(storage.get('food-factory-v1'), factoryBeforeKitchenReload);
   } finally {
     for (const [name, descriptor] of savedGlobals) { if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name]; }
   }
