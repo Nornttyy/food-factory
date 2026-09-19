@@ -25,9 +25,10 @@
     <link rel="canonical" href="https://nornttyy.github.io/food-factory/" />
     <link rel="icon" href="data:," />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./factory.css?v=0.12.1" />
-    <link rel="stylesheet" href="./factory-layout.css?v=0.12.1" />
-    <link rel="stylesheet" href="./factory-menu.css?v=0.12.1" />
+    <link rel="stylesheet" href="./factory.css?v=0.13.0" />
+    <link rel="stylesheet" href="./factory-layout.css?v=0.13.0" />
+    <link rel="stylesheet" href="./factory-menu.css?v=0.13.0" />
+    <link rel="stylesheet" href="./factory-service.css?v=0.13.0" />
   </head>
   <body class="menu-open">
     <section id="loading" class="loading" aria-labelledby="loading-title" aria-busy="true">
@@ -44,7 +45,7 @@
       </div>
     </section>
     <main id="main-menu" class="main-menu" aria-label="美食工坊主菜单" inert>
-      <div class="menu-scene"><img src="./public/og.png" alt="美食工坊：奶油色机器与美味流水线" width="1672" height="941" /><p>建产线 · 接急单 · 做研究</p></div>
+      <div class="menu-scene"><img src="./public/og.png" alt="美食工坊：奶油色机器与美味流水线" width="1672" height="941" /><p>建产线 · 喂猫猫 · 招员工</p></div>
       <section class="menu-card">
         <span class="section-label">一间属于你的美味工坊</span><h1>今天，开工啦。</h1>
         <p id="menu-summary" class="menu-summary">从第一份面包开始。</p>
@@ -69,6 +70,7 @@
         </div>
       </header>
       <section class="workspace">
+        <aside id="service-area" class="service-area" aria-label="猫猫顾客与取餐区"></aside>
         <div class="workshop">
           <div class="board-wrap"><canvas id="factory-board" width="1008" height="576" tabindex="0" aria-label="工坊画布，选择下方设备后点击空格建造">你的浏览器不支持 Canvas。</canvas><div id="pause-overlay" class="pause-overlay" hidden><button id="resume">▷ 已暂停 · 点击继续</button></div></div>
           <div class="workshop-bar"><span id="factory-level">起步工坊</span><button id="expand" class="soft-button">＋ 扩建 · 350</button><button id="career-toggle" class="soft-button career-toggle">✦ 急单与研究</button><button id="business-toggle" class="soft-button business-toggle">仓库与合作</button></div>
@@ -86,7 +88,7 @@
           <button id="map-toggle" class="zoom-label" aria-expanded="false" aria-controls="minimap-panel">地图</button>
           <button id="focus-view" class="icon-button" aria-pressed="false" aria-label="收起界面，专注工坊">⛶</button>
         </nav>
-        <aside id="minimap-panel" class="minimap-panel" hidden><div class="minimap-heading"><small id="map-area">工坊地图</small><button id="close-minimap" aria-label="收起小地图">×</button></div><canvas id="factory-minimap" width="240" height="144" tabindex="0" aria-label="工坊小地图，点击定位，方向键移动视角"></canvas><div class="minimap-footer"><span>点击定位 · 蓝色为入库站</span><button id="map-overview">查看全图</button></div></aside>
+        <aside id="minimap-panel" class="minimap-panel" hidden><div class="minimap-heading"><small id="map-area">工坊地图</small><button id="close-minimap" aria-label="收起小地图">×</button></div><canvas id="factory-minimap" width="240" height="144" tabindex="0" aria-label="工坊小地图，点击定位，方向键移动视角"></canvas><div class="minimap-footer"><span>点击定位 · 金色为货物架</span><button id="map-overview">查看全图</button></div></aside>
       </section>
       <section id="build-dock" class="build-dock" aria-label="建造工具">
         <div class="dock-top">
@@ -109,19 +111,19 @@
       <button id="close-business" class="dialog-close" aria-label="关闭仓库与合作">×</button><span class="section-label">给每条产线，安排不同的去处</span>
       <h2 id="business-title">仓库与商店合作</h2><p id="business-rank" class="business-rank">街坊食铺 · 0 声望</p>
       <div class="career-tabs"><button id="business-trade-tab" class="active" aria-pressed="true">合作发货</button><button id="business-goals-tab" aria-pressed="false">长期目标</button></div>
-      <section id="business-trade-view"><div class="business-summary"><strong id="warehouse-summary">仓储 0 / 100</strong><button id="business-locate-depot" class="soft-button">去出货站切换入库 ↗</button></div>
-        <p class="muted business-note">现卖推进工坊订单和急单；入库专门用于合作。仓库满了会停收，不丢货。</p><div id="warehouse-items" class="warehouse-items"></div>
+      <section id="business-trade-view"><div class="business-summary"><strong id="warehouse-summary">仓储 0 / 100</strong><button id="business-locate-depot" class="soft-button">去货物架备货 ↗</button></div>
+        <p class="muted business-note">送给猫猫推进订单和急单；点货物架可把成品移入合作仓库。</p><div id="warehouse-items" class="warehouse-items"></div>
         <h3 class="wholesale-heading">备齐一单，发给商店</h3><p class="muted business-note">三选一，无倒计时；发货后更新。合作与散卖库存不计入普通订单或急单。</p><div id="wholesale-offers" class="contract-offers"></div>
       </section>
       <section id="business-goals-view" hidden><p class="muted">发展多条产线，完成目标赚研究点；每项目标只领取一次。</p><div id="business-goals" class="business-goals"></div></section>
       <button id="business-back" class="primary-button business-back">回工坊继续备货 →</button>
     </dialog>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-    <dialog id="help-dialog"><button id="close-help" class="dialog-close" aria-label="关闭">×</button><span class="section-label">一间小工坊的开始</span><h2>让美味，自己流动。</h2><p>选设备 → 点空格 → 接到出货站</p><p>箭头是出口。传送带可拖着铺，每格放 2 件。</p><p>点机器可升级；出货口初始 2 秒一件，可升级提速。拆除清空物品并返还实付费用。初始赠送设备收回后，可免费重放。</p><p class="muted">R 旋转 · 空格暂停 · Esc 选择<br>方向键选格 + Enter 放置<br>滚轮或 ＋ / − 缩放，✥ 拖动画布，⛶ 收起界面<br>进度只保存在当前浏览器，不在离线时生产。</p><button id="help-tutorial" class="soft-button">跟着练一次</button><button id="motion-toggle" class="soft-button" aria-pressed="false">Q 弹动效：开</button><button id="open-recipes" class="soft-button">查看配方</button><button id="help-done" class="primary-button">开始开工</button></dialog>
+    <dialog id="help-dialog"><button id="close-help" class="dialog-close" aria-label="关闭">×</button><span class="section-label">一间小工坊的开始</span><h2>美味出炉，猫猫来啦。</h2><p>接好产线 → 成品上架 → 拖给右侧猫猫</p><p>也能先点食物、再点猫猫。送出 4 份后可招员工，每位员工 4 秒送一份。</p><p>传送带每格 2 件；货架初始存 8 份、2 秒上架一份，满了停收不丢货。点机器或货架可升级。</p><p class="muted">R 旋转 · 空格暂停 · Esc 取消<br>方向键选格 + Enter 放置<br>滚轮或 ＋ / − 缩放，✥ 拖动画布<br>带食物的货架不能拆；其他设备拆除清空机内物品，返还实付费用。进度只保存在当前浏览器。</p><button id="help-tutorial" class="soft-button">跟着练一次</button><button id="motion-toggle" class="soft-button" aria-pressed="false">Q 弹动效：开</button><button id="open-recipes" class="soft-button">查看配方</button><button id="help-done" class="primary-button">开始开工</button></dialog>
     <dialog id="recipe-dialog" class="recipe-dialog" aria-labelledby="recipe-title"><button id="close-recipes" class="dialog-close" aria-label="关闭配方">×</button><span class="section-label">工坊食谱</span><h2 id="recipe-title">八种美味，慢慢做好。</h2><p class="muted">机器可贴着连接；分流器能把面团送到不同支线。配方辅料由机器自带。</p><div id="recipe-list" class="recipe-list"></div></dialog>
     <div class="orientation-hint"><span>↻</span><small>横过来，工坊更宽敞</small><button id="portrait-continue">继续竖屏试玩</button></div>
     <noscript><style>#loading{display:none}</style>需要启用 JavaScript 才能开始游戏。</noscript>
-    <script defer src="./src/factory-loading.js?v=0.12.1"></script>
-    <script id="factory-entry" type="module" src="./src/factory-main.js?v=0.12.1"></script>
+    <script defer src="./src/factory-loading.js?v=0.13.0"></script>
+    <script id="factory-entry" type="module" src="./src/factory-main.js?v=0.13.0"></script>
   </body>
 </html>

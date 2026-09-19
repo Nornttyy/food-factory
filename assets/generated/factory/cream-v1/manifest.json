@@ -9,6 +9,7 @@
     "cocoa": "#846A57"
   },
   "atlases": {
+    "service": { "file": "service-parts-v1.png", "width": 1254, "height": 1254, "columns": 4, "rows": 4 },
     "expansion": { "file": "expansion-v2.png", "width": 1536, "height": 1024, "columns": 4, "rows": 2 },
     "machines": {
       "file": "machines-v1.png",
@@ -33,6 +34,22 @@
     }
   },
   "sprites": [
+    {"id":"cat_cream_head","label":"cat_cream_head","atlas":"service","frame":{"x":53,"y":78,"w":297,"h":250},"anchor":{"x":0.5,"y":0.5},"category":"character"},
+    {"id":"cat_cream_body","label":"cat_cream_body","atlas":"service","frame":{"x":403,"y":123,"w":253,"h":205},"anchor":{"x":0.5,"y":0.5},"category":"character"},
+    {"id":"cat_cream_hand_l","label":"cat_cream_hand_l","atlas":"service","frame":{"x":753,"y":162,"w":135,"h":130},"anchor":{"x":0.5,"y":0.5},"category":"character"},
+    {"id":"cat_cream_hand_r","label":"cat_cream_hand_r","atlas":"service","frame":{"x":1045,"y":162,"w":134,"h":130},"anchor":{"x":0.5,"y":0.5},"category":"character"},
+    {"id":"cat_peach_head","label":"cat_peach_head","atlas":"service","frame":{"x":53,"y":380,"w":296,"h":247},"anchor":{"x":0.5,"y":0.5},"category":"character"},
+    {"id":"cat_peach_body","label":"cat_peach_body","atlas":"service","frame":{"x":403,"y":424,"w":254,"h":205},"anchor":{"x":0.5,"y":0.5},"category":"character"},
+    {"id":"cat_peach_hand_l","label":"cat_peach_hand_l","atlas":"service","frame":{"x":753,"y":472,"w":135,"h":130},"anchor":{"x":0.5,"y":0.5},"category":"character"},
+    {"id":"cat_peach_hand_r","label":"cat_peach_hand_r","atlas":"service","frame":{"x":1045,"y":472,"w":134,"h":130},"anchor":{"x":0.5,"y":0.5},"category":"character"},
+    {"id":"cat_gray_head","label":"cat_gray_head","atlas":"service","frame":{"x":53,"y":679,"w":296,"h":246},"anchor":{"x":0.5,"y":0.5},"category":"character"},
+    {"id":"cat_gray_body","label":"cat_gray_body","atlas":"service","frame":{"x":403,"y":720,"w":254,"h":206},"anchor":{"x":0.5,"y":0.5},"category":"character"},
+    {"id":"cat_gray_hand_l","label":"cat_gray_hand_l","atlas":"service","frame":{"x":754,"y":765,"w":134,"h":130},"anchor":{"x":0.5,"y":0.5},"category":"character"},
+    {"id":"cat_gray_hand_r","label":"cat_gray_hand_r","atlas":"service","frame":{"x":1043,"y":765,"w":133,"h":129},"anchor":{"x":0.5,"y":0.5},"category":"character"},
+    {"id":"serving_shelf","label":"serving_shelf","atlas":"service","frame":{"x":48,"y":957,"w":305,"h":231},"anchor":{"x":0.5,"y":0.5},"category":"prop"},
+    {"id":"serving_plate","label":"serving_plate","atlas":"service","frame":{"x":378,"y":1044,"w":269,"h":111},"anchor":{"x":0.5,"y":0.5},"category":"prop"},
+    {"id":"cat_staff_head","label":"cat_staff_head","atlas":"service","frame":{"x":668,"y":965,"w":277,"h":239},"anchor":{"x":0.5,"y":0.5},"category":"character"},
+    {"id":"cat_staff_body","label":"cat_staff_body","atlas":"service","frame":{"x":978,"y":1013,"w":247,"h":188},"anchor":{"x":0.5,"y":0.5},"category":"character"},
     { "id": "butter_cookie", "label": "奶油饼干", "atlas": "expansion", "frame": { "x": 56, "y": 155, "w": 292, "h": 275 }, "anchor": { "x": 0.5, "y": 0.5 }, "category": "item" },
     { "id": "steamed_bun", "label": "奶香包", "atlas": "expansion", "frame": { "x": 433, "y": 146, "w": 304, "h": 287 }, "anchor": { "x": 0.5, "y": 0.5 }, "category": "item" },
     { "id": "strawberry_cake", "label": "草莓蛋糕", "atlas": "expansion", "frame": { "x": 810, "y": 124, "w": 310, "h": 325 }, "anchor": { "x": 0.5, "y": 0.5 }, "category": "item" },

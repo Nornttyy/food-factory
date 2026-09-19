@@ -27,7 +27,8 @@ export function cameraInsets(width, height, ui = {}) {
   if (ui.focus) return { left: 22, right: 22, top: 20, bottom: 20 };
   const compact = height < 600 && width > height;
   // Opening a drawer overlays the world; it must never shrink or recenter the camera.
-  return { left: compact ? 22 : 40, right: compact ? 22 : 40, top: compact ? 61 : 87, bottom: compact ? 76 : 99 };
+  const service = ui.customerArea ? (width <= 600 ? 140 : compact ? 168 : 206) : 0;
+  return { left: compact ? 22 : 40, right: (compact ? 22 : 40) + service, top: compact ? 61 : 87, bottom: compact ? 76 : 99 };
 }
 
 export class FactoryCamera {

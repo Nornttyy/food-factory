@@ -43,6 +43,7 @@ test('factory entry loads generated atlases and wires construction, production, 
   install('setTimeout', () => 1); install('clearTimeout', () => {});
   try {
     const { runtime } = await import(`../src/factory-main.js?test=${Date.now()}`);
+    const feedCats = () => { for (const c of runtime.game.service.customers) if (!c.cooldown && runtime.game.findShelf(c.want)) runtime.game.serveFromShelf(runtime.game.findShelf(c.want).id, c.want, c.id); };
     assert.equal(runtime.assets.ready, true); assert.equal(nodes.get('loading').hidden, true); assert.equal(runtime.game.state.buildings.length, 8);
     assert.equal(runtime.ui.screen, 'menu'); assert.equal(nodes.get('main-menu').hidden, false); assert.equal(nodes.get('factory-app').hidden, true);
     assert.equal(frames.length, 1); frames.shift()(performance.now() + 100); assert.equal(runtime.game.state.time, 0);
@@ -66,9 +67,11 @@ test('factory entry loads generated atlases and wires construction, production, 
     tutorialTap(6, 2); assert.equal(runtime.practice.step, 2); assert.equal(runtime.game.at(6, 2).dir, 0);
     nodes.get('speed').click(); assert.equal(runtime.game.state.speed, 2);
     for (let i = 0; i < 100; i++) runtime.game.update(.1);
+    assert.equal(runtime.game.state.totalSold, 0, 'production alone does not earn coins');
+    runtime.serviceView.select('bread'); runtime.serviceView.drop(0);
     frames.shift()(performance.now() + 1000); assert.equal(runtime.practice.step, 3);
     tutorialTap(5, 2); nodes.get('upgrade-building').click(); assert.equal(runtime.practice.step, 4);
-    for (let i = 0; i < 100; i++) runtime.game.update(.1);
+    for (let i = 0; i < 100; i++) { runtime.game.update(.1); feedCats(); }
     frames.shift()(performance.now() + 3000); nodes.get('claim-order').click(); assert.equal(runtime.practice.step, 5);
     assert.equal(storage.has('food-factory-v1'), false, 'practice, upgrades, rewards and autosave never write the real save');
     assert.equal(runtime.practice.realGame.serialize(), realBeforePractice);
@@ -131,7 +134,7 @@ test('factory entry loads generated atlases and wires construction, production, 
     nodes.get('pause').click(); assert.equal(runtime.game.state.paused, true); assert.equal(nodes.get('pause-overlay').hidden, false);
     nodes.get('resume').click(); assert.equal(runtime.game.state.paused, false);
     nodes.get('speed').click(); assert.equal(runtime.game.state.speed, 2);
-    for (let i = 0; i < 200; i++) runtime.game.update(.1);
+    for (let i = 0; i < 200; i++) { runtime.game.update(.1); feedCats(); }
     frames.shift()(performance.now() + 5000);
     assert.equal(runtime.game.orderReady, true); assert.equal(nodes.get('claim-order').disabled, false);
     nodes.get('claim-order').click(); assert.equal(runtime.game.state.orderIndex, 1);
@@ -275,14 +278,14 @@ test('factory entry loads generated atlases and wires construction, production, 
     nodes.get('business-locate-depot').click(); assert.equal(nodes.get('business-dialog').open, false);
     assert.equal(runtime.game.state.buildings.find(b => b.id === runtime.ui.selected).type, 'depot');
     const dispatch = runtime.game.at(8, 2), beforeDispatchUpgrade = runtime.game.state.coins;
-    assert.match(nodes.get('upgrade-building').textContent, /提速至 1\.5 秒 · 60/);
+    assert.match(nodes.get('upgrade-building').textContent, /扩至 12 份 · 60/);
     nodes.get('upgrade-building').click(); assert.equal(dispatch.level, 2); assert.equal(runtime.game.duration(dispatch), 1.5);
     assert.equal(runtime.game.state.coins, beforeDispatchUpgrade - 60);
-    assert.match(nodes.get('upgrade-building').textContent, /提速至 1\.0 秒 · 81/);
+    assert.match(nodes.get('upgrade-building').textContent, /扩至 16 份 · 81/);
     nodes.get('upgrade-building').click(); assert.equal(dispatch.level, 3); assert.equal(runtime.game.duration(dispatch), 1);
     assert.equal(nodes.get('upgrade-building').disabled, true); assert.equal(runtime.game.state.coins, beforeDispatchUpgrade - 141);
-    nodes.get('depot-store').click(); assert.equal(runtime.game.at(8, 2).mode, 'store');
     for (let n = 0; n < 900; n++) runtime.game.update(.1);
+    frames.shift()(performance.now() + 352000); nodes.get('shelf-store').click();
     frames.shift()(performance.now() + 353000); assert.ok(runtime.game.warehouseUsed >= 12); assert.equal(runtime.game.state.totalSold, 0);
     nodes.get('business-toggle').click(); const shipButton = nodes.get('wholesale-offers').children[0].children.find(el => el.dataset?.wholesale);
     assert.equal(shipButton.disabled, false); shipButton.click(); assert.equal(runtime.game.state.business.shipments, 1);
@@ -336,11 +339,21 @@ test('factory entry loads generated atlases and wires construction, production, 
     storage.set('food-factory-v1', oldFlow);
     await import(`../src/factory-main.js?flow-migration=${Date.now()}`);
     assert.equal(storage.get('food-factory-v1-before-paced-flow'), oldFlow);
+    assert.equal(storage.get('food-factory-v1-before-customer-counter'), oldFlow);
     assert.equal(JSON.parse(storage.get('food-factory-v1')).flowVersion, 2);
     storage.set('food-factory-v1', oldFlow); failStorageKey = 'food-factory-v1-before-paced-flow';
     await import(`../src/factory-main.js?flow-protected=${Date.now()}`);
     nodes.get('menu-play').click(); nodes.get('menu-home').click();
     assert.equal(storage.get('food-factory-v1'), oldFlow); failStorageKey = null;
+    // Customer migration has its own raw backup, and backup failure never overwrites it.
+    const classicRaw = new FactoryGame().serialize(); storage.set('food-factory-v1', classicRaw);
+    failStorageKey = 'food-factory-v1-before-customer-counter';
+    await import(`../src/factory-main.js?customer-protected=${Date.now()}`);
+    nodes.get('menu-play').click(); nodes.get('menu-home').click();
+    assert.equal(storage.get('food-factory-v1'), classicRaw); failStorageKey = null;
+    await import(`../src/factory-main.js?customer-migration=${Date.now()}`);
+    assert.equal(storage.get('food-factory-v1-before-customer-counter'), classicRaw);
+    assert.equal(JSON.parse(storage.get('food-factory-v1')).service.version, 1);
     // Preserve the raw cat-era save before the migrated factory can auto-save.
     const catFixtures = JSON.parse(await readFile(new URL('./fixtures/cat-v010-saves.json', import.meta.url), 'utf8'));
     const catRaw = JSON.stringify(catFixtures.working);

@@ -1,6 +1,6 @@
-import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.12.1';
-import { CELL, FactoryCamera, jellyPose, foodPose } from './factory-feel.js?v=0.12.1';
-import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.12.1';
+import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.13.0';
+import { CELL, FactoryCamera, jellyPose, foodPose } from './factory-feel.js?v=0.13.0';
+import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.13.0';
 // Match the flour hopper: cream rails, cocoa outlines, sage/peach accents.
 const CREAM = { cream: '#fff2d9', biscuit: '#e7cea7', peach: '#e4b69f', sage: '#b9c7ad', cocoa: '#846a57', belt: '#b09b86' };
 const BELT_LAYERS = [[43, CREAM.cocoa], [38, CREAM.cream], [28, CREAM.belt]];
@@ -12,7 +12,7 @@ export class FactoryAssets {
     const images = {};
     onProgress(0, 1);
     const loading = (async () => {
-      const response = await fetch(base + 'manifest.json?v=0.12.1', { signal: controller.signal });
+      const response = await fetch(base + 'manifest.json?v=0.13.0', { signal: controller.signal });
       if (!response.ok) throw new Error('素材清单读取失败');
       const manifest = await response.json();
       if (stopped) return;
@@ -151,7 +151,7 @@ export class FactoryRenderer {
     }
     for (const id of this.previous.keys()) if (!ids.has(id)) { this.previous.delete(id); this.pulses.delete(id); }
     for (const [id, pulse] of this.pulses) if (timestamp - pulse.start > 900) this.pulses.delete(id);
-    for (const e of game.events) if (!this.salesSeen.has(e)) { this.salesSeen.add(e); const depot = this.grid?.get(`${e.x},${e.y}`) || game.at(e.x, e.y); if (depot) this.pulse(depot.id, e.kind === 'store' ? 'produce' : 'sale', timestamp); this.burst(e.x, e.y, e.kind, timestamp); }
+    for (const e of game.events) if (!this.salesSeen.has(e)) { this.salesSeen.add(e); const depot = this.grid?.get(`${e.x},${e.y}`) || game.at(e.x, e.y); if (depot) this.pulse(depot.id, e.kind === 'sale' ? 'sale' : 'produce', timestamp); this.burst(e.x, e.y, e.kind, timestamp); }
     this.particles = this.reduced ? [] : this.particles.filter(p => timestamp - p.start < 650);
   }
   cellAt(clientX, clientY) {
@@ -230,7 +230,7 @@ export class FactoryRenderer {
     for (const event of game.events) {
       const age = s.time - event.time;
       ctx.save(); ctx.globalAlpha = Math.max(0, 1 - age / 1.5); ctx.fillStyle = '#79915e'; ctx.textAlign = 'center'; ctx.font = 'bold 16px system-ui';
-      ctx.fillText(event.kind === 'store' ? '入库 +1' : `+${event.value}`, event.x * CELL + 36, event.y * CELL - age * 25); ctx.restore();
+      ctx.fillText(event.kind === 'shelf' ? '上架' : event.kind === 'store' ? '入库 +1' : `+${event.value}`, event.x * CELL + 36, event.y * CELL - age * 25); ctx.restore();
     }
     for (const p of this.particles) {
       const age = (timestamp - p.start) / 1000;
@@ -280,6 +280,10 @@ export class FactoryRenderer {
     this.assets.draw(ctx, def.sprite, -31, -62, 62, 60);
     if (b.type === 'fruit_hopper') this.assets.draw(ctx, 'orange', -14, -47, 28, 28);
     ctx.restore();
+    if (b.type === 'depot' && b.goods?.length) {
+      for (let i = 0; i < Math.min(2, b.goods.length); i++) this.assets.draw(ctx, ITEMS[b.goods[i]].sprite, x + 22, y + 15 + i * 22, 26, 23);
+      round(ctx, x + 48, y + 2, 21, 17, 6, '#fff2d9'); ctx.fillStyle = '#846a57'; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'center'; ctx.fillText(String(b.goods.length), x + 58, y + 14);
+    }
     for (const { side, output } of ports) if (!output) arrow(ctx, x + 36 + DIRS[side][0] * 32, y + 36 + DIRS[side][1] * 32, (side + 2) % 4, '#ecd0ae', 5);
     if (def.kind !== 'depot') arrow(ctx, x + 36 + DIRS[b.dir][0] * 29, y + 36 + DIRS[b.dir][1] * 29, b.dir, '#879d73', 8);
     else if (b.mode === 'store') { round(ctx, x + 44, y + 3, 25, 18, 5, '#b9cbd7'); ctx.fillStyle = '#526b79'; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'center'; ctx.fillText('仓', x + 56, y + 16); }
