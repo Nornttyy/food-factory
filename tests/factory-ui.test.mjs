@@ -367,11 +367,11 @@ test('factory entry loads generated atlases and wires construction, production, 
     // Phone portrait gets a usable map view, no character drawer or rotation blocker.
     viewport = { width: 390, height: 844 }; runtime.renderer.viewport = null;
     nodes.get('service-jump').click();
-    const yardX = runtime.game.area[0] + 5.5, transform = runtime.renderer.transform;
+    const yardX = runtime.game.area[0] + 3.5, transform = runtime.renderer.transform;
     const catScreenX = transform.x + yardX * 72 * transform.scale;
     assert.ok(catScreenX > 44 && catScreenX < 346); assert.ok(1.7 * 72 * transform.scale >= 44);
     assert.equal(runtime.ui.tool, 'select'); assert.equal(nodes.has('service-area'), false);
-    nodes.get('staff-jump').click(); assert.equal(runtime.renderer.camera.y, 8.3 * 72);
+    nodes.get('staff-jump').click(); assert.equal(runtime.renderer.camera.y, 7.7 * 72);
     nodes.get('factory-jump').click(); assert.equal(runtime.renderer.camera.zoom, 1);
     viewport = { width: 1008, height: 576 }; runtime.renderer.viewport = null; runtime.renderer.resize(runtime.game.area, runtime.ui);
     nodes.get('menu-home').click();
@@ -406,12 +406,12 @@ test('factory entry loads generated atlases and wires construction, production, 
     assert.equal(storage.get('food-factory-v1'), classicRaw); failStorageKey = null;
     await import(`../src/factory-main.js?customer-migration=${Date.now()}`);
     assert.equal(storage.get('food-factory-v1-before-customer-counter'), classicRaw);
-    assert.equal(JSON.parse(storage.get('food-factory-v1')).service.version, 3);
+    assert.equal(JSON.parse(storage.get('food-factory-v1')).service.version, 4);
     const oldWorld = JSON.parse(storage.get('food-factory-v1')); oldWorld.service.version = 1;
     const oldWorldRaw = JSON.stringify(oldWorld); storage.set('food-factory-v1', oldWorldRaw);
     await import(`../src/factory-main.js?world-migration=${Date.now()}`);
     assert.equal(storage.get('food-factory-v1-before-world-service'), oldWorldRaw);
-    assert.equal(JSON.parse(storage.get('food-factory-v1')).service.version, 3);
+    assert.equal(JSON.parse(storage.get('food-factory-v1')).service.version, 4);
     storage.set('food-factory-v1', oldWorldRaw); failStorageKey = 'food-factory-v1-before-world-service';
     await import(`../src/factory-main.js?world-protected=${Date.now()}`);
     nodes.get('menu-play').click(); nodes.get('menu-home').click(); assert.equal(storage.get('food-factory-v1'), oldWorldRaw); failStorageKey = null;
@@ -421,7 +421,17 @@ test('factory entry loads generated atlases and wires construction, production, 
     nodes.get('menu-play').click(); nodes.get('menu-home').click(); assert.equal(storage.get('food-factory-v1'), beforeRoaming); failStorageKey = null;
     await import(`../src/factory-main.js?roaming-migration=${Date.now()}`);
     assert.equal(storage.get('food-factory-v1-before-free-roam'), beforeRoaming);
-    assert.equal(JSON.parse(storage.get('food-factory-v1')).service.version, 3);
+    assert.equal(JSON.parse(storage.get('food-factory-v1')).service.version, 4);
+    // Compact-map migration keeps a separate original, including on quota failure.
+    const compactFixture = JSON.parse(await readFile(new URL('./fixtures/service-v016-saves.json', import.meta.url), 'utf8'));
+    const beforeCompact = JSON.stringify(compactFixture.deliver); storage.set('food-factory-v1', beforeCompact);
+    failStorageKey = 'food-factory-v1-before-compact-map';
+    await import(`../src/factory-main.js?compact-protected=${Date.now()}`);
+    nodes.get('menu-play').click(); nodes.get('menu-home').click(); assert.equal(storage.get('food-factory-v1'), beforeCompact); failStorageKey = null;
+    await import(`../src/factory-main.js?compact-migration=${Date.now()}`);
+    assert.equal(storage.get('food-factory-v1-before-compact-map'), beforeCompact);
+    assert.deepEqual(JSON.parse(storage.get('food-factory-v1')).workshopArea, [10, 6]);
+    assert.equal(JSON.parse(storage.get('food-factory-v1')).service.version, 4);
     // Preserve the raw cat-era save before the migrated factory can auto-save.
     const catFixtures = JSON.parse(await readFile(new URL('./fixtures/cat-v010-saves.json', import.meta.url), 'utf8'));
     const catRaw = JSON.stringify(catFixtures.working);

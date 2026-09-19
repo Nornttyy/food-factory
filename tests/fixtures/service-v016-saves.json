@@ -1,0 +1,1072 @@
+{
+  "pickup": {
+    "version": 1,
+    "flowVersion": 2,
+    "coins": 24840,
+    "expansion": 0,
+    "orderIndex": 0,
+    "orderProgress": {},
+    "delivered": {},
+    "stock": {},
+    "buildings": [
+      {
+        "id": 1,
+        "type": "depot",
+        "x": 8,
+        "y": 2,
+        "dir": 0,
+        "level": 1,
+        "paid": 60,
+        "input": null,
+        "output": null,
+        "buffer": null,
+        "progress": 0,
+        "readyAt": 0,
+        "roundRobin": 0,
+        "blocked": false,
+        "idle": 0,
+        "goods": [
+          "bread",
+          "bread",
+          "bread"
+        ]
+      }
+    ],
+    "nextId": 2,
+    "time": 0.1,
+    "tick": 1,
+    "paused": false,
+    "speed": 1,
+    "totalSold": 4,
+    "career": {
+      "catalog": 3,
+      "points": 0,
+      "completed": 0,
+      "research": {
+        "production": 0,
+        "transport": 0,
+        "value": 0
+      },
+      "contract": null
+    },
+    "business": {
+      "version": 1,
+      "warehouse": {},
+      "shipped": {},
+      "shipments": 0,
+      "reputation": 0,
+      "claimed": []
+    },
+    "orderCatalog": 4,
+    "service": {
+      "version": 3,
+      "served": 4,
+      "nextId": 4,
+      "customers": [
+        {
+          "id": 1,
+          "skin": 0,
+          "want": "bread",
+          "cooldown": 0,
+          "age": 0.1
+        },
+        {
+          "id": 2,
+          "skin": 1,
+          "want": "bread",
+          "cooldown": 0,
+          "age": 0.1
+        },
+        {
+          "id": 3,
+          "skin": 2,
+          "want": "bread",
+          "cooldown": 0,
+          "age": 0.1
+        }
+      ],
+      "workers": [
+        {
+          "id": 1,
+          "x": 15.5,
+          "y": 8.5,
+          "job": {
+            "customerId": 1,
+            "item": "bread",
+            "stage": "pickup",
+            "shelfId": 1,
+            "x": 8,
+            "y": 2
+          },
+          "path": [
+            {
+              "x": 14.5,
+              "y": 8.5
+            },
+            {
+              "x": 13.5,
+              "y": 8.5
+            },
+            {
+              "x": 12.5,
+              "y": 8.5
+            },
+            {
+              "x": 11.5,
+              "y": 8.5
+            },
+            {
+              "x": 10.5,
+              "y": 8.5
+            },
+            {
+              "x": 9.5,
+              "y": 8.5
+            },
+            {
+              "x": 8.5,
+              "y": 8.5
+            },
+            {
+              "x": 8.5,
+              "y": 7.5
+            },
+            {
+              "x": 8.5,
+              "y": 6.5
+            },
+            {
+              "x": 8.5,
+              "y": 5.5
+            },
+            {
+              "x": 8.5,
+              "y": 4.5
+            },
+            {
+              "x": 8.5,
+              "y": 3.5
+            }
+          ],
+          "wander": null,
+          "wait": 0,
+          "stroll": 0
+        },
+        {
+          "id": 2,
+          "x": 16.5,
+          "y": 8.5,
+          "job": {
+            "customerId": 2,
+            "item": "bread",
+            "stage": "pickup",
+            "shelfId": 1,
+            "x": 8,
+            "y": 2
+          },
+          "path": [
+            {
+              "x": 15.5,
+              "y": 8.5
+            },
+            {
+              "x": 14.5,
+              "y": 8.5
+            },
+            {
+              "x": 13.5,
+              "y": 8.5
+            },
+            {
+              "x": 12.5,
+              "y": 8.5
+            },
+            {
+              "x": 11.5,
+              "y": 8.5
+            },
+            {
+              "x": 10.5,
+              "y": 8.5
+            },
+            {
+              "x": 9.5,
+              "y": 8.5
+            },
+            {
+              "x": 8.5,
+              "y": 8.5
+            },
+            {
+              "x": 8.5,
+              "y": 7.5
+            },
+            {
+              "x": 8.5,
+              "y": 6.5
+            },
+            {
+              "x": 8.5,
+              "y": 5.5
+            },
+            {
+              "x": 8.5,
+              "y": 4.5
+            },
+            {
+              "x": 8.5,
+              "y": 3.5
+            }
+          ],
+          "wander": null,
+          "wait": 0,
+          "stroll": 0
+        },
+        {
+          "id": 3,
+          "x": 17.5,
+          "y": 8.5,
+          "job": {
+            "customerId": 3,
+            "item": "bread",
+            "stage": "pickup",
+            "shelfId": 1,
+            "x": 8,
+            "y": 2
+          },
+          "path": [
+            {
+              "x": 16.5,
+              "y": 8.5
+            },
+            {
+              "x": 15.5,
+              "y": 8.5
+            },
+            {
+              "x": 14.5,
+              "y": 8.5
+            },
+            {
+              "x": 13.5,
+              "y": 8.5
+            },
+            {
+              "x": 12.5,
+              "y": 8.5
+            },
+            {
+              "x": 11.5,
+              "y": 8.5
+            },
+            {
+              "x": 10.5,
+              "y": 8.5
+            },
+            {
+              "x": 9.5,
+              "y": 8.5
+            },
+            {
+              "x": 8.5,
+              "y": 8.5
+            },
+            {
+              "x": 8.5,
+              "y": 7.5
+            },
+            {
+              "x": 8.5,
+              "y": 6.5
+            },
+            {
+              "x": 8.5,
+              "y": 5.5
+            },
+            {
+              "x": 8.5,
+              "y": 4.5
+            },
+            {
+              "x": 8.5,
+              "y": 3.5
+            }
+          ],
+          "wander": null,
+          "wait": 0,
+          "stroll": 0
+        }
+      ]
+    }
+  },
+  "deliver": {
+    "version": 1,
+    "flowVersion": 2,
+    "coins": 24840,
+    "expansion": 0,
+    "orderIndex": 0,
+    "orderProgress": {},
+    "delivered": {},
+    "stock": {},
+    "buildings": [
+      {
+        "id": 1,
+        "type": "depot",
+        "x": 8,
+        "y": 2,
+        "dir": 0,
+        "level": 1,
+        "paid": 60,
+        "input": null,
+        "output": null,
+        "buffer": null,
+        "progress": 0,
+        "readyAt": 0,
+        "roundRobin": 0,
+        "blocked": false,
+        "idle": 0,
+        "goods": [
+          "bread",
+          "bread"
+        ]
+      }
+    ],
+    "nextId": 2,
+    "time": 5.6,
+    "tick": 56,
+    "paused": false,
+    "speed": 1,
+    "totalSold": 4,
+    "career": {
+      "catalog": 3,
+      "points": 0,
+      "completed": 0,
+      "research": {
+        "production": 0,
+        "transport": 0,
+        "value": 0
+      },
+      "contract": null
+    },
+    "business": {
+      "version": 1,
+      "warehouse": {},
+      "shipped": {},
+      "shipments": 0,
+      "reputation": 0,
+      "claimed": []
+    },
+    "orderCatalog": 4,
+    "service": {
+      "version": 3,
+      "served": 4,
+      "nextId": 4,
+      "customers": [
+        {
+          "id": 1,
+          "skin": 0,
+          "want": "bread",
+          "cooldown": 0,
+          "age": 5.599999999999996
+        },
+        {
+          "id": 2,
+          "skin": 1,
+          "want": "bread",
+          "cooldown": 0,
+          "age": 5.599999999999996
+        },
+        {
+          "id": 3,
+          "skin": 2,
+          "want": "bread",
+          "cooldown": 0,
+          "age": 5.599999999999996
+        }
+      ],
+      "workers": [
+        {
+          "id": 1,
+          "x": 8.5,
+          "y": 3.5,
+          "job": {
+            "customerId": 1,
+            "item": "bread",
+            "stage": "deliver",
+            "shelfId": 1,
+            "x": 8,
+            "y": 2
+          },
+          "path": null,
+          "wander": null,
+          "wait": 0,
+          "stroll": 0
+        },
+        {
+          "id": 2,
+          "x": 8.5,
+          "y": 4.400000000000001,
+          "job": {
+            "customerId": 2,
+            "item": "bread",
+            "stage": "pickup",
+            "shelfId": 1,
+            "x": 8,
+            "y": 2
+          },
+          "path": [
+            {
+              "x": 8.5,
+              "y": 3.5
+            }
+          ],
+          "wander": null,
+          "wait": 0,
+          "stroll": 0
+        },
+        {
+          "id": 3,
+          "x": 8.5,
+          "y": 5.400000000000001,
+          "job": {
+            "customerId": 3,
+            "item": "bread",
+            "stage": "pickup",
+            "shelfId": 1,
+            "x": 8,
+            "y": 2
+          },
+          "path": [
+            {
+              "x": 8.5,
+              "y": 4.5
+            },
+            {
+              "x": 8.5,
+              "y": 3.5
+            }
+          ],
+          "wander": null,
+          "wait": 0,
+          "stroll": 0
+        }
+      ]
+    }
+  },
+  "wander": {
+    "version": 1,
+    "flowVersion": 2,
+    "coins": 24840,
+    "expansion": 0,
+    "orderIndex": 0,
+    "orderProgress": {},
+    "delivered": {},
+    "stock": {},
+    "buildings": [
+      {
+        "id": 1,
+        "type": "depot",
+        "x": 8,
+        "y": 2,
+        "dir": 0,
+        "level": 1,
+        "paid": 60,
+        "input": null,
+        "output": null,
+        "buffer": null,
+        "progress": 0,
+        "readyAt": 0,
+        "roundRobin": 0,
+        "blocked": false,
+        "idle": 0,
+        "goods": []
+      }
+    ],
+    "nextId": 2,
+    "time": 0.1,
+    "tick": 1,
+    "paused": false,
+    "speed": 1,
+    "totalSold": 4,
+    "career": {
+      "catalog": 3,
+      "points": 0,
+      "completed": 0,
+      "research": {
+        "production": 0,
+        "transport": 0,
+        "value": 0
+      },
+      "contract": null
+    },
+    "business": {
+      "version": 1,
+      "warehouse": {},
+      "shipped": {},
+      "shipments": 0,
+      "reputation": 0,
+      "claimed": []
+    },
+    "orderCatalog": 4,
+    "service": {
+      "version": 3,
+      "served": 4,
+      "nextId": 4,
+      "customers": [
+        {
+          "id": 1,
+          "skin": 0,
+          "want": "bread",
+          "cooldown": 0,
+          "age": 0.1
+        },
+        {
+          "id": 2,
+          "skin": 1,
+          "want": "bread",
+          "cooldown": 0,
+          "age": 0.1
+        },
+        {
+          "id": 3,
+          "skin": 2,
+          "want": "bread",
+          "cooldown": 0,
+          "age": 0.1
+        }
+      ],
+      "workers": [
+        {
+          "id": 1,
+          "x": 15.28,
+          "y": 8.5,
+          "job": null,
+          "path": [
+            {
+              "x": 14.5,
+              "y": 8.5
+            },
+            {
+              "x": 13.5,
+              "y": 8.5
+            },
+            {
+              "x": 12.5,
+              "y": 8.5
+            },
+            {
+              "x": 11.5,
+              "y": 8.5
+            },
+            {
+              "x": 10.5,
+              "y": 8.5
+            },
+            {
+              "x": 10.5,
+              "y": 7.5
+            },
+            {
+              "x": 10.5,
+              "y": 6.5
+            },
+            {
+              "x": 10.5,
+              "y": 5.5
+            },
+            {
+              "x": 10.5,
+              "y": 4.5
+            },
+            {
+              "x": 10.5,
+              "y": 3.5
+            },
+            {
+              "x": 10.5,
+              "y": 2.5
+            }
+          ],
+          "wander": {
+            "x": 10.5,
+            "y": 2.5
+          },
+          "wait": 0,
+          "stroll": 1
+        },
+        {
+          "id": 2,
+          "x": 16.28,
+          "y": 8.5,
+          "job": null,
+          "path": [
+            {
+              "x": 15.5,
+              "y": 8.5
+            },
+            {
+              "x": 14.5,
+              "y": 8.5
+            },
+            {
+              "x": 13.5,
+              "y": 8.5
+            },
+            {
+              "x": 12.5,
+              "y": 8.5
+            },
+            {
+              "x": 11.5,
+              "y": 8.5
+            },
+            {
+              "x": 10.5,
+              "y": 8.5
+            },
+            {
+              "x": 9.5,
+              "y": 8.5
+            },
+            {
+              "x": 8.5,
+              "y": 8.5
+            },
+            {
+              "x": 7.5,
+              "y": 8.5
+            },
+            {
+              "x": 6.5,
+              "y": 8.5
+            },
+            {
+              "x": 6.5,
+              "y": 7.5
+            },
+            {
+              "x": 6.5,
+              "y": 6.5
+            },
+            {
+              "x": 6.5,
+              "y": 5.5
+            },
+            {
+              "x": 6.5,
+              "y": 4.5
+            }
+          ],
+          "wander": {
+            "x": 6.5,
+            "y": 4.5
+          },
+          "wait": 0,
+          "stroll": 1
+        },
+        {
+          "id": 3,
+          "x": 17.28,
+          "y": 8.5,
+          "job": null,
+          "path": [
+            {
+              "x": 16.5,
+              "y": 8.5
+            },
+            {
+              "x": 15.5,
+              "y": 8.5
+            },
+            {
+              "x": 14.5,
+              "y": 8.5
+            },
+            {
+              "x": 13.5,
+              "y": 8.5
+            },
+            {
+              "x": 12.5,
+              "y": 8.5
+            },
+            {
+              "x": 11.5,
+              "y": 8.5
+            },
+            {
+              "x": 10.5,
+              "y": 8.5
+            },
+            {
+              "x": 9.5,
+              "y": 8.5
+            },
+            {
+              "x": 8.5,
+              "y": 8.5
+            },
+            {
+              "x": 7.5,
+              "y": 8.5
+            },
+            {
+              "x": 6.5,
+              "y": 8.5
+            },
+            {
+              "x": 5.5,
+              "y": 8.5
+            },
+            {
+              "x": 4.5,
+              "y": 8.5
+            },
+            {
+              "x": 4.5,
+              "y": 7.5
+            },
+            {
+              "x": 4.5,
+              "y": 6.5
+            },
+            {
+              "x": 4.5,
+              "y": 5.5
+            },
+            {
+              "x": 4.5,
+              "y": 4.5
+            }
+          ],
+          "wander": {
+            "x": 4.5,
+            "y": 4.5
+          },
+          "wait": 0,
+          "stroll": 1
+        }
+      ]
+    }
+  },
+  "edge": {
+    "version": 1,
+    "flowVersion": 2,
+    "coins": 29340,
+    "expansion": 0,
+    "orderIndex": 0,
+    "orderProgress": {},
+    "delivered": {},
+    "stock": {},
+    "buildings": [
+      {
+        "id": 1,
+        "type": "depot",
+        "x": 13,
+        "y": 7,
+        "dir": 0,
+        "level": 1,
+        "paid": 60,
+        "input": null,
+        "output": null,
+        "buffer": null,
+        "progress": 0,
+        "readyAt": 0,
+        "roundRobin": 0,
+        "blocked": false,
+        "idle": 0,
+        "goods": []
+      }
+    ],
+    "nextId": 2,
+    "time": 0.1,
+    "tick": 1,
+    "paused": false,
+    "speed": 1,
+    "totalSold": 4,
+    "career": {
+      "catalog": 3,
+      "points": 0,
+      "completed": 0,
+      "research": {
+        "production": 0,
+        "transport": 0,
+        "value": 0
+      },
+      "contract": null
+    },
+    "business": {
+      "version": 1,
+      "warehouse": {},
+      "shipped": {},
+      "shipments": 0,
+      "reputation": 0,
+      "claimed": []
+    },
+    "orderCatalog": 4,
+    "service": {
+      "version": 3,
+      "served": 4,
+      "nextId": 4,
+      "customers": [
+        {
+          "id": 1,
+          "skin": 0,
+          "want": "bread",
+          "cooldown": 0,
+          "age": 0.1
+        },
+        {
+          "id": 2,
+          "skin": 1,
+          "want": "bread",
+          "cooldown": 0,
+          "age": 0.1
+        },
+        {
+          "id": 3,
+          "skin": 2,
+          "want": "bread",
+          "cooldown": 0,
+          "age": 0.1
+        }
+      ],
+      "workers": [
+        {
+          "id": 1,
+          "x": 15.28,
+          "y": 8.5,
+          "job": null,
+          "path": [
+            {
+              "x": 14.5,
+              "y": 8.5
+            },
+            {
+              "x": 13.5,
+              "y": 8.5
+            },
+            {
+              "x": 12.5,
+              "y": 8.5
+            },
+            {
+              "x": 11.5,
+              "y": 8.5
+            },
+            {
+              "x": 10.5,
+              "y": 8.5
+            },
+            {
+              "x": 10.5,
+              "y": 7.5
+            },
+            {
+              "x": 10.5,
+              "y": 6.5
+            },
+            {
+              "x": 10.5,
+              "y": 5.5
+            },
+            {
+              "x": 10.5,
+              "y": 4.5
+            },
+            {
+              "x": 10.5,
+              "y": 3.5
+            },
+            {
+              "x": 10.5,
+              "y": 2.5
+            }
+          ],
+          "wander": {
+            "x": 10.5,
+            "y": 2.5
+          },
+          "wait": 0,
+          "stroll": 1
+        }
+      ]
+    }
+  },
+  "expanded": {
+    "version": 1,
+    "flowVersion": 2,
+    "coins": 28990,
+    "expansion": 1,
+    "orderIndex": 0,
+    "orderProgress": {},
+    "delivered": {},
+    "stock": {},
+    "buildings": [
+      {
+        "id": 1,
+        "type": "depot",
+        "x": 17,
+        "y": 9,
+        "dir": 0,
+        "level": 1,
+        "paid": 60,
+        "input": null,
+        "output": null,
+        "buffer": null,
+        "progress": 0,
+        "readyAt": 0,
+        "roundRobin": 0,
+        "blocked": false,
+        "idle": 0,
+        "goods": []
+      }
+    ],
+    "nextId": 2,
+    "time": 0.1,
+    "tick": 1,
+    "paused": false,
+    "speed": 1,
+    "totalSold": 4,
+    "career": {
+      "catalog": 3,
+      "points": 0,
+      "completed": 0,
+      "research": {
+        "production": 0,
+        "transport": 0,
+        "value": 0
+      },
+      "contract": null
+    },
+    "business": {
+      "version": 1,
+      "warehouse": {},
+      "shipped": {},
+      "shipments": 0,
+      "reputation": 0,
+      "claimed": []
+    },
+    "orderCatalog": 4,
+    "service": {
+      "version": 3,
+      "served": 4,
+      "nextId": 4,
+      "customers": [
+        {
+          "id": 1,
+          "skin": 0,
+          "want": "bread",
+          "cooldown": 0,
+          "age": 0.1
+        },
+        {
+          "id": 2,
+          "skin": 1,
+          "want": "bread",
+          "cooldown": 0,
+          "age": 0.1
+        },
+        {
+          "id": 3,
+          "skin": 2,
+          "want": "bread",
+          "cooldown": 0,
+          "age": 0.1
+        }
+      ],
+      "workers": [
+        {
+          "id": 1,
+          "x": 19.28,
+          "y": 8.5,
+          "job": null,
+          "path": [
+            {
+              "x": 18.5,
+              "y": 8.5
+            },
+            {
+              "x": 17.5,
+              "y": 8.5
+            },
+            {
+              "x": 16.5,
+              "y": 8.5
+            },
+            {
+              "x": 16.5,
+              "y": 9.5
+            },
+            {
+              "x": 15.5,
+              "y": 9.5
+            },
+            {
+              "x": 14.5,
+              "y": 9.5
+            },
+            {
+              "x": 13.5,
+              "y": 9.5
+            },
+            {
+              "x": 12.5,
+              "y": 9.5
+            },
+            {
+              "x": 11.5,
+              "y": 9.5
+            },
+            {
+              "x": 10.5,
+              "y": 9.5
+            },
+            {
+              "x": 9.5,
+              "y": 9.5
+            },
+            {
+              "x": 8.5,
+              "y": 9.5
+            },
+            {
+              "x": 7.5,
+              "y": 9.5
+            },
+            {
+              "x": 6.5,
+              "y": 9.5
+            },
+            {
+              "x": 5.5,
+              "y": 9.5
+            },
+            {
+              "x": 4.5,
+              "y": 9.5
+            },
+            {
+              "x": 3.5,
+              "y": 9.5
+            },
+            {
+              "x": 2.5,
+              "y": 9.5
+            },
+            {
+              "x": 1.5,
+              "y": 9.5
+            }
+          ],
+          "wander": {
+            "x": 1.5,
+            "y": 9.5
+          },
+          "wait": 0,
+          "stroll": 1
+        }
+      ]
+    }
+  }
+}

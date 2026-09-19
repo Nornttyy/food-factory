@@ -75,11 +75,12 @@ test('the recruitment sign and accessible button show the raised prices and disa
   const h = setup(t); h.view.render(); assert.match(h.view.hire.textContent, /600/);
   h.game.state.totalSold = h.game.service.served = 4; h.game.state.coins = 599; h.view.render(); assert.equal(h.view.hire.disabled, true);
   h.view.recruit(); assert.equal(h.game.service.workers.length, 0); assert.equal(h.game.state.coins, 599);
-  for (const cost of [600, 1500, 3000]) {
+  for (const cost of [600, 1500, 3000, 4500, 6000, 8000]) {
     h.game.state.coins = cost; h.view.render(); assert.match(h.view.hire.textContent, new RegExp(String(cost))); assert.equal(h.view.hire.disabled, false);
     h.view.recruit(); assert.equal(h.game.state.coins, 0);
   }
-  assert.equal(h.game.service.workers.length, 3); assert.equal(h.view.hire.disabled, true); assert.match(h.view.hire.textContent, /已满/);
+  assert.equal(h.game.service.workers.length, 6); assert.equal(h.view.hire.disabled, true); assert.match(h.view.hire.textContent, /已满 6\/6/);
+  h.view.draw(h.context, h.game); assert.equal(h.view.actors.filter(a => a.staff).length, 6);
 });
 test('staff interpolate between simulation steps, pause without drifting and do not trigger layout reads', t => {
   const h = setup(t); h.game.state.totalSold = h.game.service.served = 4; h.game.recruit(); h.game.update(.2); const reads = h.measures, poses = [];

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { CafeFactoryGame, WALK_SPEED } from '../src/factory-service.js';
 import { yardLayout, findPath, drawYardGround } from '../src/factory-yard.js';
+import { AREAS } from '../src/factory-core.js';
 
 function workshop() { const g = new CafeFactoryGame({ starter: false }); g.state.totalSold = g.service.served = 4; g.state.coins = 10000; return g; }
 const advance = (g, n) => { for (let i = 0; i < n; i++) g.update(.1); };
@@ -28,7 +29,7 @@ test('work interrupts an idle walk immediately, without returning to recruitment
   assert.deepEqual({ x: w.x, y: w.y }, before); assert.deepEqual(b.goods, ['bread']); assert.equal(w.wait, 0);
 });
 test('workers prefer the nearest reachable shelf, not the first one built, and chain deliveries from their current position', () => {
-  const g = workshop(), far = g.place('depot', 0, 0).building, near = g.place('depot', 13, 7).building;
+  const g = workshop(), far = g.place('depot', 0, 0).building, near = g.place('depot', 9, 5).building;
   far.goods = ['bread']; near.goods = ['bread', 'bread', 'bread']; g.recruit(); g.update(.1);
   const w = g.service.workers[0]; assert.equal(w.job.shelfId, near.id);
   for (let n = 0; n < 250 && g.service.served === 4; n++) g.update(.1);
@@ -47,20 +48,20 @@ test('old staff keep their number, money and pending delivery when upgraded to f
   const g = workshop(), b = g.place('depot', 8, 2).building; b.goods = ['bread'];
   for (let i = 0; i < 3; i++) g.recruit(); advance(g, 5);
   // A genuine v2 shape: idle employees were stationary at their homes.
-  const raw = JSON.parse(g.serialize()); raw.service.version = 2; raw.coins = 37;
+  const raw = JSON.parse(g.serialize()); raw.service.version = 2; raw.coins = 37; delete raw.workshopArea;
   for (const [i, w] of raw.service.workers.entries()) {
-    legacyWorker(w); if (!w.job) { Object.assign(w, yardLayout(g.area).homes[i]); w.path = null; }
+    legacyWorker(w); if (!w.job) { Object.assign(w, yardLayout(AREAS[0], true).homes[i]); w.path = null; }
   }
   const before = structuredClone(raw.service.workers[0]), loaded = new CafeFactoryGame(); assert.equal(loaded.restore(JSON.stringify(raw)), true);
-  assert.equal(loaded.service.version, 3); assert.equal(loaded.service.workers.length, 3); assert.equal(loaded.state.coins, 37);
-  const w = loaded.service.workers[0]; assert.equal(w.x, before.x); assert.equal(w.y, before.y); assert.deepEqual(w.job, before.job); assert.deepEqual(w.path, before.path);
+  assert.equal(loaded.service.version, 4); assert.equal(loaded.service.workers.length, 3); assert.equal(loaded.state.coins, 37);
+  const w = loaded.service.workers[0]; assert.equal(w.x, before.x); assert.equal(w.y, before.y); assert.deepEqual(w.job, before.job); assert.equal(w.path, null);
   advance(loaded, 250); assert.equal(loaded.service.served, 5); assert.equal(loaded.state.coins, 43); assert.equal(loaded.recruit().ok, false);
 });
-test('old v2 return routes migrate in place and are interruptible by new work', () => {
+test('old v2 return routes are recomputed in place and are interruptible by new work', () => {
   const g = workshop(), b = g.place('depot', 8, 2).building; g.recruit();
-  const w = legacyWorker(g.service.workers[0]); w.x = 9.5; w.y = 3.5; w.path = findPath(g.area, g.state.buildings, w, [yardLayout(g.area).homes[0]]); g.service.version = 2;
+  const w = legacyWorker(g.service.workers[0]); w.x = 9.5; w.y = 3.5; w.path = findPath(AREAS[0], g.state.buildings, w, [yardLayout(AREAS[0], true).homes[0]], true); g.service.version = 2; delete g.state.workshopArea;
   const loaded = new CafeFactoryGame(); assert.equal(loaded.restore(g.serialize()), true); const migrated = loaded.service.workers[0];
-  assert.deepEqual(migrated.wander, yardLayout(g.area).homes[0]); loaded.shelves[0].goods = ['bread']; loaded.update(.1);
+  assert.equal(migrated.wander, null); assert.equal(migrated.path, null); loaded.shelves[0].goods = ['bread']; loaded.update(.1);
   assert.equal(migrated.job.shelfId, b.id); assert.equal(migrated.wander, null); assert.equal(migrated.x, 9.5); assert.equal(migrated.y, 3.5);
 });
 test('corrupt wandering state is rejected atomically and expansion discards out-of-date destinations', () => {
@@ -74,7 +75,7 @@ test('corrupt wandering state is rejected atomically and expansion discards out-
 test('continuous world paving touches the whole factory edge and bottom, without a fence or rounded island', async () => {
   const rects = [], ctx = new Proxy({ fillRect: (...p) => rects.push(p) }, { get: (o, p) => p in o ? o[p] : () => {} });
   drawYardGround(ctx, [14, 8], { draw() {} });
-  assert.ok(rects.some(([x, y, w, h]) => x === 14 && y === 0 && w === 7 && h === 11));
-  assert.ok(rects.some(([x, y, w, h]) => x === 0 && y === 8 && w >= 14 && h === 3));
+  assert.ok(rects.some(([x, y, w, h]) => x === 14 && y === 0 && w === 5 && h === 9));
+  assert.ok(rects.some(([x, y, w, h]) => x === 0 && y === 8 && w >= 14 && h === 1));
   const source = await readFile(new URL('../src/factory-yard.js', import.meta.url), 'utf8'); assert.doesNotMatch(source, /ctx\.roundRect|员工休息处/);
 });

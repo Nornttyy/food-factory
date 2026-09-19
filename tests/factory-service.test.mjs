@@ -69,16 +69,16 @@ test('shelving still waits the full initial two seconds and never sells in old s
   }
 });
 
-test('staff recruitment requires four deliveries, deducts increasing prices once and caps at three', () => {
+test('staff recruitment requires four deliveries, deducts increasing prices once and caps at six', () => {
   const game = new CafeFactoryGame(); assert.equal(game.recruit().ok, false); unlockStaff(game);
-  game.state.coins = 10000;
+  game.state.coins = STAFF_COSTS.reduce((sum, n) => sum + n, 0);
   for (const cost of STAFF_COSTS) { const before = game.state.coins; assert.equal(game.recruit().ok, true); assert.equal(game.state.coins, before - cost); }
   const before = game.serialize(); assert.equal(game.recruit().ok, false); assert.equal(game.serialize(), before);
   const poor = new CafeFactoryGame(); unlockStaff(poor); poor.state.coins = STAFF_COSTS[0] - 1;
   assert.equal(poor.recruit().ok, false); assert.equal(poor.service.workers.length, 0);
 });
 test('the first employee costs more than the starting wallet and the initial four manual sales', () => {
-  assert.deepEqual(STAFF_COSTS, [600, 1500, 3000]);
+  assert.deepEqual(STAFF_COSTS, [600, 1500, 3000, 4500, 6000, 8000]);
   const game = new CafeFactoryGame(); unlockStaff(game, false);
   assert.equal(game.state.coins, 474); const before = game.serialize(); assert.equal(game.recruit().ok, false); assert.equal(game.serialize(), before);
   game.claimOrder(); assert.equal(game.state.coins, 569); assert.equal(game.recruit().ok, false);
@@ -120,7 +120,8 @@ test('one food cannot be assigned to multiple employees or sold again by a racin
   advance(game, .1); assert.equal(game.service.workers.filter(w => w.job).length, 1); assert.deepEqual(rack.goods, ['bread']);
   assert.equal(game.serveFromShelf(rack.id, 'bread', game.service.customers[1].id).ok, false);
   assert.equal(game.remove(rack.id).ok, false, 'reserved food still occupies the actual shelf');
-  for (let n = 0; n < 200 && game.service.workers[0].job.stage !== 'deliver'; n++) game.update(.1);
+  const assigned = game.service.workers.find(w => w.job);
+  for (let n = 0; n < 200 && assigned.job.stage !== 'deliver'; n++) game.update(.1);
   assert.deepEqual(rack.goods, []);
   assert.equal(game.remove(rack.id).ok, true, 'employee owns the already-picked food, not the source shelf');
   const restored = new CafeFactoryGame(); assert.equal(restored.restore(game.serialize()), true); advance(restored, 20);
@@ -148,7 +149,7 @@ test('customers only request obtainable food, and adapt when a recipe line disap
 test('every recipe can be requested and manually served without changing food prices', () => {
   const game = new CafeFactoryGame(); game.state.orderIndex = 2; game.state.coins = 10000;
   const types = [...new Set(FOOD_RECIPES.flatMap(([, chain]) => chain))];
-  types.forEach((type, i) => { if (!game.state.buildings.some(b => b.type === type)) game.place(type, i % 14, 4 + Math.floor(i / 14), 0); });
+  types.forEach((type, i) => { if (!game.state.buildings.some(b => b.type === type)) assert.equal(game.place(type, i % game.area[0], 4 + Math.floor(i / game.area[0]), 0).ok, true); });
   assert.equal(game.availableFoods().length, 8);
   for (const [item] of FOOD_RECIPES) {
     const c = game.service.customers[0], rack = game.shelves[0]; c.cooldown = 0; c.want = item; rack.goods = [item]; const coins = game.state.coins;

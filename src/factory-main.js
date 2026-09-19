@@ -1,12 +1,12 @@
-import { BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, AREAS, WIDTH, HEIGHT, upgradeCost, isTransport, transportCount } from './factory-core.js?v=0.16.0';
-import { CafeFactoryGame as FactoryGame, shelfCapacity } from './factory-service.js?v=0.16.0';
-import { ServiceView } from './factory-service-view.js?v=0.16.0';
-import { yardLayout } from './factory-yard.js?v=0.16.0';
-import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.16.0';
-import { directionBetween, nextBeltCell } from './factory-links.js?v=0.16.0';
-import { RESEARCH } from './factory-career.js?v=0.16.0';
-import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.16.0';
-import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS } from './factory-business.js?v=0.16.0';
+import { BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, WIDTH, HEIGHT, upgradeCost, isTransport, transportCount } from './factory-core.js?v=0.17.0';
+import { CafeFactoryGame as FactoryGame, shelfCapacity } from './factory-service.js?v=0.17.0';
+import { ServiceView } from './factory-service-view.js?v=0.17.0';
+import { yardLayout } from './factory-yard.js?v=0.17.0';
+import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.17.0';
+import { directionBetween, nextBeltCell } from './factory-links.js?v=0.17.0';
+import { RESEARCH } from './factory-career.js?v=0.17.0';
+import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.17.0';
+import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS } from './factory-business.js?v=0.17.0';
 
 const $ = selector => document.querySelector(selector);
 let game = new FactoryGame();
@@ -55,6 +55,10 @@ try {
   if (stored && game.restore(stored)) {
     hasSave = true;
     const previous = JSON.parse(stored);
+    if (previous.service?.version !== 4) {
+      try { localStorage.setItem(`${SAVE_KEY}-before-compact-map`, stored); }
+      catch { protectOriginalSave = true; toast('原存档已保留，本次试玩暂不保存'); }
+    }
     if (previous.service?.version === 1) {
       try { localStorage.setItem(`${SAVE_KEY}-before-world-service`, stored); }
       catch { protectOriginalSave = true; toast('原存档已保留，本次试玩暂不保存'); }
@@ -194,7 +198,7 @@ function renderUi(force = false) {
   $('#coins').textContent = s.coins.toLocaleString('zh-CN');
   if (s.coins > lastCoins) bounceElement($('#wallet')); lastCoins = s.coins;
   $('#factory-level').textContent = `${game.area.join(' × ')} 格工坊`;
-  $('#expand').textContent = game.expansionCost === null ? '已全部扩建' : `扩建 ${AREAS[s.expansion + 1].join('×')} · ${game.expansionCost}`; $('#expand').disabled = Boolean(practice) || game.expansionCost === null;
+  $('#expand').textContent = game.expansionCost === null ? '已全部扩建' : `扩建 ${game.nextArea.join('×')} · ${game.expansionCost}`; $('#expand').disabled = Boolean(practice) || game.expansionCost === null;
   $('#order-number').textContent = String(s.orderIndex + 1).padStart(2, '0');
   $('#pause').textContent = s.paused ? '▷' : 'Ⅱ'; $('#pause').setAttribute('aria-label', s.paused ? '继续生产' : '暂停生产');
   $('#pause-overlay').hidden = !s.paused; $('#speed').textContent = `${s.speed}×`; $('#direction').textContent = DIRECTION_NAMES[ui.dir];
@@ -604,9 +608,9 @@ function visitYard(staff = false) {
   finishDrag(); ui.tool = 'select'; ui.focus = false; ui.inspectorOpen = false; ui.ordersOpen = false; ui.mapOpen = false; ui.dockOpen = false; ui.hover = null;
   renderer.resize(game.area, ui);
   const view = renderer.camera.view, i = view.insets, yard = yardLayout(game.area), base = renderer.camera.transform.scale / renderer.camera.zoom;
-  const scale = Math.max(.43, Math.min((view.width - i.left - i.right) / (7 * 72), (view.height - i.top - i.bottom) / (10.5 * 72)));
+  const scale = Math.max(.43, Math.min((view.width - i.left - i.right) / ((yard.width + .5) * 72), (view.height - i.top - i.bottom) / (9 * 72)));
   renderer.camera.zoom = scale / base;
-  renderer.camera.centerOn(yard.x + 3, staff ? 8.3 : view.height < 600 ? 3.9 : 5.3); renderer.resize(game.area, ui); renderUi(true);
+  renderer.camera.centerOn(yard.x + yard.width / 2, staff ? yard.hire.y : view.height < 600 ? 3.9 : 4.5); renderer.resize(game.area, ui); renderUi(true);
 }
 $('#service-jump').addEventListener('click', () => visitYard());
 $('#staff-jump').addEventListener('click', () => visitYard(true));

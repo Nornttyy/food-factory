@@ -35,7 +35,7 @@ test('world hit tests follow the very same camera pan, zoom and resize as machin
 });
 test('walking routes avoid conveyors and machines, and sealed shelves have no route', () => {
   const g = new CafeFactoryGame(), start = yardLayout(g.area).homes[0], shelf = g.shelves[0];
-  const path = findPath(g.area, g.state.buildings, start, shelfApproaches(shelf)); assert.ok(path.length > 5);
+  const path = findPath(g.area, g.state.buildings, start, shelfApproaches(shelf)); assert.ok(path.length > 0 && path.length <= 5, 'compact recruitment is closer to the starter shelf');
   let previous = start;
   for (const p of path) { assert.equal(g.at(Math.floor(p.x), Math.floor(p.y)), undefined); assert.equal(Math.abs(p.x - previous.x) + Math.abs(p.y - previous.y), 1); previous = p; }
   for (const p of shelfApproaches(shelf)) if (!g.at(Math.floor(p.x), Math.floor(p.y))) g.place('belt', Math.floor(p.x), Math.floor(p.y));
@@ -68,12 +68,12 @@ test('legacy four-second carrying jobs migrate without a second pickup, loss or 
   const g = new CafeFactoryGame(); g.state.totalSold = g.service.served = 4; g.state.coins = 10000; g.state.buildings = [];
   g.service.version = 1; g.service.workers = [{ id: 1, job: { customerId: 1, item: 'bread', remaining: 1.2, x: 8, y: 2 } }];
   const coins = g.state.coins, loaded = new CafeFactoryGame(); assert.equal(loaded.restore(g.serialize()), true);
-  assert.equal(loaded.service.version, 3); assert.equal(loaded.service.workers[0].job.stage, 'deliver');
+  assert.equal(loaded.service.version, 4); assert.equal(loaded.service.workers[0].job.stage, 'deliver');
   for (let n = 0; n < 300; n++) loaded.update(.1); assert.equal(loaded.state.coins, coins + 6); assert.equal(loaded.service.served, 5);
   assert.equal(loaded.restore(loaded.serialize()), true); for (let n = 0; n < 100; n++) loaded.update(.1); assert.equal(loaded.state.coins, coins + 6);
 });
 test('blocking a carrying employee preserves the meal through save/restore and resumes after opening the path', () => {
-  const g = new CafeFactoryGame(); g.state.totalSold = g.service.served = 4; g.state.coins = 10000; g.shelves[0].goods = ['bread']; g.recruit();
+  const g = new CafeFactoryGame(); g.state.totalSold = g.service.served = 4; g.state.coins = 10000; g.expand(); g.shelves[0].goods = ['bread']; g.recruit();
   for (let n = 0; n < 200 && g.service.workers[0].job?.stage !== 'deliver'; n++) g.update(.1);
   assert.equal(g.service.workers[0].job.stage, 'deliver');
   for (const [x, y] of [[7, 3], [7, 4], [7, 5], [8, 5], [9, 5], [10, 5], [10, 4], [10, 3], [10, 2], [9, 2]]) assert.equal(g.place('belt', x, y).ok, true);

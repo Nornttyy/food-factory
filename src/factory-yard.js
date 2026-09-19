@@ -1,16 +1,17 @@
-import { CELL } from './factory-feel.js?v=0.16.0';
+import { CELL } from './factory-feel.js?v=0.17.0';
 
 // Map cells, never viewport pixels. Expansion moves the annex outward without
 // taking land or buildings away from an existing save.
-export const worldArea = area => [area[0] + 7, Math.max(11, area[1] + 2)];
-export function yardLayout(area) {
+// Legacy bounds are retained only for validating pre-compact saves.
+export const worldArea = (area, legacy = false) => [area[0] + (legacy ? 7 : 5), Math.max(legacy ? 11 : 9, area[1] + (legacy ? 2 : 1))];
+export function yardLayout(area, legacy = false) {
   const x = area[0];
   return {
-    x, y: 0, width: 7, height: worldArea(area)[1],
-    spots: [2.5, 4.5, 6.5].map(y => ({ x: x + 5.5, y, size: 1.45 })),
-    targets: [2.5, 4.5, 6.5].map(y => ({ x: x + 4.5, y })),
-    homes: [1.5, 2.5, 3.5].map(dx => ({ x: x + dx, y: 8.5 })),
-    hire: { x: x + 4.8, y: 8.7, width: 2.6, height: .8 },
+    x, y: 0, width: legacy ? 7 : 5, height: worldArea(area, legacy)[1],
+    spots: [2.5, 4.5, 6.5].map(y => ({ x: x + (legacy ? 5.5 : 3.5), y, size: 1.45 })),
+    targets: [2.5, 4.5, 6.5].map(y => ({ x: x + (legacy ? 4.5 : 2.5), y })),
+    homes: legacy ? [1.5, 2.5, 3.5].map(dx => ({ x: x + dx, y: 8.5 })) : Array.from({ length: 6 }, (_, i) => ({ x: x + .5 + i % 2, y: 5.5 + Math.floor(i / 2) })),
+    hire: { x: x + (legacy ? 4.8 : 3), y: legacy ? 8.7 : 7.7, width: 2.6, height: .8 },
   };
 }
 export function serviceHit(point, area) {
@@ -24,8 +25,8 @@ export function serviceHit(point, area) {
 
 // Four-direction walking on free cells and the public lane outside the factory.
 // Machines AND conveyors are obstacles. A sealed shelf cannot be auto-served.
-export function findPath(area, buildings, from, goals) {
-  const [width, height] = worldArea(area), blocked = buildings instanceof Set ? buildings : new Set(buildings.map(b => `${b.x},${b.y}`));
+export function findPath(area, buildings, from, goals, legacy = false) {
+  const [width, height] = worldArea(area, legacy), blocked = buildings instanceof Set ? buildings : new Set(buildings.map(b => `${b.x},${b.y}`));
   const key = p => `${Math.floor(p.x)},${Math.floor(p.y)}`;
   const free = (x, y) => x >= 0 && y >= 0 && x < width && y < height && !blocked.has(`${x},${y}`);
   const targets = new Set(goals.filter(p => free(Math.floor(p.x), Math.floor(p.y))).map(key));
@@ -68,11 +69,11 @@ export function drawYardGround(ctx, area, assets) {
   ctx.fillStyle = '#e6dfbf'; ctx.fillRect(area[0], 0, 1, height); ctx.fillRect(0, area[1], area[0] + 1, height - area[1]);
   ctx.strokeStyle = '#c6b89a'; ctx.lineWidth = .025;
   for (let y = 0; y < height; y++) { ctx.beginPath(); ctx.moveTo(area[0] + .08, y + .5); ctx.lineTo(area[0] + .92, y + .5); ctx.stroke(); }
-  ctx.fillStyle = '#81684f'; ctx.textAlign = 'center'; ctx.font = 'bold .28px system-ui'; ctx.fillText('猫猫营业区', yard.x + 4, 1.15);
+  ctx.fillStyle = '#81684f'; ctx.textAlign = 'center'; ctx.font = 'bold .28px system-ui'; ctx.fillText('猫猫营业区', yard.x + 2.8, .65);
   for (const spot of yard.spots) {
     ctx.fillStyle = '#d5dfbb'; ctx.beginPath(); ctx.ellipse(spot.x, spot.y + .05, .63, .25, 0, 0, Math.PI * 2); ctx.fill();
     assets.draw(ctx, 'serving_plate', spot.x - 1.45, spot.y - .05, .62, .28);
   }
-  ctx.font = '.19px system-ui'; ctx.fillStyle = '#887259'; ctx.fillText('员工招募处', yard.hire.x, 9.55);
+  ctx.font = '.19px system-ui'; ctx.fillStyle = '#887259'; ctx.fillText('员工招募处', yard.hire.x, yard.hire.y + .8);
   ctx.restore();
 }
