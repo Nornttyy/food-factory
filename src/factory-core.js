@@ -1,8 +1,9 @@
-import { LINK_DIRS, directionBetween, opposite, canLink, outputDirections } from './factory-links.js?v=0.19.0';
-import { RESEARCH, CAREER_CATALOG, freshCareer, contractFor, contractComplete, validCareer } from './factory-career.js?v=0.19.0';
-import { freshBusiness, validBusiness, warehouseCapacity, warehouseUsed, wholesaleFor, MILESTONES } from './factory-business.js?v=0.19.0';
-import { validShop, cookSeconds, STAFF, LEGACY_SHOP_PRICES } from './factory-shop.js?v=0.19.0';
-import { PACK_RECIPES, PACK_GOALS, PACK_FREEPLAY, validPackingTrial, ingredientsReady } from './factory-packing.js?v=0.19.0';
+import { LINK_DIRS, directionBetween, opposite, canLink, outputDirections } from './factory-links.js?v=0.20.0';
+import { RESEARCH, CAREER_CATALOG, freshCareer, contractFor, contractComplete, validCareer } from './factory-career.js?v=0.20.0';
+import { freshBusiness, validBusiness, warehouseCapacity, warehouseUsed, wholesaleFor, MILESTONES } from './factory-business.js?v=0.20.0';
+import { validShop, cookSeconds, STAFF, LEGACY_SHOP_PRICES } from './factory-shop.js?v=0.20.0';
+import { PACK_RECIPES, PACK_GOALS, PACK_FREEPLAY, validPackingTrial, ingredientsReady } from './factory-packing.js?v=0.20.0';
+import { freshCrafting, validCrafting, craftUnlocks, CRAFT_ITEM, startCraft, stampCraft, startFrying, advanceCraft, liftCraft, paintCraft, finishCraft } from './factory-crafting.js?v=0.20.0';
 export const SAVE_KEY = 'food-factory-v1';
 export const ORDER_CATALOG = 4;
 export const FLOW_VERSION = 2;
@@ -104,6 +105,7 @@ export class FactoryGame {
     this.state = { version: 1, flowVersion: FLOW_VERSION, coins: 450, expansion: 0, orderIndex: 0, orderProgress: {}, delivered: {}, stock: {}, buildings: [], nextId: 1, time: 0, tick: 0, paused: false, speed: 1, totalSold: 0 };
     this.state.career = freshCareer();
     this.state.business = freshBusiness();
+    this.state.crafting = freshCrafting();
     this.state.orderCatalog = ORDER_CATALOG;
     this.accumulator = 0;
     this.events = [];
@@ -112,6 +114,23 @@ export class FactoryGame {
   get area() { return AREAS[this.state.expansion]; }
   get order() { return this.state.packingTrial ? PACK_GOALS[this.state.packingTrial.goal] || PACK_FREEPLAY : orderFor(this.state.orderIndex, this.state.orderCatalog); }
   get unlockLevel() { return Math.min(2, this.state.orderIndex); }
+  isUnlocked(type) { return Object.hasOwn(BUILDINGS, type) && (BUILDINGS[type].unlock <= this.unlockLevel || craftUnlocks(this.state.crafting, type)); }
+  startCraft() { return startCraft(this.state.crafting); }
+  stampCraft(x, y) { return stampCraft(this.state.crafting, x, y); }
+  startFrying() { return startFrying(this.state.crafting); }
+  advanceCraft(dt) { return advanceCraft(this.state.crafting, dt); }
+  liftCraft() { return liftCraft(this.state.crafting); }
+  paintCraft(x, y) { return paintCraft(this.state.crafting, x, y); }
+  finishCraft() { return finishCraft(this.state.crafting); }
+  placeHandmade(id, x, y) {
+    const index = this.state.crafting.queue.findIndex(q => q.id === id), b = this.at(x, y);
+    if (index < 0 || !b || !this.inside(x, y) || (!isTransport(b) && b.type !== 'depot') || !this.canReceive(b, CRAFT_ITEM)) return { ok: false, message: '放到有空位的传送带或出货口上' };
+    if (b.type === 'depot') { b.input = CRAFT_ITEM; b.progress = 0; }
+    else if (!b.output) { b.output = CRAFT_ITEM; b.readyAt = this.state.time + this.duration(b); b.motion = undefined; }
+    else b.buffer = { item: CRAFT_ITEM, readyAt: Math.max(this.state.time + this.duration(b), b.readyAt + this.duration(b) / 2) };
+    this.state.crafting.queue.splice(index, 1); b.blocked = false;
+    return { ok: true, building: b };
+  }
   get expansionCost() { return EXPANSION_COSTS[this.state.expansion]; }
   get warehouseCapacity() { return warehouseCapacity(this.state.business); }
   get warehouseUsed() { return warehouseUsed(this.state.business); }
@@ -196,7 +215,7 @@ export class FactoryGame {
   place(type, x, y, dir = 0) {
     const def = BUILDINGS[type];
     if (!Object.hasOwn(BUILDINGS, type) || !Number.isInteger(dir) || dir < 0 || dir > 3) return { ok: false, message: '无效设备' };
-    if (def.unlock > this.unlockLevel) return { ok: false, message: '先完成工坊订单' };
+    if (!this.isUnlocked(type)) return { ok: false, message: '先完成工坊订单，或在制作台掌握甜甜圈' };
     if (!this.inside(x, y)) return { ok: false, message: '这片地还没有扩建' };
     if (this.at(x, y)) return { ok: false, message: '这里已经有设备啦' };
     const fromStock = (this.state.stock[type] || 0) > 0;
@@ -405,6 +424,8 @@ export class FactoryGame {
       if (!s || s.version !== 1 || !integer(s.coins) || !integer(s.expansion, AREAS.length - 1) || !integer(s.orderIndex, 100000) || !integer(s.totalSold) || !integer(s.nextId) || !integer(s.tick) || !nonnegative(s.time) || ![1, 2].includes(s.speed) || typeof s.paused !== 'boolean' || !Array.isArray(s.buildings) || s.buildings.length > WIDTH * HEIGHT) return false;
       if (s.career === undefined) s.career = freshCareer();
       if (s.business === undefined) s.business = freshBusiness();
+      if (s.crafting === undefined) s.crafting = freshCrafting();
+      if (!validCrafting(s.crafting)) return false;
       if (!validBusiness(s.business)) return false;
       // Finish the already accepted legacy order before switching to the new menu.
       if (s.orderCatalog === undefined) s.orderCatalog = 1;
@@ -434,7 +455,7 @@ export class FactoryGame {
         const previousDuration = def.duration ? duration / PRODUCTION_TIME_SCALE : (4 - s.career.research.transport) / 10;
         const progressLimit = legacyFlow ? previousDuration : duration;
         const travelLimit = legacyFlow ? 1 : Math.max(1, duration);
-        if (def.unlock > Math.min(s.orderIndex, 2) || !integer(b.id) || b.id >= s.nextId || !integer(b.x, w - 1) || !integer(b.y, h - 1) || !integer(b.dir, 3) || b.level < 1 || !integer(b.level, 3) || !integer(b.paid) || !nonnegative(b.progress) || b.progress > progressLimit + 0.1 || !nonnegative(b.readyAt) || b.readyAt > s.time + travelLimit + 1e-8 || !integer(b.roundRobin, 1)) return false;
+        if ((def.unlock > Math.min(s.orderIndex, 2) && !craftUnlocks(s.crafting, b.type)) || !integer(b.id) || b.id >= s.nextId || !integer(b.x, w - 1) || !integer(b.y, h - 1) || !integer(b.dir, 3) || b.level < 1 || !integer(b.level, 3) || !integer(b.paid) || !nonnegative(b.progress) || b.progress > progressLimit + 0.1 || !nonnegative(b.readyAt) || b.readyAt > s.time + travelLimit + 1e-8 || !integer(b.roundRobin, 1)) return false;
         if (ids.has(b.id) || cells.has(`${b.x},${b.y}`)) return false;
         if (b.input !== null && (typeof b.input !== 'string' || !(def.kind === 'machine' ? b.input === def.input : !legacyFlow && def.kind === 'depot' && Boolean(ITEMS[b.input]?.value)))) return false;
         if (def.kind === 'assembler') {

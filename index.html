@@ -25,10 +25,11 @@
     <link rel="canonical" href="https://nornttyy.github.io/food-factory/" />
     <link rel="icon" href="data:," />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./factory.css?v=0.19.0" />
-    <link rel="stylesheet" href="./factory-layout.css?v=0.19.0" />
-    <link rel="stylesheet" href="./factory-menu.css?v=0.19.0" />
-    <link rel="stylesheet" href="./factory-service.css?v=0.19.0" />
+    <link rel="stylesheet" href="./factory.css?v=0.20.0" />
+    <link rel="stylesheet" href="./factory-layout.css?v=0.20.0" />
+    <link rel="stylesheet" href="./factory-menu.css?v=0.20.0" />
+    <link rel="stylesheet" href="./factory-service.css?v=0.20.0" />
+    <link rel="stylesheet" href="./factory-crafting.css?v=0.20.0" />
   </head>
   <body class="menu-open">
     <section id="loading" class="loading" aria-labelledby="loading-title" aria-busy="true">
@@ -50,6 +51,7 @@
         <span class="section-label">一间属于你的美味工坊</span><h1>今天，开工啦。</h1>
         <p id="menu-summary" class="menu-summary">从第一份面包开始。</p>
         <button id="menu-play" class="primary-button menu-play" disabled>正在准备…</button>
+        <button id="menu-craft" class="menu-feature craft-feature" disabled><span>亲手做甜甜圈 →</span><small>压面圈 · 看火候 · 涂糖霜 · 解锁量产</small></button>
         <button id="menu-packing" class="menu-feature packing-feature" disabled><span>新玩法 · 套餐试营 →</span><small>双原料打包 · 三项目标 · 独立存档</small></button>
         <button id="menu-career" class="menu-feature" disabled><span>✦ 急单与研究</span><small id="menu-career-summary">挑战产能，解锁永久加成</small></button>
         <button id="menu-business" class="menu-feature business-feature" disabled><span>仓库与商店合作</span><small id="menu-business-summary">规划备货，经营你的美味品牌</small></button>
@@ -77,9 +79,10 @@
         </section>
         <div class="workshop">
           <div class="board-wrap"><canvas id="factory-board" width="1008" height="576" tabindex="0" aria-label="工坊画布，选择下方设备后点击空格建造">你的浏览器不支持 Canvas。</canvas><div id="pause-overlay" class="pause-overlay" hidden><button id="resume">▷ 已暂停 · 点击继续</button></div></div>
-          <div class="workshop-bar"><span id="factory-level">起步工坊</span><button id="expand" class="soft-button">＋ 扩建 · 350</button><button id="recipes-toggle" class="soft-button" aria-expanded="false" aria-controls="quick-recipe">配方 F</button><button id="career-toggle" class="soft-button career-toggle">✦ 急单与研究</button><button id="business-toggle" class="soft-button business-toggle">仓库与合作</button></div>
+          <div class="workshop-bar"><span id="factory-level">起步工坊</span><button id="craft-toggle" class="soft-button craft-toggle">甜甜圈制作台</button><button id="expand" class="soft-button">＋ 扩建 · 350</button><button id="recipes-toggle" class="soft-button" aria-expanded="false" aria-controls="quick-recipe">配方 F</button><button id="career-toggle" class="soft-button career-toggle">✦ 急单与研究</button><button id="business-toggle" class="soft-button business-toggle">仓库与合作</button></div>
           <div class="board-footer"><span id="selection-hint">选设备，点空格</span><span id="save-status">自动保存</span></div>
         </div>
+        <aside id="handmade-tray" class="handmade-tray" aria-label="手作成品托盘" hidden><span id="handmade-icon"></span><span id="handmade-count"></span><button id="handmade-place" class="soft-button" aria-pressed="false">放入产线</button></aside>
         <section id="quick-recipe" class="quick-recipe" aria-label="常驻配方速查，不暂停生产" hidden>
           <div class="quick-recipe-heading"><select id="quick-recipe-food" aria-label="选择查看的食品"></select><button id="close-quick-recipe" aria-label="收起配方">×</button></div>
           <div id="quick-recipe-chain" class="quick-recipe-chain"></div><small id="quick-recipe-note" class="quick-recipe-note">点机器直接建造 · 可边做边看</small>
@@ -129,8 +132,19 @@
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
     <dialog id="help-dialog"><button id="close-help" class="dialog-close" aria-label="关闭">×</button><span class="section-label">一间小工坊的开始</span><h2>接好产线，美味自己出发。</h2><p>原料 → 加工 → 传送带 → 出货口，自动售卖赚金币。</p><p>完成订单解锁新配方，升级机器、分流原料，搭出多条流水线。配方可以边做边看。</p><p>传送带每格放 2 件。出货口初始 2 秒出货一份，可升级至 1.5 秒、1 秒。切换「自动入库」可为商店合作备货；仓满停收，不丢货。</p><p class="muted">手机：空地滑动地图，双指缩放；建造时点空格，传送带可连续画。<br>电脑：滚轮缩放，✥ 拖地图；R 旋转，F 配方，空格暂停。<br>拆除设备会清空其中物品。进度只保存在当前浏览器。</p><button id="help-tutorial" class="soft-button">跟着练一次</button><button id="motion-toggle" class="soft-button" aria-pressed="false">Q 弹动效：开</button><button id="open-recipes" class="soft-button">查看配方</button><button id="help-done" class="primary-button">开始开工</button></dialog>
     <dialog id="recipe-dialog" class="recipe-dialog" aria-labelledby="recipe-title"><button id="close-recipes" class="dialog-close" aria-label="关闭配方">×</button><span class="section-label">工坊食谱</span><h2 id="recipe-title">八种美味，慢慢做好。</h2><p class="muted">机器可贴着连接；分流器能把面团送到不同支线。配方辅料由机器自带。</p><div id="recipe-list" class="recipe-list"></div></dialog>
+    <main id="craft-room" class="craft-room" aria-label="亲手制作甜甜圈" hidden>
+      <header class="craft-header"><button id="craft-back" class="soft-button">← 工坊</button><div><strong>甜甜圈制作台</strong><small id="craft-best">首次成功，解锁自动量产</small></div><button id="craft-pause" class="soft-button" aria-pressed="false">暂停</button></header>
+      <section class="craft-instructions"><h1 id="craft-stage">1 / 3 · 压面圈</h1><p id="craft-hint" role="status" aria-live="polite">把压模拖到面团中央</p></section>
+      <div class="craft-surface"><canvas id="craft-canvas" width="720" height="420" tabindex="0" aria-label="甜甜圈操作台：拖动压模，点击捞起，沿面圈涂糖霜；也可用下方按钮或空格操作"></canvas></div>
+      <footer class="craft-footer">
+        <div id="craft-heat" class="craft-heat" role="meter" aria-label="油炸火候，4 到 10 秒可以捞起，7 秒最佳" aria-valuemin="0" aria-valuemax="12" aria-valuenow="0" hidden><span>未熟</span><span>金黄</span><span>过火</span><i id="craft-heat-pointer"></i></div>
+        <small id="craft-coverage" class="craft-coverage" hidden>糖霜 0%</small>
+        <div class="craft-actions"><button id="craft-brush-step" class="soft-button" hidden>补一笔</button><button id="craft-primary" class="primary-button">压下面模</button><button id="craft-again" class="soft-button" hidden>再做一份</button><button id="craft-auto" class="soft-button" hidden>查看量产配方</button></div>
+        <small class="craft-note">研发不扣金币 · 离开制作台自动暂停</small>
+      </footer>
+    </main>
     <noscript><style>#loading{display:none}</style>需要启用 JavaScript 才能开始游戏。</noscript>
-    <script defer src="./src/factory-loading.js?v=0.19.0"></script>
-    <script id="factory-entry" type="module" src="./src/factory-main.js?v=0.19.0"></script>
+    <script defer src="./src/factory-loading.js?v=0.20.0"></script>
+    <script id="factory-entry" type="module" src="./src/factory-main.js?v=0.20.0"></script>
   </body>
 </html>

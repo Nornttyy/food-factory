@@ -1,23 +1,30 @@
-import { BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, WIDTH, HEIGHT, upgradeCost, isTransport, transportCount } from './factory-core.js?v=0.19.0';
-import { AutomaticFactoryGame as FactoryGame, createPackingTrial } from './factory-automation.js?v=0.19.0';
-import { PACKING_SAVE_KEY, PACK_RECIPES, PACK_GOALS, TRIAL_BUILDINGS, ingredientsReady } from './factory-packing.js?v=0.19.0';
-import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.19.0';
-import { directionBetween, nextBeltCell } from './factory-links.js?v=0.19.0';
-import { RESEARCH } from './factory-career.js?v=0.19.0';
-import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.19.0';
-import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS, WAREHOUSE_FOODS } from './factory-business.js?v=0.19.0';
+import { BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, WIDTH, HEIGHT, upgradeCost, isTransport, transportCount } from './factory-core.js?v=0.20.0';
+import { AutomaticFactoryGame as FactoryGame, createPackingTrial } from './factory-automation.js?v=0.20.0';
+import { PACKING_SAVE_KEY, PACK_RECIPES, PACK_GOALS, TRIAL_BUILDINGS, ingredientsReady } from './factory-packing.js?v=0.20.0';
+import { CraftingView } from './factory-crafting-view.js?v=0.20.0';
+import { CRAFT_ITEM, craftUnlocks } from './factory-crafting.js?v=0.20.0';
+import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.20.0';
+import { directionBetween, nextBeltCell } from './factory-links.js?v=0.20.0';
+import { RESEARCH } from './factory-career.js?v=0.20.0';
+import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.20.0';
+import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS, WAREHOUSE_FOODS } from './factory-business.js?v=0.20.0';
 
 const $ = selector => document.querySelector(selector);
 let game = new FactoryGame();
 let practice = null, tutorialSeen = false;
 let packingSession = null, packingGame = null, protectPackingSave = false;
 const allRecipes = [...FOOD_RECIPES, ...Object.entries(PACK_RECIPES).map(([item, recipe]) => [item, [recipe.machine]])];
-function visibleRecipes() { return game.state.packingTrial ? allRecipes.filter(([item]) => ['bread', 'donut_plain', 'orange_juice', ...Object.keys(PACK_RECIPES)].includes(item)) : allRecipes; }
+function visibleRecipes() { return game.state.packingTrial ? allRecipes.filter(([item]) => ['bread', 'donut_plain', 'orange_juice', ...Object.keys(PACK_RECIPES)].includes(item) || game.state.crafting.made > 0 && item === CRAFT_ITEM) : allRecipes; }
 try { tutorialSeen = localStorage.getItem(TUTORIAL_KEY) === 'seen'; } catch { /* Learning still works without storage. */ }
 const assets = new FactoryAssets();
 const canvas = $('#factory-board');
 const renderer = new FactoryRenderer(canvas, assets);
-const ui = { screen: 'menu', customerArea: false, recipeOpen: false, recipeItem: 'bread', careerTab: 'contracts', businessTab: 'trade', mapOpen: false, category: 'logistics', tool: 'select', dir: 0, selected: null, hover: null, dockOpen: false, ordersOpen: false, inspectorOpen: false, focus: false, reducedMotion: false };
+const craftingView = new CraftingView({ canvas: $('#craft-canvas'), assets, getGame: () => game,
+  onChange: result => { if (action(result, result?.first ? '掌握草莓甜甜圈，量产设备已解锁' : undefined)) { renderPalette(); renderRecipes(); } },
+  onBack: () => leaveCraft(true), onAutomate: () => { leaveCraft(); ui.recipeItem = CRAFT_ITEM; openQuickRecipe(); },
+  isPaused: () => ui.screen !== 'craft' || ui.craftPaused || document.hidden,
+});
+const ui = { screen: 'menu', craftPaused: false, handmadeId: null, customerArea: false, recipeOpen: false, recipeItem: 'bread', careerTab: 'contracts', businessTab: 'trade', mapOpen: false, category: 'logistics', tool: 'select', dir: 0, selected: null, hover: null, dockOpen: false, ordersOpen: false, inspectorOpen: false, focus: false, reducedMotion: false };
 const PREFERENCES_KEY = 'food-factory-preferences-v1', BACKUP_KEY = `${SAVE_KEY}-before-restart`;
 let hasSave = false, hasBackup = false, restartMode = 'new', explicitMotion = false;
 const motionQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)');
@@ -90,8 +97,8 @@ function renderPalette() {
   const palette = $('#palette'); palette.replaceChildren();
   for (const [type, def] of Object.entries(BUILDINGS)) {
     if (def.category !== ui.category) continue;
-    if (game.state.packingTrial && !TRIAL_BUILDINGS.includes(type)) continue;
-    const locked = def.unlock > game.unlockLevel;
+    if (game.state.packingTrial && !TRIAL_BUILDINGS.includes(type) && !craftUnlocks(game.state.crafting, type)) continue;
+    const locked = !game.isUnlocked(type);
     const button = document.createElement('button'); button.className = `build-card${ui.tool === type ? ' active' : ''}${locked ? ' locked' : ''}`;
     button.dataset.building = type; button.setAttribute('aria-pressed', String(ui.tool === type));
     button.disabled = Boolean(practice && type !== 'belt');
@@ -198,7 +205,7 @@ function renderUi(force = false) {
     }
   }
   const s = game.state, b = s.buildings.find(b => b.id === ui.selected);
-  const key = JSON.stringify([s.packingTrial, b?.ingredients, practice?.step, s.coins, s.orderIndex, s.orderProgress, s.totalSold, s.expansion, s.paused, s.speed, s.career, s.business, s.career.contract?.status === 'active' ? Math.ceil(s.time) : 0, ui.screen, ui.careerTab, ui.businessTab, ui.mapOpen, ui.tool, ui.selected, ui.dir, ui.dockOpen, ui.ordersOpen, ui.inspectorOpen, ui.focus, ui.reducedMotion, b?.mode, b?.level, b?.blocked, b?.input, b?.output, b?.buffer?.item]);
+  const key = JSON.stringify([s.crafting.made, s.crafting.queue, s.packingTrial, b?.ingredients, practice?.step, s.coins, s.orderIndex, s.orderProgress, s.totalSold, s.expansion, s.paused, s.speed, s.career, s.business, s.career.contract?.status === 'active' ? Math.ceil(s.time) : 0, ui.screen, ui.careerTab, ui.businessTab, ui.mapOpen, ui.tool, ui.selected, ui.dir, ui.dockOpen, ui.ordersOpen, ui.inspectorOpen, ui.focus, ui.reducedMotion, b?.mode, b?.level, b?.blocked, b?.input, b?.output, b?.buffer?.item]);
   if (!force && key === lastUi) return; lastUi = key;
   renderFront();
   $('#coins').textContent = s.coins.toLocaleString('zh-CN');
@@ -209,7 +216,7 @@ function renderUi(force = false) {
   $('#pause').textContent = s.paused ? '▷' : 'Ⅱ'; $('#pause').setAttribute('aria-label', s.paused ? '继续生产' : '暂停生产');
   $('#pause-overlay').hidden = !s.paused; $('#speed').textContent = `${s.speed}×`; $('#direction').textContent = DIRECTION_NAMES[ui.dir];
   $('#select-tool').classList.toggle('active', ui.tool === 'select'); $('#remove-tool').classList.toggle('active', ui.tool === 'remove');
-  $('#selection-hint').textContent = ui.tool === 'pan' ? '按住拖动 · 滚轮缩放' : ui.tool === 'remove' ? '点设备拆除 · 清空物品并退款' : BUILDINGS[ui.tool] ? `${BUILDINGS[ui.tool].label} · ${DIRECTION_NAMES[ui.dir]}${ui.tool === 'belt' ? ' · 按住拖着铺' : ' · 点空格摆放'}` : '点机器查看 · 下方建造';
+  $('#selection-hint').textContent = ui.tool === 'handmade' ? '点有空位的传送带或出货口，放入甜甜圈' : ui.tool === 'pan' ? '按住拖动 · 滚轮缩放' : ui.tool === 'remove' ? '点设备拆除 · 清空物品并退款' : BUILDINGS[ui.tool] ? `${BUILDINGS[ui.tool].label} · ${DIRECTION_NAMES[ui.dir]}${ui.tool === 'belt' ? ' · 按住拖着铺' : ' · 点空格摆放'}` : '点机器查看 · 下方建造';
   $('#factory-app').classList.toggle('dock-open', ui.dockOpen);
   $('#factory-app').classList.toggle('focus-mode', ui.focus);
   $('#factory-app').classList.toggle('reduced-motion', ui.reducedMotion);
@@ -235,6 +242,12 @@ function renderUi(force = false) {
   if (force || inspectorKey !== lastInspector) { renderInspector(); lastInspector = inspectorKey; }
   renderTutorial();
   renderPackingGoal();
+  const handmade = s.crafting.queue;
+  $('#handmade-tray').hidden = !handmade.length || ui.screen !== 'workshop' || ui.focus || Boolean(practice);
+  $('#handmade-count').textContent = `手作甜甜圈 ×${handmade.length}`;
+  $('#handmade-place').textContent = ui.tool === 'handmade' ? '已选中 · 点传送带放入' : '放入产线';
+  $('#handmade-place').setAttribute('aria-pressed', String(ui.tool === 'handmade'));
+  $('#craft-toggle').disabled = Boolean(practice);
   $('#minimap-panel').hidden = !ui.mapOpen || ui.screen !== 'workshop' || ui.focus || ui.inspectorOpen || ui.ordersOpen;
   $('#map-toggle').setAttribute('aria-expanded', String(ui.mapOpen));
   $('#map-area').textContent = `已开放 ${game.area.join('×')} / ${WIDTH}×${HEIGHT}`;
@@ -246,7 +259,7 @@ function renderRecipes() {
   for (const [item, chain] of visibleRecipes()) {
     const food = ITEMS[item], unlock = Math.max(...chain.map(type => BUILDINGS[type].unlock));
     const card = element('article', '', 'food-recipe'); card.dataset.food = item;
-    card.append(assets.icon(food.sprite), element('h3', food.label), element('small', `${food.value} 金币 / 份 · ${unlock > game.unlockLevel ? `第 ${unlock} 单后解锁` : '已解锁'}`));
+    card.append(assets.icon(food.sprite), element('h3', food.label), element('small', `${food.value} 金币 / 份 · ${chain.every(type => game.isUnlocked(type)) ? '已解锁' : `第 ${unlock} 单后解锁`}`));
     card.append(element('p', PACK_RECIPES[item] ? recipeLabel(BUILDINGS[PACK_RECIPES[item].machine]) : [...chain.map(type => BUILDINGS[type].label), '出货口'].join(' → ')));
     root.append(card);
   }
@@ -260,12 +273,12 @@ function renderQuickRecipe() {
   $('#quick-recipe').hidden = !ui.recipeOpen || ui.screen !== 'workshop' || ui.focus;
   $('#recipes-toggle').setAttribute('aria-expanded', String(ui.recipeOpen && !ui.focus));
   if (!ui.recipeOpen || !assets.ready) return;
-  const key = `${ui.recipeItem}:${game.unlockLevel}:${Boolean(practice)}:${Boolean(game.state.packingTrial)}`;
+  const key = `${ui.recipeItem}:${game.unlockLevel}:${game.state.crafting.made > 0}:${Boolean(practice)}:${Boolean(game.state.packingTrial)}`;
   if (key === quickKey) return; quickKey = key;
   const select = $('#quick-recipe-food'); select.replaceChildren();
   for (const [item, chain] of visibleRecipes()) {
     const unlock = Math.max(...chain.map(type => BUILDINGS[type].unlock));
-    const option = element('option', `${ITEMS[item].label}${unlock > game.unlockLevel ? ' · 未解锁' : ''}`); option.value = item; select.append(option);
+    const option = element('option', `${ITEMS[item].label}${chain.every(type => game.isUnlocked(type)) ? '' : ' · 未解锁'}`); option.value = item; select.append(option);
   }
   select.value = ui.recipeItem;
   const chain = allRecipes.find(([item]) => item === ui.recipeItem)?.[1] || FOOD_RECIPES[0][1], root = $('#quick-recipe-chain'); root.replaceChildren();
@@ -278,19 +291,19 @@ function renderQuickRecipe() {
   }
   [...chain, 'depot'].forEach((type, i) => {
     if (i) root.append(element('span', '→'));
-    const def = BUILDINGS[type], locked = def.unlock > game.unlockLevel, button = element('button', '');
+    const def = BUILDINGS[type], locked = !game.isUnlocked(type), button = element('button', '');
     button.type = 'button'; button.dataset.recipeBuilding = type; button.disabled = locked || Boolean(practice);
     button.setAttribute('aria-label', `${def.label}，${locked ? '完成订单解锁' : `选择建造，${def.cost}金币`}`);
     button.append(renderer.buildingIcon({ type, dir: ui.dir }, 32), document.createTextNode(def.label));
     button.addEventListener('click', () => {
-      if (practice || def.unlock > game.unlockLevel) return;
+      if (practice || !game.isUnlocked(type)) return;
       ui.category = def.category;
       document.querySelectorAll('[data-category]').forEach(b => b.classList.toggle('active', b.dataset.category === ui.category));
       chooseTool(type); canvas.focus({ preventScroll: true });
     }); root.append(button);
   });
   const unlock = Math.max(...chain.map(type => BUILDINGS[type].unlock));
-  $('#quick-recipe-note').textContent = unlock > game.unlockLevel ? `完成第 ${unlock} 单解锁 · 可先查看路线` : practice ? '练习中可查看 · 退出练习后可直接选机器' : '点机器直接建造 · 可边做边看';
+  $('#quick-recipe-note').textContent = !chain.every(type => game.isUnlocked(type)) ? `完成第 ${unlock} 单解锁 · 可先查看路线` : practice ? '练习中可查看 · 退出练习后可直接选机器' : '点机器直接建造 · 可边做边看';
 }
 function renderTutorial() {
   $('#tutorial-card').hidden = !practice || ui.screen !== 'workshop';
@@ -305,6 +318,25 @@ function renderTutorial() {
   $('#tutorial-exit').textContent = practice.step === 5 ? '进入我的工坊 →' : '跳过练习';
 }
 function resetEffects() { renderer.previous.clear(); renderer.pulses.clear(); renderer.particles = []; renderer.camera.fit(game.area); renderer.worldShown = false; }
+function openCraft() {
+  if (practice || !assets.ready) return;
+  finishDrag(); ui.craftPaused = false; ui.focus = false; ui.recipeOpen = false; ui.ordersOpen = false; ui.inspectorOpen = false; ui.handmadeId = null; ui.tool = 'select';
+  if (!packingSession) hasSave = true;
+  if (!game.state.crafting.batch) game.startCraft();
+  ui.screen = 'craft'; previousTime = performance.now(); save(); renderUi(true); craftingView.open();
+}
+function leaveCraft(withFood = false) {
+  craftingView.cancel(); ui.craftPaused = false; save(); enterWorkshop();
+  if (withFood && game.state.crafting.queue.length) selectHandmade();
+}
+function selectHandmade() {
+  if (practice || ui.screen !== 'workshop') return;
+  const food = game.state.crafting.queue[0];
+  if (!food) return;
+  ui.mapOpen = false;
+  chooseTool('handmade'); ui.handmadeId = food.id;
+  toast('点有空位的传送带或出货口');
+}
 function renderPackingGoal() {
   const trial = game.state.packingTrial, show = Boolean(trial && ui.screen === 'workshop' && !ui.focus && !ui.ordersOpen && !ui.inspectorOpen);
   $('#packing-goal').hidden = !show;
@@ -357,11 +389,12 @@ function leaveTutorial(toMenu = false) {
 }
 function renderFront() {
   const s = game.state, c = game.contract, menu = ui.screen === 'menu';
-  $('#main-menu').hidden = !menu; $('#factory-app').hidden = menu;
+  $('#main-menu').hidden = !menu; $('#factory-app').hidden = ui.screen !== 'workshop'; $('#craft-room').hidden = ui.screen !== 'craft';
   document.body?.classList.toggle('menu-open', menu); document.body?.classList.toggle('reduced-motion', ui.reducedMotion);
   $('#menu-play').disabled = !assets.ready; $('#menu-career').disabled = !assets.ready;
   $('#menu-tutorial').disabled = !assets.ready;
   $('#menu-packing').disabled = !assets.ready;
+  $('#menu-craft').disabled = !assets.ready;
   $('#menu-business').disabled = !assets.ready;
   $('#menu-business-summary').textContent = `${BUSINESS_RANKS[businessLevel(s.business.reputation)]} · ${game.warehouseUsed}/${game.warehouseCapacity} 份库存`;
   $('#business-toggle').textContent = `仓库与合作 ${game.warehouseUsed}/${game.warehouseCapacity}`;
@@ -514,6 +547,11 @@ function useCell(cell, paint = false) {
   if (ui.screen !== 'workshop' || document.querySelector('dialog[open]')) return false;
   if (!game.inside(cell.x, cell.y)) { if (!paint) toast('点上方扩建，解锁更多空地'); return false; }
   const b = game.at(cell.x, cell.y);
+  if (ui.tool === 'handmade') {
+    const result = game.placeHandmade(ui.handmadeId, cell.x, cell.y);
+    if (result.ok) { ui.handmadeId = null; ui.tool = 'select'; renderer.pulse(result.building.id, 'produce'); renderer.burst(cell.x, cell.y, 'place'); }
+    action(result, result.ok ? '已放入产线，等待实际出货' : undefined); return false;
+  }
   if (practice && ui.tool === 'belt' && (practice.step !== 1 || cell.x !== 6 || cell.y !== 2)) return false;
   if (ui.tool === 'remove') { if (b) removeBuilding(b); return Boolean(b); }
   if (ui.tool === 'pan') return false;
@@ -598,7 +636,7 @@ function finishDrag(event, complete = false) {
 canvas.addEventListener('pointerup', event => finishDrag(event, true));
 canvas.addEventListener('pointercancel', event => finishDrag(event));
 canvas.addEventListener('lostpointercapture', event => finishDrag(event));
-window.addEventListener('blur', () => { finishDrag(); touchPointers.clear(); blockedTouchGesture = false; pinch = null; });
+window.addEventListener('blur', () => { finishDrag(); touchPointers.clear(); blockedTouchGesture = false; pinch = null; if (ui.screen === 'craft') { craftingView.cancel(); ui.craftPaused = true; craftingView.info(); save(); } });
 // Capture all touch contacts, including contacts over HUD controls. A multi-touch
 // gesture cannot become a fresh paint stroke until every finger has been lifted.
 document.addEventListener('pointerdown', event => {
@@ -680,6 +718,11 @@ $('#motion-toggle').addEventListener('click', toggleMotion);
 $('#settings-motion').addEventListener('click', toggleMotion);
 $('#menu-play').addEventListener('click', () => !hasSave && !tutorialSeen && !protectOriginalSave ? startTutorial() : enterWorkshop());
 $('#menu-packing').addEventListener('click', startPacking);
+$('#menu-craft').addEventListener('click', openCraft);
+$('#craft-toggle').addEventListener('click', openCraft);
+$('#craft-back').addEventListener('click', () => leaveCraft());
+$('#craft-pause').addEventListener('click', () => { craftingView.cancel(); ui.craftPaused = !ui.craftPaused; previousTime = performance.now(); craftingView.info(); save(); });
+$('#handmade-place').addEventListener('click', selectHandmade);
 $('#packing-claim').addEventListener('click', () => action(game.claimOrder(), '套餐目标完成'));
 $('#packing-recipe').addEventListener('click', () => { ui.recipeItem = game.state.packingTrial?.goal === 0 ? 'breakfast_box' : 'tea_box'; openQuickRecipe(); });
 $('#menu-tutorial').addEventListener('click', startTutorial);
@@ -715,6 +758,10 @@ $('#help').addEventListener('click', () => $('#help-dialog').showModal());
 for (const selector of ['#close-help', '#help-done']) $(selector).addEventListener('click', () => $('#help-dialog').close());
 $('#close-recipes').addEventListener('click', () => $('#recipe-dialog').close());
 window.addEventListener('keydown', event => {
+  if (ui.screen === 'craft') {
+    if (event.key === 'Escape') { event.preventDefault(); leaveCraft(); }
+    return;
+  }
   if (ui.screen !== 'workshop') return;
   if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) || document.querySelector('dialog[open]')) return;
   if (ui.focus && event.key !== 'Escape') return;
@@ -731,12 +778,13 @@ window.addEventListener('keydown', event => {
   }
   if (event.key === 'Enter' && document.activeElement === canvas && ui.hover) { event.preventDefault(); useCell(ui.hover); }
 });
-document.addEventListener('visibilitychange', () => { if (document.hidden) { finishDrag(); save(); } previousTime = performance.now(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { finishDrag(); craftingView.cancel(); save(); } previousTime = performance.now(); });
 window.addEventListener('pagehide', save);
 let previousTime = performance.now(), previousSave = previousTime, previousUi = 0;
 function frame(now) {
   const dt = Math.min(.1, Math.max(0, (now - previousTime) / 1000)); previousTime = now;
   if (ui.screen === 'workshop' && !document.hidden && !document.querySelector('dialog[open]') && (!practice || (practice.step >= 2 && practice.step < 5))) game.update(dt);
+  if (ui.screen === 'craft') { if (!document.hidden) craftingView.step(dt); craftingView.draw(now, ui.reducedMotion); }
   if (ui.screen === 'workshop') { renderer.draw(game, ui, now); if (!$('#minimap-panel').hidden) renderer.drawMinimap($('#factory-minimap'), game); }
   $('#zoom-reset').textContent = `${Math.round(renderer.camera.zoom * 100)}%`;
   if (now - previousUi > 160) { renderUi(); previousUi = now; }
@@ -746,6 +794,7 @@ function frame(now) {
 try {
   await assets.load(undefined, (loaded, total) => window.factoryLoading?.progress(loaded, total));
   renderPalette(); renderRecipes(); renderUi(true);
+  $('#handmade-icon').append(assets.icon(CRAFT_ITEM, 38));
   window.factoryLoading?.complete();
   $('#loading').hidden = true; $('#main-menu').inert = false;
   save(); requestAnimationFrame(frame);
@@ -756,4 +805,4 @@ try {
   if (!window.factoryLoading) $('#loading-retry').addEventListener('click', () => window.location.reload());
   console.error(error);
 }
-export const runtime = { get game() { return game; }, get practice() { return practice; }, assets, renderer, ui };
+export const runtime = { get game() { return game; }, get practice() { return practice; }, assets, renderer, craftingView, ui };

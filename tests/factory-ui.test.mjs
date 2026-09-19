@@ -481,6 +481,70 @@ test('factory entry loads generated atlases and wires construction, production, 
     assert.equal(protectedPackage.game.state.packingTrial, undefined);
     assert.equal(storage.get('food-factory-packing-v1'), '{broken-package');
     assert.equal(storage.get('food-factory-v1'), originalStorage); failStorageKey = null;
+    // Hands-on cooking is a real scene with physical input, persistent progress,
+    // no direct payout, and a tray that feeds the ordinary conveyor simulation.
+    storage.set('food-factory-v1', new FactoryGame().serialize());
+    const { runtime: cooking } = await import(`../src/factory-main.js?cooking=${Date.now()}`);
+    nodes.get('menu-craft').click();
+    assert.equal(cooking.ui.screen, 'craft'); assert.equal(nodes.get('craft-room').hidden, false);
+    assert.equal(nodes.get('factory-app').hidden, true); assert.equal(document.querySelector('dialog[open]'), undefined);
+    const view = cooking.craftingView, craftCanvas = nodes.get('craft-canvas');
+    const craftPoint = (x, y) => ({ clientX: view.transform.x + x * view.transform.scale, clientY: view.transform.y + y * view.transform.scale });
+    const craftEvent = (x, y, id = 301) => ({ button: 0, pointerId: id, pointerType: 'touch', preventDefault() {}, ...craftPoint(x, y) });
+    const l = view.layout;
+    craftCanvas.listeners.pointerdown(craftEvent(l.cutter.x, l.cutter.y));
+    craftCanvas.listeners.pointermove(craftEvent(l.x, l.y));
+    craftCanvas.listeners.pointerup(craftEvent(l.x, l.y));
+    assert.equal(cooking.game.state.crafting.batch.stage, 'fry_ready'); assert.equal(cooking.game.state.crafting.batch.shape, 100);
+    view.draw(performance.now()); nodes.get('craft-primary').click(); assert.equal(cooking.game.state.crafting.batch.stage, 'frying');
+    nodes.get('craft-pause').click(); for (let i = 0; i < 20; i++) view.step(.1);
+    assert.equal(cooking.game.state.crafting.batch.heat, 0); nodes.get('craft-pause').click();
+    for (let i = 0; i < 30; i++) view.step(.1);
+    windowListeners.blur(); assert.equal(cooking.ui.craftPaused, true); view.step(.1); assert.equal(cooking.game.state.crafting.batch.heat, 3);
+    nodes.get('craft-back').click(); assert.equal(cooking.ui.screen, 'workshop');
+    assert.equal(JSON.parse(storage.get('food-factory-v1')).crafting.batch.heat, 3);
+    nodes.get('craft-toggle').click(); assert.equal(cooking.game.state.crafting.batch.heat, 3);
+    document.hidden = true; view.step(.1); assert.equal(cooking.game.state.crafting.batch.heat, 3); document.hidden = false;
+    for (let i = 0; i < 40; i++) view.step(.1);
+    view.draw(performance.now()); nodes.get('craft-primary').click(); assert.equal(cooking.game.state.crafting.batch.stage, 'glaze');
+    // A continuous touch stroke paints separate portions of the icing ring.
+    const ring = a => craftEvent(l.x + Math.cos(a) * l.radius * .75, l.y + Math.sin(a) * l.radius * .75 * .8);
+    craftCanvas.listeners.pointerdown(ring(.01));
+    for (let i = 1; i <= 60; i++) craftCanvas.listeners.pointermove(ring(i / 60 * Math.PI * 2));
+    craftCanvas.listeners.pointerup(ring(.01));
+    view.draw(performance.now()); assert.equal(cooking.game.state.crafting.batch.mask, 4095); nodes.get('craft-primary').click();
+    assert.equal(cooking.game.state.crafting.made, 1); assert.equal(cooking.game.state.crafting.best, 100);
+    assert.equal(cooking.game.state.coins, 450); assert.equal(cooking.game.state.time, 0); assert.equal(cooking.game.isUnlocked('icing_machine'), true);
+    view.draw(performance.now()); nodes.get('craft-primary').click();
+    assert.equal(cooking.ui.screen, 'workshop'); assert.equal(cooking.ui.tool, 'handmade'); assert.equal(nodes.get('handmade-tray').hidden, false);
+    const foodDrop = (x, y) => {
+      const t = cooking.renderer.transform;
+      nodes.get('factory-board').listeners.pointerdown({ button: 0, pointerId: 305, preventDefault() {}, clientX: t.x + (x + .5) * 72 * t.scale, clientY: t.y + (y + .5) * 72 * t.scale }); nodes.get('factory-board').listeners.pointerup();
+    };
+    foodDrop(0, 0); assert.equal(cooking.game.state.crafting.queue.length, 1);
+    foodDrop(7, 2); assert.equal(cooking.game.state.crafting.queue.length, 0); assert.equal(cooking.game.at(7, 2).output, 'donut_strawberry');
+    assert.equal(cooking.game.state.coins, 450); for (let i = 0; i < 50; i++) cooking.game.update(.1);
+    assert.equal(cooking.game.state.delivered.donut_strawberry, 1); assert.equal(cooking.game.state.coins, 463);
+    nodes.get('craft-toggle').click(); nodes.get('craft-auto').click();
+    assert.equal(cooking.ui.screen, 'workshop'); assert.equal(nodes.get('quick-recipe').hidden, false);
+    const icingRecipe = nodes.get('quick-recipe-chain').children.find(b => b.dataset?.recipeBuilding === 'icing_machine');
+    assert.equal(icingRecipe.disabled, false); icingRecipe.click(); assert.equal(cooking.ui.tool, 'icing_machine');
+    nodes.get('menu-home').click();
+    const { runtime: cookingReload } = await import(`../src/factory-main.js?cooking-reload=${Date.now()}`);
+    assert.equal(cookingReload.game.state.crafting.made, 1); assert.equal(cookingReload.game.state.crafting.best, 100);
+    nodes.get('menu-craft').click(); cookingReload.craftingView.info(); nodes.get('craft-again').click();
+    viewport = { width: 390, height: 510 }; cookingReload.craftingView.open();
+    const mobileView = cookingReload.craftingView, ml = mobileView.layout, mt = mobileView.transform;
+    const mobilePoint = p => ({ button: 0, pointerId: 310, pointerType: 'touch', preventDefault() {}, clientX: mt.x + p.x * mt.scale, clientY: mt.y + p.y * mt.scale });
+    craftCanvas.listeners.pointerdown(mobilePoint(ml.cutter)); craftCanvas.listeners.pointerup(mobilePoint(ml.cutter)); craftCanvas.listeners.lostpointercapture();
+    assert.equal(mobileView.cutterSelected, true, 'tap-to-select remains active after implicit pointer capture release');
+    craftCanvas.listeners.pointerdown(mobilePoint({ x: ml.x, y: ml.y })); craftCanvas.listeners.pointerup(mobilePoint({ x: ml.x, y: ml.y }));
+    assert.equal(cookingReload.game.state.crafting.batch.stage, 'fry_ready'); mobileView.draw(performance.now());
+    craftCanvas.listeners.keydown({ key: ' ', repeat: false, preventDefault() {} }); assert.equal(cookingReload.game.state.crafting.batch.stage, 'frying');
+    for (let i = 0; i < 70; i++) mobileView.step(.1); craftCanvas.listeners.keydown({ key: 'Enter', repeat: false, preventDefault() {} });
+    for (let i = 0; i < 12; i++) craftCanvas.listeners.keydown({ key: ' ', repeat: false, preventDefault() {} });
+    mobileView.info(); nodes.get('craft-primary').click(); assert.equal(cookingReload.game.state.crafting.made, 2);
+    nodes.get('craft-back').click(); nodes.get('menu-home').click();
   } finally {
     for (const [name, descriptor] of savedGlobals) { if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name]; }
   }
