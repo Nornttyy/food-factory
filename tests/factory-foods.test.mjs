@@ -61,8 +61,8 @@ test('legacy active main orders keep their exact requirements until claimed', ()
     const wallet = loaded.state.coins;
     assert.equal(loaded.claimOrder().reward, definition.reward);
     assert.equal(loaded.state.coins, wallet + definition.reward);
-    assert.equal(loaded.state.orderCatalog, 2);
-    assert.deepEqual(loaded.order, orderFor(index + 1, 2));
+    assert.equal(loaded.state.orderCatalog, 4);
+    assert.deepEqual(loaded.order, orderFor(index + 1, 4));
     assert.equal(new FactoryGame().restore(loaded.serialize()), true);
   }
 });
@@ -70,13 +70,13 @@ test('legacy active main orders keep their exact requirements until claimed', ()
 test('new food orders cover the expanded menu with bounded repeat demands', () => {
   const seen = new Set();
   for (let index = 0; index < 1000; index++) {
-    const order = orderFor(index, 2);
-    assert.ok(order.reward > 0 && order.reward <= 2400);
+    const order = orderFor(index, 4);
+    assert.ok(order.reward > 0 && order.reward <= 600);
     for (const [food, n] of Object.entries(order.wants)) { assert.ok(ITEMS[food].value); assert.ok(n > 0 && n <= 80); seen.add(food); }
   }
   assert.equal(seen.size, 8);
   const game = new FactoryGame(), before = game.serialize();
-  for (const bad of [0, 4, '2', null]) { const saved = JSON.parse(before); saved.orderCatalog = bad; assert.equal(game.restore(JSON.stringify(saved)), false); assert.equal(game.serialize(), before); }
+  for (const bad of [0, 5, '2', null]) { const saved = JSON.parse(before); saved.orderCatalog = bad; assert.equal(game.restore(JSON.stringify(saved)), false); assert.equal(game.serialize(), before); }
 });
 
 test('practice teaches actual connected production, upgrades and claiming without touching another game', () => {

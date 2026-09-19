@@ -1,10 +1,10 @@
-import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.10.1';
-import { CELL, FactoryCamera, jellyPose, foodPose } from './factory-feel.js?v=0.10.1';
-import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.10.1';
+import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.10.2';
+import { CELL, FactoryCamera, jellyPose, foodPose } from './factory-feel.js?v=0.10.2';
+import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.10.2';
 export class FactoryAssets {
   constructor() { this.images = {}; this.sprites = {}; this.ready = false; }
   async load(base = './assets/generated/factory/cream-v1/') {
-    const response = await fetch(base + 'manifest.json?v=0.10.1');
+    const response = await fetch(base + 'manifest.json?v=0.10.2');
     if (!response.ok) throw new Error('素材清单读取失败');
     const manifest = await response.json();
     this.sprites = Object.fromEntries(manifest.sprites.map(sprite => [sprite.id, sprite]));

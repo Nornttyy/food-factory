@@ -1,6 +1,7 @@
 // Read-only compatibility definitions for validating v0.10 storefront saves.
 // No player, staff or customer simulation runs in the restored factory game.
 export const COUNTER_CAPACITY = 24;
+export const LEGACY_SHOP_PRICES = { bread: 12, butter_cookie: 16, donut_plain: 18, donut_strawberry: 26, steamed_bun: 18, orange_juice: 20, strawberry_cake: 32, orange_icepop: 34 };
 export const SHOP_RECIPES = {
   bread: { seconds: 3, unlock: 0 }, butter_cookie: { seconds: 4, unlock: 0 },
   donut_plain: { seconds: 4, unlock: 1 }, donut_strawberry: { seconds: 5, unlock: 1 },

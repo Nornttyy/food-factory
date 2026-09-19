@@ -1,8 +1,9 @@
-import { LINK_DIRS, directionBetween, opposite, canLink, outputDirections } from './factory-links.js?v=0.10.1';
-import { RESEARCH, freshCareer, contractFor, contractComplete, validCareer } from './factory-career.js?v=0.10.1';
-import { freshBusiness, validBusiness, warehouseCapacity, warehouseUsed, wholesaleFor, MILESTONES } from './factory-business.js?v=0.10.1';
-import { validShop, cookSeconds, STAFF } from './factory-shop.js?v=0.10.1';
+import { LINK_DIRS, directionBetween, opposite, canLink, outputDirections } from './factory-links.js?v=0.10.2';
+import { RESEARCH, CAREER_CATALOG, freshCareer, contractFor, contractComplete, validCareer } from './factory-career.js?v=0.10.2';
+import { freshBusiness, validBusiness, warehouseCapacity, warehouseUsed, wholesaleFor, MILESTONES } from './factory-business.js?v=0.10.2';
+import { validShop, cookSeconds, STAFF, LEGACY_SHOP_PRICES } from './factory-shop.js?v=0.10.2';
 export const SAVE_KEY = 'food-factory-v1';
+export const ORDER_CATALOG = 4;
 export const WIDTH = 40;
 export const HEIGHT = 24;
 export const AREAS = [[14, 8], [18, 10], [22, 12], [28, 16], [34, 20], [40, 24]];
@@ -14,14 +15,14 @@ export const ITEMS = {
   flour: { label: '面粉', sprite: 'flour' }, dough: { label: '面团', sprite: 'dough' },
   raw_donut: { label: '生面圈', sprite: 'raw_donut' }, orange: { label: '橙子', sprite: 'orange' },
   clean_orange: { label: '洗净橙子', sprite: 'orange' },
-  bread: { label: '面包', sprite: 'bread', value: 12 },
-  donut_plain: { label: '原味甜甜圈', sprite: 'donut_plain', value: 18 },
-  donut_strawberry: { label: '草莓甜甜圈', sprite: 'donut_strawberry', value: 26 },
-  orange_juice: { label: '橙汁', sprite: 'orange_juice', value: 20 },
-  butter_cookie: { label: '奶油饼干', sprite: 'butter_cookie', value: 16 },
-  steamed_bun: { label: '奶香包', sprite: 'steamed_bun', value: 18 },
-  strawberry_cake: { label: '草莓蛋糕', sprite: 'strawberry_cake', value: 32 },
-  orange_icepop: { label: '橙汁冰棒', sprite: 'orange_icepop', value: 34 },
+  bread: { label: '面包', sprite: 'bread', value: 6 },
+  donut_plain: { label: '原味甜甜圈', sprite: 'donut_plain', value: 9 },
+  donut_strawberry: { label: '草莓甜甜圈', sprite: 'donut_strawberry', value: 13 },
+  orange_juice: { label: '橙汁', sprite: 'orange_juice', value: 10 },
+  butter_cookie: { label: '奶油饼干', sprite: 'butter_cookie', value: 8 },
+  steamed_bun: { label: '奶香包', sprite: 'steamed_bun', value: 9 },
+  strawberry_cake: { label: '草莓蛋糕', sprite: 'strawberry_cake', value: 16 },
+  orange_icepop: { label: '橙汁冰棒', sprite: 'orange_icepop', value: 17 },
 };
 export const BUILDINGS = {
   belt: { label: '传送带', sprite: 'belt_straight', category: 'logistics', cost: 8, unlock: 0, kind: 'belt' },
@@ -65,6 +66,8 @@ const NEW_FOOD_ORDERS = [
   { title: '清凉一夏', wants: { orange_icepop: 8, orange_juice: 6 }, reward: 800, note: '给果汁分流，一半冷冻成冰棒' },
 ];
 export function orderFor(index, catalog = 1) {
+  // Catalogs 1–3 retain accepted historical orders; new orders use slower earnings.
+  if (catalog === ORDER_CATALOG) { const order = orderFor(index, 2); return { ...order, reward: Math.round(order.reward * .25) }; }
   // An already accepted cat-era order keeps its reward until it is claimed.
   if (catalog === 3) { const order = orderFor(index, 2); return { ...order, reward: Math.round(order.reward / 10) }; }
   if (index < ORDER_LIST.length) return structuredClone(ORDER_LIST[index]);
@@ -92,7 +95,7 @@ export class FactoryGame {
     this.state = { version: 1, coins: 450, expansion: 0, orderIndex: 0, orderProgress: {}, delivered: {}, stock: {}, buildings: [], nextId: 1, time: 0, tick: 0, paused: false, speed: 1, totalSold: 0 };
     this.state.career = freshCareer();
     this.state.business = freshBusiness();
-    this.state.orderCatalog = 2;
+    this.state.orderCatalog = ORDER_CATALOG;
     this.accumulator = 0;
     this.events = [];
     if (starter) ['flour_hopper', 'belt', 'dough_mixer', 'belt', 'bread_oven', 'belt', 'belt', 'depot'].forEach((type, i) => this.state.buildings.push({ ...makeEntity(type, i + 1, 2, 0, this.state.nextId++), gifted: true }));
@@ -146,7 +149,7 @@ export class FactoryGame {
     const current = this.state.career.contract;
     if (!Number.isInteger(slot) || slot < 0 || slot > 2 || (current && current.status !== 'expired')) return { ok: false, message: '先完成或放弃当前急单' };
     const def = this.offers[slot];
-    this.state.career.catalog = 1;
+    this.state.career.catalog = CAREER_CATALOG;
     this.state.career.contract = { tier: def.tier, round: def.round, slot, status: 'active', startedAt: this.state.time, deadline: this.state.time + def.duration, progress: {} };
     return { ok: true };
   }
@@ -240,7 +243,7 @@ export class FactoryGame {
   claimOrder() {
     if (!this.orderReady) return { ok: false, message: '美味还在路上' };
     const reward = this.order.reward;
-    this.state.coins += reward; this.state.orderIndex++; this.state.orderProgress = {}; this.state.orderCatalog = 2;
+    this.state.coins += reward; this.state.orderIndex++; this.state.orderProgress = {}; this.state.orderCatalog = ORDER_CATALOG;
     return { ok: true, reward };
   }
   deliver(item, b) {
@@ -346,7 +349,7 @@ export class FactoryGame {
       if (!validBusiness(s.business)) return false;
       // Finish the already accepted legacy order before switching to the new menu.
       if (s.orderCatalog === undefined) s.orderCatalog = 1;
-      if (![1, 2, 3].includes(s.orderCatalog)) return false;
+      if (![1, 2, 3, ORDER_CATALOG].includes(s.orderCatalog)) return false;
       if (s.shop !== undefined && !validShop(s.shop, s)) return false;
       if (!validCareer(s.career, s)) return false;
       if (s.business.claimed.some(id => { const goal = MILESTONES.find(goal => goal.id === id); return goal.progress(s) < goal.target; })) return false;
@@ -377,7 +380,8 @@ export class FactoryGame {
       if (Object.entries(gifts).some(([type, n]) => n > (giftLimits[type] || 0))) return false;
       if (s.shop) {
         const shop = s.shop;
-        const price = item => Math.round(ITEMS[item].value * (1 + s.career.research.value * .1));
+        // Keep the v0.10.1 one-time rollback compensation, independent of future prices.
+        const price = item => Math.round(LEGACY_SHOP_PRICES[item] * (1 + s.career.research.value * .1));
         let credit = Object.entries(shop.counter).reduce((sum, [item, count]) => sum + price(item) * count, 0);
         for (const [role, a] of [['player', shop.player], ...Object.entries(shop.staff)]) if (a) {
           if (role !== 'player') credit += STAFF[role].cost;

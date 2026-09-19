@@ -14,12 +14,12 @@ const roundTrip = game => {
 };
 const run = (game, seconds) => { for (let n = 0; n < seconds * 10; n++) game.update(.1); };
 
-test('classic defaults restore automatic production, original prices and starter kit', () => {
+test('classic gameplay keeps automatic production and starter kit with balanced future income', () => {
   const g = new FactoryGame();
   assert.equal(g.state.coins, 450); assert.equal(g.state.buildings.length, 8);
-  assert.equal(g.state.shop, undefined); assert.equal(g.order.reward, 380);
+  assert.equal(g.state.shop, undefined); assert.equal(g.order.reward, 95);
   assert.deepEqual(['belt', 'splitter', 'merger', 'depot'].map(k => BUILDINGS[k].cost), [8, 35, 25, 60]);
-  assert.equal(ITEMS.bread.value, 12); run(g, 30);
+  assert.equal(ITEMS.bread.value, 6); run(g, 30);
   assert.ok(g.state.totalSold >= 4); assert.equal(g.orderReady, true);
 });
 test('zero-coin cat save becomes a working free starter factory only once', () => {
@@ -73,11 +73,11 @@ test('only fully cooked blocked work is credited, with pause and timing preserve
   const cook = fixture('working'); cook.shop.staff.cook.task = { kind: 'cook', item: 'bread' }; cook.shop.staff.cook.work = 3 * 1.6;
   assert.equal(restore(cook).state.coins, 1108);
 });
-test('accepted cat main order keeps its reward and following orders use classic economics', () => {
+test('accepted cat main order keeps its reward and following orders use balanced economics', () => {
   const g = restore(fixture('fresh')); g.state.orderProgress = { bread: 4 };
   assert.equal(g.order.reward, 38); const wallet = g.state.coins;
   assert.equal(g.claimOrder().ok, true); assert.equal(g.state.coins, wallet + 38);
-  assert.equal(g.state.orderCatalog, 2); assert.equal(g.order.reward, 420);
+  assert.equal(g.state.orderCatalog, 4); assert.equal(g.order.reward, 105);
   assert.equal(g.claimOrder().ok, false); roundTrip(g);
 });
 test('active, ready and expired cat rush contracts retain their original terms', () => {
@@ -92,7 +92,7 @@ test('active, ready and expired cat rush contracts retain their original terms',
       assert.equal(g.state.coins, wallet + 30); assert.equal(g.claimContract().ok, false);
     } else if (status === 'active') assert.equal(g.cancelContract().ok, true);
     assert.equal(g.acceptContract(0).ok, true);
-    assert.equal(g.state.career.catalog, 1); assert.equal(g.contract.duration, 60); assert.equal(g.contract.reward, 120);
+    assert.equal(g.state.career.catalog, 3); assert.equal(g.contract.duration, 60); assert.equal(g.contract.reward, 30);
     roundTrip(g);
   }
 });
@@ -100,7 +100,7 @@ test('invalid cat data or excessive historic payments cannot replace a live fact
   const live = new FactoryGame(), before = live.serialize();
   for (const mutate of [s => s.shop.counter.bread = 25, s => s.shop.staff.cook.work = 100,
     s => s.shop.player.holding = 'orange_icepop', s => s.shop.customers[0].id = 99,
-    s => s.shop.legacy = 'yes', s => s.stock.belt = 5, s => s.career.catalog = 3]) {
+    s => s.shop.legacy = 'yes', s => s.stock.belt = 5, s => s.career.catalog = 4]) {
     const s = fixture('working'); mutate(s);
     assert.equal(live.restore(JSON.stringify(s)), false); assert.equal(live.serialize(), before);
   }

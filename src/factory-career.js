@@ -3,7 +3,8 @@ export const RESEARCH = {
   transport: { title: '轻快运输', icon: 'belt_straight', detail: '每格运输时间 -0.1 秒 / 级' },
   value: { title: '精品包装', icon: 'pastry_box', detail: '成品售价 +10% / 级' },
 };
-export function freshCareer() { return { points: 0, completed: 0, research: { production: 0, transport: 0, value: 0 }, contract: null }; }
+export const CAREER_CATALOG = 3;
+export function freshCareer() { return { catalog: CAREER_CATALOG, points: 0, completed: 0, research: { production: 0, transport: 0, value: 0 }, contract: null }; }
 const CONTRACTS = [
   [
     ['街角早餐', '轻松热身', { bread: 6 }, 60, 120],
@@ -21,19 +22,19 @@ const CONTRACTS = [
     ['野餐大作战', '三线协作', { bread: 14, donut_strawberry: 12, orange_juice: 12 }, 110, 850],
   ],
 ];
-export function contractFor(tier, round, slot, catalog = 1) {
+export function contractFor(tier, round, slot, catalog = CAREER_CATALOG) {
   const [title, tag, wants, duration, reward] = CONTRACTS[tier][slot];
   const growth = Math.min(10, Math.floor(round / 3));
-  return { tier, round, slot, title, tag, wants: Object.fromEntries(Object.entries(wants).map(([item, n]) => [item, Math.min(80, Math.ceil(n * (1 + growth * .12)))])), duration: duration * (catalog === 2 ? 2 : 1), reward: Math.round((reward + growth * 60) * (catalog === 2 ? .25 : 1)), points: slot + 1 };
+  return { tier, round, slot, title, tag, wants: Object.fromEntries(Object.entries(wants).map(([item, n]) => [item, Math.min(80, Math.ceil(n * (1 + growth * .12)))])), duration: duration * (catalog === 2 ? 2 : 1), reward: Math.round((reward + growth * 60) * (catalog === 1 ? 1 : .25)), points: slot + 1 };
 }
-export function contractComplete(contract, catalog = 1) {
+export function contractComplete(contract, catalog = CAREER_CATALOG) {
   const def = contractFor(contract.tier, contract.round, contract.slot, catalog);
   return Object.entries(def.wants).every(([item, count]) => (contract.progress[item] || 0) >= count);
 }
 export function validCareer(career, state) {
   const integer = (n, max = 1e12) => Number.isSafeInteger(n) && n >= 0 && n <= max;
   if (!career || !integer(career.points) || !integer(career.completed, 100000) || !career.research || Object.keys(career.research).length !== 3 || !Object.keys(RESEARCH).every(key => integer(career.research[key], 3))) return false;
-  if (career.catalog !== undefined && ![1, 2].includes(career.catalog)) return false;
+  if (career.catalog !== undefined && ![1, 2, CAREER_CATALOG].includes(career.catalog)) return false;
   const c = career.contract;
   if (c === null) return true;
   const fields = ['tier', 'round', 'slot', 'status', 'startedAt', 'deadline', 'progress'];

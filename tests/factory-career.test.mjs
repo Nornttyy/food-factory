@@ -37,7 +37,7 @@ test('claiming a completed contract rewards once, including after save and reloa
   const game = new FactoryGame(); game.acceptContract(0); sell(game, 'bread', 6);
   const ready = new FactoryGame(); assert.equal(ready.restore(game.serialize()), true);
   const before = ready.state.coins; assert.equal(ready.claimContract().ok, true);
-  assert.equal(ready.state.coins, before + 120); assert.equal(ready.state.career.points, 1); assert.equal(ready.state.career.completed, 1);
+  assert.equal(ready.state.coins, before + 30); assert.equal(ready.state.career.points, 1); assert.equal(ready.state.career.completed, 1);
   assert.equal(ready.claimContract().ok, false);
   const saved = new FactoryGame(); assert.equal(saved.restore(ready.serialize()), true); assert.equal(saved.claimContract().ok, false);
   assert.equal(saved.state.career.points, 1);
@@ -120,5 +120,5 @@ test('saved contract fields cannot override trusted rewards, wants or research p
   }
   Object.assign(game.state.career.contract, { reward: 'broken', points: .5 });
   const wallet = game.state.coins; assert.equal(game.claimContract().ok, true);
-  assert.equal(game.state.coins, wallet + 120); assert.equal(game.state.career.points, 1);
+  assert.equal(game.state.coins, wallet + 30); assert.equal(game.state.career.points, 1);
 });

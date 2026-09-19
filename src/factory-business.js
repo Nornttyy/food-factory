@@ -21,16 +21,16 @@ const WHOLESALE = [
 export function wholesaleFor(tier, round, slot, reputation) {
   const [title, wants] = WHOLESALE[tier][slot], factor = 1 + Math.min(5, Math.floor(round / 3)) * .2;
   return { id: `1:${tier}:${round}:${slot}`, slot, title, wants: Object.fromEntries(Object.entries(wants).map(([item, n]) => [item, Math.ceil(n * factor)])),
-    multiplier: 1.5 + slot * .15 + businessLevel(reputation) * .05, reputation: slot + 1 };
+    multiplier: 1.15 + slot * .1 + businessLevel(reputation) * .025, reputation: slot + 1 };
 }
 const shippedTypes = state => SALE_FOODS.filter(item => (state.business.shipped[item] || 0) > 0).length;
 export const MILESTONES = [
-  { id: 'first_dispatch', title: '第一位合作伙伴', detail: '完成 1 次合作发货', target: 1, progress: s => s.business.shipments, coins: 150, points: 1 },
-  { id: 'mixed_menu', title: '不止一种美味', detail: '累计向商店发货 4 种食品', target: 4, progress: shippedTypes, coins: 300, points: 2 },
-  { id: 'trusted', title: '回头客越来越多', detail: '获得 10 点合作声望', target: 10, progress: s => s.business.reputation, coins: 450, points: 2 },
-  { id: 'full_menu', title: '全菜单开工', detail: '8 种食品各累计发货 6 份', target: 8, progress: s => SALE_FOODS.filter(item => (s.business.shipped[item] || 0) >= 6).length, coins: 800, points: 3 },
-  { id: 'factory_network', title: '流水线大家族', detail: '完成 10 次合作发货，并扩建到 34×20', target: 2, progress: s => Number(s.business.shipments >= 10) + Number(s.expansion >= 4), coins: 1000, points: 3 },
-  { id: 'master', title: '忙而不乱的店长', detail: '完成 8 张工坊订单、3 次急单，并向商店发货全部 8 种食品', target: 3, progress: s => Number(s.orderIndex >= 8) + Number(s.career.completed >= 3) + Number(shippedTypes(s) === 8), coins: 1400, points: 4 },
+  { id: 'first_dispatch', title: '第一位合作伙伴', detail: '完成 1 次合作发货', target: 1, progress: s => s.business.shipments, coins: 75, points: 1 },
+  { id: 'mixed_menu', title: '不止一种美味', detail: '累计向商店发货 4 种食品', target: 4, progress: shippedTypes, coins: 150, points: 2 },
+  { id: 'trusted', title: '回头客越来越多', detail: '获得 10 点合作声望', target: 10, progress: s => s.business.reputation, coins: 225, points: 2 },
+  { id: 'full_menu', title: '全菜单开工', detail: '8 种食品各累计发货 6 份', target: 8, progress: s => SALE_FOODS.filter(item => (s.business.shipped[item] || 0) >= 6).length, coins: 400, points: 3 },
+  { id: 'factory_network', title: '流水线大家族', detail: '完成 10 次合作发货，并扩建到 34×20', target: 2, progress: s => Number(s.business.shipments >= 10) + Number(s.expansion >= 4), coins: 500, points: 3 },
+  { id: 'master', title: '忙而不乱的店长', detail: '完成 8 张工坊订单、3 次急单，并向商店发货全部 8 种食品', target: 3, progress: s => Number(s.orderIndex >= 8) + Number(s.career.completed >= 3) + Number(shippedTypes(s) === 8), coins: 700, points: 4 },
 ];
 export function validBusiness(business) {
   const integer = (n, max = 1e12) => Number.isSafeInteger(n) && n >= 0 && n <= max;

@@ -1,9 +1,9 @@
-import { FactoryGame, BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, AREAS, WIDTH, HEIGHT, upgradeCost } from './factory-core.js?v=0.10.1';
-import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.10.1';
-import { directionBetween, nextBeltCell } from './factory-links.js?v=0.10.1';
-import { RESEARCH } from './factory-career.js?v=0.10.1';
-import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.10.1';
-import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS } from './factory-business.js?v=0.10.1';
+import { FactoryGame, BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, AREAS, WIDTH, HEIGHT, upgradeCost } from './factory-core.js?v=0.10.2';
+import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.10.2';
+import { directionBetween, nextBeltCell } from './factory-links.js?v=0.10.2';
+import { RESEARCH } from './factory-career.js?v=0.10.2';
+import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.10.2';
+import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS } from './factory-business.js?v=0.10.2';
 
 const $ = selector => document.querySelector(selector);
 let game = new FactoryGame();

@@ -11,7 +11,7 @@ test('starter makes bread, sells once and completes the first order without inpu
   assert.ok(g.state.delivered.bread >= 4); assert.equal(g.orderReady, true);
   assert.equal(g.state.coins, 450 + g.state.delivered.bread * ITEMS.bread.value);
   const before = g.state.coins; assert.equal(g.claimOrder().ok, true);
-  assert.equal(g.state.coins, before + 380); assert.equal(g.unlockLevel, 1);
+  assert.equal(g.state.coins, before + 95); assert.equal(g.unlockLevel, 1);
   assert.equal(g.claimOrder().ok, false); assert.deepEqual(g.state.orderProgress, {});
 });
 test('placement guards funds, bounds, directions, overlap and unlocks without mutation', () => {
