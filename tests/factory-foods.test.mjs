@@ -91,15 +91,12 @@ test('practice teaches actual connected production, upgrades and claiming withou
   assert.equal(nextLesson(1, game, 'belt'), 1, 'wrong direction must not complete the lesson');
   game.at(6, 2).dir = 0;
   assert.equal(nextLesson(1, game, 'belt'), 2);
-  simulate(game, 20); assert.equal(nextLesson(2, game, 'select'), 2, 'shelving is not serving');
-  assert.equal(game.serveFromShelf(game.at(8, 2).id, 'bread', game.service.customers[0].id).ok, true);
+  simulate(game, 17); assert.equal(nextLesson(2, game, 'select'), 2, 'the first item must finish its two-second dispatch cycle');
+  simulate(game, 3);
   assert.equal(nextLesson(2, game, 'select'), 3);
   assert.equal(nextLesson(3, game, 'select'), 3); game.upgrade(game.at(5, 2).id);
   assert.equal(nextLesson(3, game, 'select'), 4);
-  for (let i = 0; i < 200; i++) {
-    game.update(.1);
-    for (const c of game.service.customers) if (!c.cooldown && game.findShelf(c.want)) game.serveFromShelf(game.findShelf(c.want).id, c.want, c.id);
-  }
+  for (let i = 0; i < 200; i++) game.update(.1);
   assert.equal(game.claimOrder().ok, true);
   assert.equal(nextLesson(4, game, 'select'), 5); assert.equal(nextLesson(5, game, 'select'), 5);
   assert.equal(LESSONS.length, 6); assert.equal(real.serialize(), before);

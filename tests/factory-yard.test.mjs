@@ -104,7 +104,7 @@ test('world animation does not repeatedly measure DOM or write gameplay saves', 
 test('the independent customer viewport and portrait blocker are removed, recipes stay nonmodal', async () => {
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8'), css = await readFile(new URL('../factory-service.css', import.meta.url), 'utf8');
   assert.doesNotMatch(html, /service-area|service-yard|orientation-hint|portrait-continue/); assert.doesNotMatch(css, /service-width|service-scene|customer-spot/);
-  assert.match(html, /<section id="quick-recipe"/); for (const id of ['factory-jump', 'service-jump', 'staff-jump']) assert.ok(html.includes(`id="${id}"`));
+  assert.match(html, /<section id="quick-recipe"/); for (const id of ['factory-jump', 'service-jump', 'staff-jump']) assert.ok(!html.includes(`id="${id}"`), 'live automatic mode has no customer or recruitment controls');
   assert.match(css, /min-height:44px/); assert.match(css, /safe-area-inset/);
   assert.match(css, /top:calc\(max\(8px,env\(safe-area-inset-top\)\) \+ 104px\)/);
   assert.match(css, /bottom:calc\(max\(9px,env\(safe-area-inset-bottom\)\) \+ 73px\)/);

@@ -1,7 +1,7 @@
-import { LINK_DIRS, directionBetween, opposite, canLink, outputDirections } from './factory-links.js?v=0.17.0';
-import { RESEARCH, CAREER_CATALOG, freshCareer, contractFor, contractComplete, validCareer } from './factory-career.js?v=0.17.0';
-import { freshBusiness, validBusiness, warehouseCapacity, warehouseUsed, wholesaleFor, MILESTONES } from './factory-business.js?v=0.17.0';
-import { validShop, cookSeconds, STAFF, LEGACY_SHOP_PRICES } from './factory-shop.js?v=0.17.0';
+import { LINK_DIRS, directionBetween, opposite, canLink, outputDirections } from './factory-links.js?v=0.18.0';
+import { RESEARCH, CAREER_CATALOG, freshCareer, contractFor, contractComplete, validCareer } from './factory-career.js?v=0.18.0';
+import { freshBusiness, validBusiness, warehouseCapacity, warehouseUsed, wholesaleFor, MILESTONES } from './factory-business.js?v=0.18.0';
+import { validShop, cookSeconds, STAFF, LEGACY_SHOP_PRICES } from './factory-shop.js?v=0.18.0';
 export const SAVE_KEY = 'food-factory-v1';
 export const ORDER_CATALOG = 4;
 export const FLOW_VERSION = 2;
@@ -31,7 +31,7 @@ export const BUILDINGS = {
   belt: { label: '传送带', sprite: 'belt_straight', category: 'logistics', cost: 8, unlock: 0, kind: 'belt' },
   splitter: { label: '分流器', sprite: 'belt_splitter', category: 'logistics', cost: 35, unlock: 0, kind: 'splitter' },
   merger: { label: '合流器', sprite: 'belt_merger', category: 'logistics', cost: 25, unlock: 0, kind: 'belt' },
-  depot: { label: '货物架', sprite: 'serving_shelf', category: 'logistics', cost: 60, unlock: 0, kind: 'depot' },
+  depot: { label: '出货口', sprite: 'dispatch_counter', category: 'logistics', cost: 60, unlock: 0, kind: 'depot' },
   dough_mixer: { label: '和面机', sprite: 'dough_mixer', category: 'machines', cost: 100, unlock: 0, kind: 'machine', input: 'flour', output: 'dough', duration: 2.4 },
   bread_oven: { label: '烤箱', sprite: 'bread_oven', category: 'machines', cost: 140, unlock: 0, kind: 'machine', input: 'dough', output: 'bread', duration: 3.2 },
   ring_former: { label: '成型机', sprite: 'ring_former', category: 'machines', cost: 110, unlock: 1, kind: 'machine', input: 'dough', output: 'raw_donut', duration: 2.4 },
@@ -284,8 +284,8 @@ export class FactoryGame {
     if (def.kind === 'machine') return !target.input && def.input === item;
     return transportCount(target) < 2;
   }
-  // Historical factory semantics remain available for validating old saves.
-  // The live customer factory overrides this hook: shelving never earns money.
+  // Automatic dispatch powers the live factory. Archived cafe saves use an
+  // override only while being validated for migration.
   dispatch(b) {
     if (b.mode === 'store') {
       if (this.warehouseUsed >= this.warehouseCapacity) return false;

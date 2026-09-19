@@ -1,22 +1,19 @@
-import { BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, WIDTH, HEIGHT, upgradeCost, isTransport, transportCount } from './factory-core.js?v=0.17.0';
-import { CafeFactoryGame as FactoryGame, shelfCapacity } from './factory-service.js?v=0.17.0';
-import { ServiceView } from './factory-service-view.js?v=0.17.0';
-import { yardLayout } from './factory-yard.js?v=0.17.0';
-import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.17.0';
-import { directionBetween, nextBeltCell } from './factory-links.js?v=0.17.0';
-import { RESEARCH } from './factory-career.js?v=0.17.0';
-import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.17.0';
-import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS } from './factory-business.js?v=0.17.0';
+import { BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, WIDTH, HEIGHT, upgradeCost, isTransport, transportCount } from './factory-core.js?v=0.18.0';
+import { AutomaticFactoryGame as FactoryGame } from './factory-automation.js?v=0.18.0';
+import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.18.0';
+import { directionBetween, nextBeltCell } from './factory-links.js?v=0.18.0';
+import { RESEARCH } from './factory-career.js?v=0.18.0';
+import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.18.0';
+import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS } from './factory-business.js?v=0.18.0';
 
 const $ = selector => document.querySelector(selector);
 let game = new FactoryGame();
 let practice = null, tutorialSeen = false;
-let serviceView = null;
 try { tutorialSeen = localStorage.getItem(TUTORIAL_KEY) === 'seen'; } catch { /* Learning still works without storage. */ }
 const assets = new FactoryAssets();
 const canvas = $('#factory-board');
 const renderer = new FactoryRenderer(canvas, assets);
-const ui = { screen: 'menu', customerArea: true, recipeOpen: false, recipeItem: 'bread', careerTab: 'contracts', businessTab: 'trade', mapOpen: false, category: 'logistics', tool: 'select', dir: 0, selected: null, hover: null, dockOpen: false, ordersOpen: false, inspectorOpen: false, focus: false, reducedMotion: false };
+const ui = { screen: 'menu', customerArea: false, recipeOpen: false, recipeItem: 'bread', careerTab: 'contracts', businessTab: 'trade', mapOpen: false, category: 'logistics', tool: 'select', dir: 0, selected: null, hover: null, dockOpen: false, ordersOpen: false, inspectorOpen: false, focus: false, reducedMotion: false };
 const PREFERENCES_KEY = 'food-factory-preferences-v1', BACKUP_KEY = `${SAVE_KEY}-before-restart`;
 let hasSave = false, hasBackup = false, restartMode = 'new', explicitMotion = false;
 const motionQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)');
@@ -55,20 +52,8 @@ try {
   if (stored && game.restore(stored)) {
     hasSave = true;
     const previous = JSON.parse(stored);
-    if (previous.service?.version !== 4) {
-      try { localStorage.setItem(`${SAVE_KEY}-before-compact-map`, stored); }
-      catch { protectOriginalSave = true; toast('原存档已保留，本次试玩暂不保存'); }
-    }
-    if (previous.service?.version === 1) {
-      try { localStorage.setItem(`${SAVE_KEY}-before-world-service`, stored); }
-      catch { protectOriginalSave = true; toast('原存档已保留，本次试玩暂不保存'); }
-    }
-    if ([1, 2].includes(previous.service?.version)) {
-      try { localStorage.setItem(`${SAVE_KEY}-before-free-roam`, stored); }
-      catch { protectOriginalSave = true; toast('原存档已保留，本次试玩暂不保存'); }
-    }
-    if (previous.service === undefined) {
-      try { localStorage.setItem(`${SAVE_KEY}-before-customer-counter`, stored); }
+    if (previous.automationVersion === undefined) {
+      try { localStorage.setItem(`${SAVE_KEY}-before-auto-dispatch`, stored); }
       catch { protectOriginalSave = true; toast('原存档已保留，本次试玩暂不保存'); }
     }
     if (previous.flowVersion === undefined) {
@@ -125,7 +110,7 @@ function renderOrder() {
   }
   const reward = document.createElement('div'); reward.className = 'reward-line'; reward.innerHTML = `<span>订单奖励</span><strong>+ ${order.reward} 金币</strong>`;
   const claim = document.createElement('button'); claim.id = 'claim-order'; claim.className = 'primary-button'; claim.disabled = !game.orderReady;
-  claim.textContent = game.orderReady ? '交付完成 · 领取奖励' : '等待猫猫收餐';
+  claim.textContent = game.orderReady ? '交付完成 · 领取奖励' : '等待产线出货';
   claim.addEventListener('click', () => {
     const result = game.claimOrder();
     if (result.ok) { ui.ordersOpen = false; for (const b of game.state.buildings) if (b.type === 'depot') { renderer.pulse(b.id, 'upgrade'); renderer.burst(b.x, b.y, 'upgrade'); } }
@@ -137,7 +122,7 @@ function renderOrder() {
 function recipeLabel(def) {
   if (def.kind === 'source') return `持续供应 ${ITEMS[def.output].label}`;
   if (def.kind === 'machine') return `${ITEMS[def.input].label} → ${ITEMS[def.output].label}`;
-  if (def.kind === 'depot') return '成品上架 · 拖给猫猫才结算';
+  if (def.kind === 'depot') return '自动售卖成品，也可切换自动入库';
   if (def.kind === 'splitter') return '向前 / 顺时针侧口轮流出货';
   return '沿箭头方向运送物品';
 }
@@ -148,26 +133,25 @@ function renderInspector() {
   if (!def) {
     $('#inspector-title').textContent = '工坊手记';
     const p = document.createElement('p'); p.className = 'muted';
-    p.textContent = game.unlockLevel === 0 ? '面粉 → 和面 → 烘烤 → 上架' : game.unlockLevel === 1 ? '面团 → 成型 → 油炸 → 淋酱' : '橙子 → 清洗 → 榨汁 → 上架'; root.append(p);
-    const stats = document.createElement('div'); stats.className = 'stat-row'; stats.innerHTML = `<span>累计送餐</span><strong>${game.state.totalSold} 份</strong>`; root.append(stats);
+    p.textContent = game.unlockLevel === 0 ? '面粉 → 和面 → 烘烤 → 出货' : game.unlockLevel === 1 ? '面团 → 成型 → 油炸 → 淋酱' : '橙子 → 清洗 → 榨汁 → 出货'; root.append(p);
+    const stats = document.createElement('div'); stats.className = 'stat-row'; stats.innerHTML = `<span>累计售出</span><strong>${game.state.totalSold} 份</strong>`; root.append(stats);
     const recipe = document.createElement('button'); recipe.className = 'recipe-button'; recipe.textContent = '查看配方 ↗'; recipe.addEventListener('click', () => openQuickRecipe()); root.append(recipe); return;
   }
   $('#inspector-title').textContent = b ? `${def.label} · Lv.${b.level}` : def.label;
   const icon = renderer.buildingIcon(b || { type: ui.tool, dir: ui.dir }, 64, b ? game : null); icon.className = 'inspector-art'; root.append(icon);
   const info = document.createElement('p'); info.className = 'machine-info';
-  const status = b ? (b.type === 'depot' && b.goods?.length >= shelfCapacity(b) ? '货架已满' : b.blocked ? '出口堵住了' : b.type === 'depot' ? (b.input ? '正在上架' : '等待成品') : b.output ? '等待运出' : b.input || def.kind === 'source' ? '正在生产' : '等待原料') : `${def.cost} 金币 / 台`;
+  const status = b ? (b.blocked ? b.type === 'depot' && b.mode === 'store' ? '合作仓库已满' : '出口堵住了' : b.type === 'depot' ? (b.input ? '正在出货' : '等待成品') : b.output ? '等待运出' : b.input || def.kind === 'source' ? '正在生产' : '等待原料') : `${def.cost} 金币 / 台`;
   info.textContent = recipeLabel(def); info.append(document.createElement('br'));
   info.append(document.createTextNode(b ? (isTransport(b) ? `${game.duration(b).toFixed(1)} 秒 / 格 · ${transportCount(b)}/2 件 · ${status}` : `${game.duration(b).toFixed(1)} 秒 / 份 · ${status}`) : `${def.cost} 金币 · 点空格摆放`)); root.append(info);
   if (b) {
     const actions = document.createElement('div'); actions.className = 'inspector-actions';
     if (b.type === 'depot') {
-      root.append(element('p', `架上 ${b.goods?.length || 0}/${shelfCapacity(b)} 份 · 点货架拿取，再送给地图中的猫猫`, 'tiny-note'));
-      const store = element('button', '移入合作仓库', 'soft-button'); store.id = 'shelf-store'; store.disabled = Boolean(practice) || !b.goods?.length;
-      store.addEventListener('click', () => action(game.storeShelf(b.id), '已移入仓库，不计送餐收益'));
-      root.append(store);
+      const mode = element('button', b.mode === 'store' ? '入库中 · 切换自动售卖' : '售卖中 · 切换自动入库', 'soft-button'); mode.id = 'depot-mode'; mode.disabled = Boolean(practice);
+      mode.addEventListener('click', () => action(game.setDepotMode(b.id, b.mode === 'store' ? 'sell' : 'store'), b.mode === 'store' ? '已改为自动入库' : '已改为自动售卖'));
+      root.append(mode, element('p', b.mode === 'store' ? '自动存入合作仓库，仓满后停收，不丢货。' : '自动售卖并推进订单、急单，无需手动配送。', 'tiny-note'));
     }
     if (def.duration || b.type === 'depot') {
-      const up = document.createElement('button'); up.id = 'upgrade-building'; up.textContent = b.level >= 3 ? '已满级' : b.type === 'depot' ? `扩至 ${shelfCapacity({ ...b, level: b.level + 1 })} 份 · ${upgradeCost(b)}` : `升级 · ${upgradeCost(b)}`; up.disabled = b.level >= 3;
+      const up = document.createElement('button'); up.id = 'upgrade-building'; up.textContent = b.level >= 3 ? '已满级' : b.type === 'depot' ? `提速至 ${[2, 1.5, 1][b.level]} 秒/份 · ${upgradeCost(b)}` : `升级 · ${upgradeCost(b)}`; up.disabled = b.level >= 3;
       up.disabled ||= Boolean(practice && (practice.step !== 3 || b.type !== 'bread_oven'));
       up.classList.toggle('tutorial-highlight', Boolean(practice?.step === 3 && b.type === 'bread_oven'));
       up.addEventListener('click', () => { const result = game.upgrade(b.id); if (action(result, '设备升级完成')) { renderer.pulse(b.id, 'upgrade'); renderer.burst(b.x, b.y, 'upgrade'); } }); actions.append(up);
@@ -180,7 +164,6 @@ function renderInspector() {
   }
 }
 function renderUi(force = false) {
-  serviceView?.render();
   renderQuickRecipe();
   if (practice) {
     const next = nextLesson(practice.step, game, ui.tool);
@@ -192,7 +175,7 @@ function renderUi(force = false) {
     }
   }
   const s = game.state, b = s.buildings.find(b => b.id === ui.selected);
-  const key = JSON.stringify([practice?.step, s.coins, s.orderIndex, s.orderProgress, s.totalSold, s.expansion, s.paused, s.speed, s.career, s.business, s.career.contract?.status === 'active' ? Math.ceil(s.time) : 0, ui.screen, ui.careerTab, ui.businessTab, ui.mapOpen, ui.tool, ui.selected, ui.dir, ui.dockOpen, ui.ordersOpen, ui.inspectorOpen, ui.focus, ui.reducedMotion, b?.goods, b?.level, b?.blocked, b?.input, b?.output, b?.buffer?.item]);
+  const key = JSON.stringify([practice?.step, s.coins, s.orderIndex, s.orderProgress, s.totalSold, s.expansion, s.paused, s.speed, s.career, s.business, s.career.contract?.status === 'active' ? Math.ceil(s.time) : 0, ui.screen, ui.careerTab, ui.businessTab, ui.mapOpen, ui.tool, ui.selected, ui.dir, ui.dockOpen, ui.ordersOpen, ui.inspectorOpen, ui.focus, ui.reducedMotion, b?.mode, b?.level, b?.blocked, b?.input, b?.output, b?.buffer?.item]);
   if (!force && key === lastUi) return; lastUi = key;
   renderFront();
   $('#coins').textContent = s.coins.toLocaleString('zh-CN');
@@ -225,7 +208,7 @@ function renderUi(force = false) {
   $('#motion-toggle').setAttribute('aria-pressed', String(ui.reducedMotion));
   const orderKey = JSON.stringify([s.orderIndex, s.orderProgress]);
   if (force || orderKey !== lastOrder) { renderOrder(); lastOrder = orderKey; }
-  const inspectorKey = JSON.stringify([ui.tool, ui.selected, s.orderIndex, s.totalSold, s.career.research, b?.goods, game.warehouseUsed, game.warehouseCapacity, b?.level, b?.paid, b?.blocked, b?.input, b?.output, b?.buffer?.item]);
+  const inspectorKey = JSON.stringify([ui.tool, ui.selected, s.orderIndex, s.totalSold, s.career.research, b?.mode, game.warehouseUsed, game.warehouseCapacity, b?.level, b?.paid, b?.blocked, b?.input, b?.output, b?.buffer?.item]);
   if (force || inspectorKey !== lastInspector) { renderInspector(); lastInspector = inspectorKey; }
   renderTutorial();
   $('#minimap-panel').hidden = !ui.mapOpen || ui.screen !== 'workshop' || ui.focus || ui.inspectorOpen || ui.ordersOpen;
@@ -240,7 +223,7 @@ function renderRecipes() {
     const food = ITEMS[item], unlock = Math.max(...chain.map(type => BUILDINGS[type].unlock));
     const card = element('article', '', 'food-recipe'); card.dataset.food = item;
     card.append(assets.icon(food.sprite), element('h3', food.label), element('small', `${food.value} 金币 / 份 · ${unlock > game.unlockLevel ? `第 ${unlock} 单后解锁` : '已解锁'}`));
-    card.append(element('p', [...chain.map(type => BUILDINGS[type].label), '货物架'].join(' → ')));
+    card.append(element('p', [...chain.map(type => BUILDINGS[type].label), '出货口'].join(' → ')));
     root.append(card);
   }
 }
@@ -367,7 +350,7 @@ function locateDepot() {
   if (practice) return;
   $('#business-dialog').close(); enterWorkshop();
   const b = game.state.buildings.find(b => b.type === 'depot');
-  if (!b) { toast('先在运输分类放一座货物架'); return; }
+  if (!b) { toast('先在运输分类放一座出货口'); return; }
   chooseTool('select'); ui.selected = b.id; ui.inspectorOpen = true; ui.hover = null;
   renderer.camera.zoom = 1; renderer.camera.centerOn(b.x + .5, b.y + .5); renderer.resize(game.area, ui); renderUi(true);
 }
@@ -467,7 +450,7 @@ function useCell(cell, paint = false) {
   if (ui.tool === 'pan') return false;
   if (ui.tool === 'belt' && b) {
     ui.inspectorOpen = false; ui.selected = null;
-    if (b.type === 'depot') { if (!paint) toast('货物架没有出口，请把传送带接到它'); return false; }
+    if (b.type === 'depot') { if (!paint) toast('出货口没有出口，请把传送带接到它'); return false; }
     return true;
   }
   if (ui.tool === 'select') { ui.selected = b?.id ?? null; ui.inspectorOpen = Boolean(b); ui.ordersOpen = false; if (b) renderer.pulse(b.id); renderUi(true); return false; }
@@ -482,7 +465,6 @@ canvas.addEventListener('pointerdown', event => {
   if (event.pointerType === 'touch' && blockedTouchGesture) return;
   if (activePointer !== null) { finishDrag(); return; }
   if (![0, 1].includes(event.button) || !assets.ready) return;
-  if (!ui.focus && ui.tool === 'select' && serviceView?.startMap(event)) { ui.inspectorOpen = false; ui.selected = null; renderUi(true); return; }
   activePointer = event.pointerId;
   event.preventDefault(); canvas.focus({ preventScroll: true }); canvas.setPointerCapture(event.pointerId);
   lastPointer = { x: event.clientX, y: event.clientY };
@@ -497,7 +479,6 @@ canvas.addEventListener('pointerdown', event => {
 canvas.addEventListener('pointermove', event => {
   if (ui.screen !== 'workshop' || document.querySelector('dialog[open]')) return;
   if (blockedTouchGesture) return;
-  if (serviceView?.move(event)) return;
   if (activePointer !== null && event.pointerId !== activePointer) return;
   lastPointer = { x: event.clientX, y: event.clientY };
   if (panning && panPoint) { renderer.pan(event.clientX - panPoint.x, event.clientY - panPoint.y); panPoint = lastPointer; ui.hover = null; return; }
@@ -545,16 +526,16 @@ function finishDrag(event, complete = false) {
   activePointer = null; pendingTouch = null; touchOrigin = null; panning = false; panPoint = null; canvas.dataset.panning = 'false';
   dragging = false; lastCell = null; dragError = '';
 }
-canvas.addEventListener('pointerup', event => { if (!serviceView?.end(event)) finishDrag(event, true); });
-canvas.addEventListener('pointercancel', event => { serviceView?.cancel(); finishDrag(event); });
-canvas.addEventListener('lostpointercapture', event => { if (serviceView?.drag?.id === event.pointerId) serviceView.cancel(); finishDrag(event); });
+canvas.addEventListener('pointerup', event => finishDrag(event, true));
+canvas.addEventListener('pointercancel', event => finishDrag(event));
+canvas.addEventListener('lostpointercapture', event => finishDrag(event));
 window.addEventListener('blur', () => { finishDrag(); touchPointers.clear(); blockedTouchGesture = false; pinch = null; });
 // Capture all touch contacts, including contacts over HUD controls. A multi-touch
 // gesture cannot become a fresh paint stroke until every finger has been lifted.
 document.addEventListener('pointerdown', event => {
   if (event.pointerType !== 'touch') return;
   touchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY, board: event.target === canvas });
-  if (touchPointers.size > 1) { blockedTouchGesture = true; finishDrag(); serviceView?.cancel(); pinch = pinchPoints(); }
+  if (touchPointers.size > 1) { blockedTouchGesture = true; finishDrag(); pinch = pinchPoints(); }
 }, true);
 function pinchPoints() {
   const points = [...touchPointers.values()];
@@ -604,17 +585,6 @@ function refreshHover() { if (lastPointer) ui.hover = renderer.cellAt(lastPointe
 $('#zoom-in').addEventListener('click', () => { finishDrag(); renderer.zoom(1.2); refreshHover(); });
 $('#zoom-out').addEventListener('click', () => { finishDrag(); renderer.zoom(1 / 1.2); refreshHover(); });
 $('#zoom-reset').addEventListener('click', () => { finishDrag(); renderer.camera.fit(game.area); renderer.resize(game.area, ui); refreshHover(); });
-function visitYard(staff = false) {
-  finishDrag(); ui.tool = 'select'; ui.focus = false; ui.inspectorOpen = false; ui.ordersOpen = false; ui.mapOpen = false; ui.dockOpen = false; ui.hover = null;
-  renderer.resize(game.area, ui);
-  const view = renderer.camera.view, i = view.insets, yard = yardLayout(game.area), base = renderer.camera.transform.scale / renderer.camera.zoom;
-  const scale = Math.max(.43, Math.min((view.width - i.left - i.right) / ((yard.width + .5) * 72), (view.height - i.top - i.bottom) / (9 * 72)));
-  renderer.camera.zoom = scale / base;
-  renderer.camera.centerOn(yard.x + yard.width / 2, staff ? yard.hire.y : view.height < 600 ? 3.9 : 4.5); renderer.resize(game.area, ui); renderUi(true);
-}
-$('#service-jump').addEventListener('click', () => visitYard());
-$('#staff-jump').addEventListener('click', () => visitYard(true));
-$('#factory-jump').addEventListener('click', () => { finishDrag(); renderer.camera.fit(game.area); renderer.resize(game.area, ui); ui.hover = null; renderUi(true); });
 $('#map-toggle').addEventListener('click', () => { if (practice) return; finishDrag(); ui.mapOpen = !ui.mapOpen; ui.inspectorOpen = false; ui.ordersOpen = false; renderUi(true); });
 $('#close-minimap').addEventListener('click', () => { ui.mapOpen = false; renderUi(true); $('#map-toggle').focus(); });
 $('#map-overview').addEventListener('click', () => { finishDrag(); renderer.camera.overview(); renderer.resize(game.area, ui); ui.hover = null; refreshHover(); });
@@ -695,7 +665,7 @@ let previousTime = performance.now(), previousSave = previousTime, previousUi = 
 function frame(now) {
   const dt = Math.min(.1, Math.max(0, (now - previousTime) / 1000)); previousTime = now;
   if (ui.screen === 'workshop' && !document.hidden && !document.querySelector('dialog[open]') && (!practice || (practice.step >= 2 && practice.step < 5))) game.update(dt);
-  if (ui.screen === 'workshop') { ui.customerArea = true; serviceView?.tickDrag(dt); renderer.draw(game, ui, now); if (!$('#minimap-panel').hidden) renderer.drawMinimap($('#factory-minimap'), game); }
+  if (ui.screen === 'workshop') { renderer.draw(game, ui, now); if (!$('#minimap-panel').hidden) renderer.drawMinimap($('#factory-minimap'), game); }
   $('#zoom-reset').textContent = `${Math.round(renderer.camera.zoom * 100)}%`;
   if (now - previousUi > 160) { renderUi(); previousUi = now; }
   if (now - previousSave > 2000) { save(); previousSave = now; }
@@ -703,11 +673,6 @@ function frame(now) {
 }
 try {
   await assets.load(undefined, (loaded, total) => window.factoryLoading?.progress(loaded, total));
-  serviceView = new ServiceView({ root: $('#service-tools'), assets, renderer, visitYard, getGame: () => game,
-    active: () => ui.screen === 'workshop' && !ui.focus && !document.hidden && !game.state.paused && !document.querySelector('dialog[open]') && (!practice || practice.step >= 2 && practice.step < 5),
-    changed: () => { save(); renderUi(true); }, notify: toast, reduced: () => ui.reducedMotion, canRecruit: () => !practice });
-  serviceView.inspectShelf = id => { ui.selected = id; ui.inspectorOpen = true; renderUi(true); };
-  renderer.serviceView = serviceView;
   renderPalette(); renderRecipes(); renderUi(true);
   window.factoryLoading?.complete();
   $('#loading').hidden = true; $('#main-menu').inert = false;
@@ -719,4 +684,4 @@ try {
   if (!window.factoryLoading) $('#loading-retry').addEventListener('click', () => window.location.reload());
   console.error(error);
 }
-export const runtime = { get game() { return game; }, get practice() { return practice; }, get serviceView() { return serviceView; }, assets, renderer, ui };
+export const runtime = { get game() { return game; }, get practice() { return practice; }, assets, renderer, ui };

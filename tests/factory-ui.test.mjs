@@ -43,7 +43,6 @@ test('factory entry loads generated atlases and wires construction, production, 
   install('setTimeout', () => 1); install('clearTimeout', () => {});
   try {
     const { runtime } = await import(`../src/factory-main.js?test=${Date.now()}`);
-    const feedCats = () => { for (const c of runtime.game.service.customers) if (!c.cooldown && runtime.game.findShelf(c.want)) runtime.game.serveFromShelf(runtime.game.findShelf(c.want).id, c.want, c.id); };
     assert.equal(runtime.assets.ready, true); assert.equal(nodes.get('loading').hidden, true); assert.equal(runtime.game.state.buildings.length, 8);
     assert.equal(runtime.ui.screen, 'menu'); assert.equal(nodes.get('main-menu').hidden, false); assert.equal(nodes.get('factory-app').hidden, true);
     assert.equal(frames.length, 1); frames.shift()(performance.now() + 100); assert.equal(runtime.game.state.time, 0);
@@ -67,11 +66,11 @@ test('factory entry loads generated atlases and wires construction, production, 
     tutorialTap(6, 2); assert.equal(runtime.practice.step, 2); assert.equal(runtime.game.at(6, 2).dir, 0);
     nodes.get('speed').click(); assert.equal(runtime.game.state.speed, 2);
     for (let i = 0; i < 100; i++) runtime.game.update(.1);
-    assert.equal(runtime.game.state.totalSold, 0, 'production alone does not earn coins');
-    runtime.serviceView.select('bread'); runtime.serviceView.drop(0);
+    assert.ok(runtime.game.state.totalSold > 0, 'the connected production line earns coins without manual deliveries');
+    assert.equal(runtime.game.service, undefined); assert.equal(runtime.serviceView, undefined);
     frames.shift()(performance.now() + 1000); assert.equal(runtime.practice.step, 3);
     tutorialTap(5, 2); nodes.get('upgrade-building').click(); assert.equal(runtime.practice.step, 4);
-    for (let i = 0; i < 100; i++) { runtime.game.update(.1); feedCats(); }
+    for (let i = 0; i < 100; i++) runtime.game.update(.1);
     frames.shift()(performance.now() + 3000); nodes.get('claim-order').click(); assert.equal(runtime.practice.step, 5);
     assert.equal(storage.has('food-factory-v1'), false, 'practice, upgrades, rewards and autosave never write the real save');
     assert.equal(runtime.practice.realGame.serialize(), realBeforePractice);
@@ -134,7 +133,7 @@ test('factory entry loads generated atlases and wires construction, production, 
     nodes.get('pause').click(); assert.equal(runtime.game.state.paused, true); assert.equal(nodes.get('pause-overlay').hidden, false);
     nodes.get('resume').click(); assert.equal(runtime.game.state.paused, false);
     nodes.get('speed').click(); assert.equal(runtime.game.state.speed, 2);
-    for (let i = 0; i < 200; i++) { runtime.game.update(.1); feedCats(); }
+    for (let i = 0; i < 200; i++) runtime.game.update(.1);
     frames.shift()(performance.now() + 5000);
     assert.equal(runtime.game.orderReady, true); assert.equal(nodes.get('claim-order').disabled, false);
     nodes.get('claim-order').click(); assert.equal(runtime.game.state.orderIndex, 1);
@@ -278,14 +277,14 @@ test('factory entry loads generated atlases and wires construction, production, 
     nodes.get('business-locate-depot').click(); assert.equal(nodes.get('business-dialog').open, false);
     assert.equal(runtime.game.state.buildings.find(b => b.id === runtime.ui.selected).type, 'depot');
     const dispatch = runtime.game.at(8, 2), beforeDispatchUpgrade = runtime.game.state.coins;
-    assert.match(nodes.get('upgrade-building').textContent, /扩至 12 份 · 60/);
+    assert.match(nodes.get('upgrade-building').textContent, /提速至 1.5 秒\/份 · 60/);
     nodes.get('upgrade-building').click(); assert.equal(dispatch.level, 2); assert.equal(runtime.game.duration(dispatch), 1.5);
     assert.equal(runtime.game.state.coins, beforeDispatchUpgrade - 60);
-    assert.match(nodes.get('upgrade-building').textContent, /扩至 16 份 · 81/);
+    assert.match(nodes.get('upgrade-building').textContent, /提速至 1 秒\/份 · 81/);
     nodes.get('upgrade-building').click(); assert.equal(dispatch.level, 3); assert.equal(runtime.game.duration(dispatch), 1);
     assert.equal(nodes.get('upgrade-building').disabled, true); assert.equal(runtime.game.state.coins, beforeDispatchUpgrade - 141);
+    nodes.get('depot-mode').click(); assert.equal(dispatch.mode, 'store');
     for (let n = 0; n < 900; n++) runtime.game.update(.1);
-    frames.shift()(performance.now() + 352000); nodes.get('shelf-store').click();
     frames.shift()(performance.now() + 353000); assert.ok(runtime.game.warehouseUsed >= 12); assert.equal(runtime.game.state.totalSold, 0);
     nodes.get('business-toggle').click(); const shipButton = nodes.get('wholesale-offers').children[0].children.find(el => el.dataset?.wholesale);
     assert.equal(shipButton.disabled, false); shipButton.click(); assert.equal(runtime.game.state.business.shipments, 1);
@@ -327,7 +326,7 @@ test('factory entry loads generated atlases and wires construction, production, 
     if (runtime.game.state.paused) nodes.get('resume').click();
     nodes.get('recipes-toggle').click(); assert.equal(nodes.get('quick-recipe').hidden, false);
     assert.equal(nodes.get('recipe-dialog').open, undefined); assert.equal(nodes.get('quick-recipe-food').children.length, 8);
-    assert.equal(runtime.serviceView.active(), true);
+    assert.equal(runtime.game.state.automationVersion, 1);
     const quickTime = runtime.game.state.time; frames.shift()(performance.now() + 355000);
     assert.ok(runtime.game.state.time > quickTime, 'a pinned recipe must not pause production');
     nodes.get('quick-recipe-food').listeners.change({ target: { value: 'bread' } });
@@ -364,15 +363,12 @@ test('factory entry loads generated atlases and wires construction, production, 
     const panStart = runtime.renderer.camera.x;
     const swipe = { ...fingerA, pointerId: 803, ...point(12, 10) }; down(swipe); board.listeners.pointermove({ ...swipe, clientX: swipe.clientX + 45 }); up({ ...swipe, clientX: swipe.clientX + 45 });
     assert.ok(runtime.renderer.camera.x < panStart); assert.equal(runtime.game.serialize(), beforePinch);
-    // Phone portrait gets a usable map view, no character drawer or rotation blocker.
+    // Phone portrait retains construction, camera reset and nonmodal recipes.
     viewport = { width: 390, height: 844 }; runtime.renderer.viewport = null;
-    nodes.get('service-jump').click();
-    const yardX = runtime.game.area[0] + 3.5, transform = runtime.renderer.transform;
-    const catScreenX = transform.x + yardX * 72 * transform.scale;
-    assert.ok(catScreenX > 44 && catScreenX < 346); assert.ok(1.7 * 72 * transform.scale >= 44);
-    assert.equal(runtime.ui.tool, 'select'); assert.equal(nodes.has('service-area'), false);
-    nodes.get('staff-jump').click(); assert.equal(runtime.renderer.camera.y, 7.7 * 72);
-    nodes.get('factory-jump').click(); assert.equal(runtime.renderer.camera.zoom, 1);
+    runtime.renderer.resize(runtime.game.area, runtime.ui); nodes.get('zoom-reset').click();
+    const transform = runtime.renderer.transform, centerX = transform.x + 5 * 72 * transform.scale;
+    assert.ok(centerX > 44 && centerX < 346); assert.equal(runtime.renderer.camera.zoom, 1);
+    for (const id of ['service-tools', 'service-jump', 'staff-jump']) assert.equal(nodes.has(id), false);
     viewport = { width: 1008, height: 576 }; runtime.renderer.viewport = null; runtime.renderer.resize(runtime.game.area, runtime.ui);
     nodes.get('menu-home').click();
     // Reload an old-format save into the menu, retaining explicit settings over OS defaults.
@@ -392,46 +388,38 @@ test('factory entry loads generated atlases and wires construction, production, 
     storage.set('food-factory-v1', oldFlow);
     await import(`../src/factory-main.js?flow-migration=${Date.now()}`);
     assert.equal(storage.get('food-factory-v1-before-paced-flow'), oldFlow);
-    assert.equal(storage.get('food-factory-v1-before-customer-counter'), oldFlow);
+    assert.equal(storage.get('food-factory-v1-before-auto-dispatch'), oldFlow);
     assert.equal(JSON.parse(storage.get('food-factory-v1')).flowVersion, 2);
     storage.set('food-factory-v1', oldFlow); failStorageKey = 'food-factory-v1-before-paced-flow';
     await import(`../src/factory-main.js?flow-protected=${Date.now()}`);
     nodes.get('menu-play').click(); nodes.get('menu-home').click();
     assert.equal(storage.get('food-factory-v1'), oldFlow); failStorageKey = null;
-    // Customer migration has its own raw backup, and backup failure never overwrites it.
+    // Classic saves get the compact automatic model without losing progress.
     const classicRaw = new FactoryGame().serialize(); storage.set('food-factory-v1', classicRaw);
-    failStorageKey = 'food-factory-v1-before-customer-counter';
-    await import(`../src/factory-main.js?customer-protected=${Date.now()}`);
+    failStorageKey = 'food-factory-v1-before-auto-dispatch';
+    await import(`../src/factory-main.js?automatic-protected=${Date.now()}`);
     nodes.get('menu-play').click(); nodes.get('menu-home').click();
     assert.equal(storage.get('food-factory-v1'), classicRaw); failStorageKey = null;
-    await import(`../src/factory-main.js?customer-migration=${Date.now()}`);
-    assert.equal(storage.get('food-factory-v1-before-customer-counter'), classicRaw);
-    assert.equal(JSON.parse(storage.get('food-factory-v1')).service.version, 4);
-    const oldWorld = JSON.parse(storage.get('food-factory-v1')); oldWorld.service.version = 1;
-    const oldWorldRaw = JSON.stringify(oldWorld); storage.set('food-factory-v1', oldWorldRaw);
-    await import(`../src/factory-main.js?world-migration=${Date.now()}`);
-    assert.equal(storage.get('food-factory-v1-before-world-service'), oldWorldRaw);
-    assert.equal(JSON.parse(storage.get('food-factory-v1')).service.version, 4);
-    storage.set('food-factory-v1', oldWorldRaw); failStorageKey = 'food-factory-v1-before-world-service';
-    await import(`../src/factory-main.js?world-protected=${Date.now()}`);
-    nodes.get('menu-play').click(); nodes.get('menu-home').click(); assert.equal(storage.get('food-factory-v1'), oldWorldRaw); failStorageKey = null;
-    oldWorld.service.version = 2; const beforeRoaming = JSON.stringify(oldWorld); storage.set('food-factory-v1', beforeRoaming);
-    failStorageKey = 'food-factory-v1-before-free-roam';
-    await import(`../src/factory-main.js?roaming-protected=${Date.now()}`);
-    nodes.get('menu-play').click(); nodes.get('menu-home').click(); assert.equal(storage.get('food-factory-v1'), beforeRoaming); failStorageKey = null;
-    await import(`../src/factory-main.js?roaming-migration=${Date.now()}`);
-    assert.equal(storage.get('food-factory-v1-before-free-roam'), beforeRoaming);
-    assert.equal(JSON.parse(storage.get('food-factory-v1')).service.version, 4);
-    // Compact-map migration keeps a separate original, including on quota failure.
+    await import(`../src/factory-main.js?automatic-migration=${Date.now()}`);
+    assert.equal(storage.get('food-factory-v1-before-auto-dispatch'), classicRaw);
+    assert.equal(JSON.parse(storage.get('food-factory-v1')).automationVersion, 1);
+    assert.equal(JSON.parse(storage.get('food-factory-v1')).service, undefined);
+    // A real staffed save is backed up before conversion; a full storage quota
+    // cannot overwrite it or allow a second refund on a native-save reload.
     const compactFixture = JSON.parse(await readFile(new URL('./fixtures/service-v016-saves.json', import.meta.url), 'utf8'));
     const beforeCompact = JSON.stringify(compactFixture.deliver); storage.set('food-factory-v1', beforeCompact);
-    failStorageKey = 'food-factory-v1-before-compact-map';
+    failStorageKey = 'food-factory-v1-before-auto-dispatch';
     await import(`../src/factory-main.js?compact-protected=${Date.now()}`);
     nodes.get('menu-play').click(); nodes.get('menu-home').click(); assert.equal(storage.get('food-factory-v1'), beforeCompact); failStorageKey = null;
     await import(`../src/factory-main.js?compact-migration=${Date.now()}`);
-    assert.equal(storage.get('food-factory-v1-before-compact-map'), beforeCompact);
+    assert.equal(storage.get('food-factory-v1-before-auto-dispatch'), beforeCompact);
     assert.deepEqual(JSON.parse(storage.get('food-factory-v1')).workshopArea, [10, 6]);
-    assert.equal(JSON.parse(storage.get('food-factory-v1')).service.version, 4);
+    assert.equal(JSON.parse(storage.get('food-factory-v1')).service, undefined);
+    assert.equal(JSON.parse(storage.get('food-factory-v1')).automationVersion, 1);
+    const convertedCoins = JSON.parse(storage.get('food-factory-v1')).coins;
+    await import(`../src/factory-main.js?automatic-repeat=${Date.now()}`);
+    assert.equal(JSON.parse(storage.get('food-factory-v1')).coins, convertedCoins);
+    assert.equal(storage.get('food-factory-v1-before-auto-dispatch'), beforeCompact);
     // Preserve the raw cat-era save before the migrated factory can auto-save.
     const catFixtures = JSON.parse(await readFile(new URL('./fixtures/cat-v010-saves.json', import.meta.url), 'utf8'));
     const catRaw = JSON.stringify(catFixtures.working);

@@ -1,7 +1,7 @@
-import { ITEMS } from './factory-core.js?v=0.17.0';
-import { STAFF_COSTS } from './factory-service.js?v=0.17.0';
-import { CELL, presentationTime } from './factory-feel.js?v=0.17.0';
-import { yardLayout, serviceHit, customerPose } from './factory-yard.js?v=0.17.0';
+import { ITEMS } from './factory-core.js?v=0.18.0';
+import { STAFF_COSTS } from './factory-service.js?v=0.18.0';
+import { CELL, presentationTime } from './factory-feel.js?v=0.18.0';
+import { yardLayout, serviceHit, customerPose } from './factory-yard.js?v=0.18.0';
 
 // Four separately animated atlas parts: head, body and two round hands, no feet.
 export function drawCat(ctx, assets, { skin = 0, staff = false, time = 0, happy = false, reduced = false } = {}) {
