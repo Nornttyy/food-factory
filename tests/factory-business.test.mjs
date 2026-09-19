@@ -12,13 +12,13 @@ test('legacy factories migrate warehouse defaults without changing orders or act
   assert.deepEqual(loaded.state.business, freshBusiness());
   assert.deepEqual(loaded.state.career, original.career); assert.deepEqual(loaded.state.orderProgress, original.orderProgress);
   assert.equal(loaded.state.coins, original.coins);
-  run(loaded, 4); assert.ok(loaded.state.totalSold > original.totalSold);
+  run(loaded, 10); assert.ok(loaded.state.totalSold > original.totalSold);
 });
 
 test('a real production line can store rather than sell, then return to selling', () => {
   const game = new FactoryGame(), depot = game.at(8, 2);
   game.acceptContract(0); const wallet = game.state.coins;
-  assert.equal(game.setDepotMode(depot.id, 'store').ok, true); run(game, 30);
+  assert.equal(game.setDepotMode(depot.id, 'store').ok, true); run(game, 40);
   assert.ok(game.state.business.warehouse.bread >= 4); assert.equal(game.state.coins, wallet);
   assert.equal(game.state.totalSold, 0); assert.deepEqual(game.state.delivered, {});
   assert.deepEqual(game.state.orderProgress, {}); assert.deepEqual(game.contract.progress, {});
@@ -35,9 +35,10 @@ test('multiple depots reserve shared capacity without loss, then resume when spa
   const a = game.place('belt', 1, 1).building, b = game.place('belt', 1, 3).building;
   for (const y of [1, 3]) game.setDepotMode(game.place('depot', 2, y).building.id, 'store');
   game.state.business.warehouse = { bread: 99 }; a.output = 'bread'; b.output = 'butter_cookie';
-  game.update(.1); assert.equal(game.warehouseUsed, 100);
+  game.update(.1); assert.equal(game.warehouseUsed, 99);
   assert.equal([a, b].filter(b => b.output).length, 1); assert.equal(game.state.totalSold, 0);
-  const before = [a.output, b.output]; run(game, 1); assert.deepEqual([a.output, b.output], before);
+  run(game, 2.2); assert.equal(game.warehouseUsed, 100);
+  assert.equal(game.state.buildings.filter(b => b.type === 'depot' && b.input).length, 1);
   assert.equal(game.sellWarehouse('bread', 10).ok, true); game.update(.1);
   assert.equal(a.output, null); assert.equal(b.output, null); assert.equal(game.warehouseUsed, 91);
 });

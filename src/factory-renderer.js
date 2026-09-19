@@ -1,10 +1,10 @@
-import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.10.2';
-import { CELL, FactoryCamera, jellyPose, foodPose } from './factory-feel.js?v=0.10.2';
-import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.10.2';
+import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.11.0';
+import { CELL, FactoryCamera, jellyPose, foodPose } from './factory-feel.js?v=0.11.0';
+import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.11.0';
 export class FactoryAssets {
   constructor() { this.images = {}; this.sprites = {}; this.ready = false; }
   async load(base = './assets/generated/factory/cream-v1/') {
-    const response = await fetch(base + 'manifest.json?v=0.10.2');
+    const response = await fetch(base + 'manifest.json?v=0.11.0');
     if (!response.ok) throw new Error('素材清单读取失败');
     const manifest = await response.json();
     this.sprites = Object.fromEntries(manifest.sprites.map(sprite => [sprite.id, sprite]));
@@ -106,24 +106,29 @@ export class FactoryRenderer {
     for (const b of visible) if (['belt', 'splitter'].includes(BUILDINGS[b.type].kind)) this.drawBelt(b, game);
     for (const b of visible) if (!['belt', 'splitter'].includes(BUILDINGS[b.type].kind)) this.drawMachine(b, game, timestamp);
     for (const b of visible) {
-      if (!b.output) continue;
+      const item = b.output || (b.type === 'depot' ? b.input : null);
+      if (!item) continue;
       const kind = BUILDINGS[b.type].kind;
       if (['belt', 'splitter'].includes(kind)) {
-        let x = b.x * CELL + 36, y = b.y * CELL + 36;
-        let progress = 1;
-        if (b.motion) {
-          const elapsed = s.time + (s.paused ? 0 : Math.min(game.accumulator, .1)) - b.motion.start;
-          progress = Math.min(1, Math.max(0, elapsed / b.motion.duration));
-          x = (b.motion.x + (b.x - b.motion.x) * progress) * CELL + 36;
-          y = (b.motion.y + (b.y - b.motion.y) * progress) * CELL + 36;
+        const slots = [{ item: b.output, motion: b.motion, offset: 14 }];
+        if (b.buffer) slots.push({ ...b.buffer, offset: -14 });
+        for (const slot of slots) {
+          let x = b.x * CELL + 36 + DIRS[b.dir][0] * slot.offset, y = b.y * CELL + 36 + DIRS[b.dir][1] * slot.offset;
+          let progress = 1;
+          if (slot.motion) {
+            const m = slot.motion, elapsed = s.time + (s.paused ? 0 : Math.min(game.accumulator, .1)) - m.start;
+            progress = Math.min(1, Math.max(0, elapsed / m.duration));
+            const dir = DIRS[m.dir ?? b.dir], startX = m.x * CELL + 36 + dir[0] * (m.offset || 0), startY = m.y * CELL + 36 + dir[1] * (m.offset || 0);
+            x = startX + (x - startX) * progress; y = startY + (y - startY) * progress;
+          }
+          const pose = foodPose(progress, this.reduced);
+          ctx.save(); ctx.fillStyle = '#8c735926'; ctx.beginPath(); ctx.ellipse(x, y + 9, 10 * pose.sx, 3, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.translate(x, y + pose.y * .4); ctx.rotate(pose.angle); ctx.scale(pose.sx, pose.sy);
+          this.assets.draw(ctx, ITEMS[slot.item].sprite, -12, -12, 24, 24); ctx.restore();
         }
-        const pose = foodPose(progress, this.reduced);
-        ctx.save(); ctx.fillStyle = '#8c735926'; ctx.beginPath(); ctx.ellipse(x, y + 12, 12 * pose.sx, 4, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.translate(x, y + pose.y); ctx.rotate(pose.angle); ctx.scale(pose.sx, pose.sy);
-        this.assets.draw(ctx, ITEMS[b.output].sprite, -18, -18, 36, 36); ctx.restore();
       } else {
         round(ctx, b.x * CELL + 45, b.y * CELL + 2, 25, 25, 7, '#fff8e6', '#d3c3a0');
-        this.assets.draw(ctx, ITEMS[b.output].sprite, b.x * CELL + 47, b.y * CELL + 4, 21, 21);
+        this.assets.draw(ctx, ITEMS[item].sprite, b.x * CELL + 47, b.y * CELL + 4, 21, 21);
       }
     }
     if (ui.selected !== null) {
@@ -168,7 +173,7 @@ export class FactoryRenderer {
       }
       ctx.stroke();
     }
-    const offset = game.state.time * 19 % 13;
+    const offset = game.state.time * 12 / game.duration(b) % 13;
     ctx.strokeStyle = '#8c7763'; ctx.lineWidth = 1;
     for (const dir of ports) {
       const [dx, dy] = DIRS[dir], phase = outputs.includes(dir) ? offset : 13 - offset;
@@ -205,7 +210,7 @@ export class FactoryRenderer {
     const working = !b.output && (b.input || def.kind === 'source');
     const pulse = this.pulses.get(b.id), pose = jellyPose(pulse ? (timestamp - pulse.start) / 1000 : 1, pulse?.kind, this.reduced);
     // Work phase follows simulation progress so pauses and dialogs freeze this motion.
-    const squash = !this.reduced && working && def.duration ? Math.sin(b.progress / game.duration(b) * Math.PI * 4) * .085 : 0;
+    const squash = !this.reduced && working && (def.duration || def.kind === 'depot') ? Math.sin(b.progress / game.duration(b) * Math.PI * 4) * .085 : 0;
     ctx.save(); ctx.fillStyle = '#92765524'; ctx.beginPath(); ctx.ellipse(x + 36, y + 58, 25 * pose.sx, 7, 0, 0, Math.PI * 2); ctx.fill();
     ctx.translate(x + 36, y + 62 + pose.y); ctx.rotate(pose.angle); ctx.scale(pose.sx * (1 + squash), pose.sy / (1 + squash));
     this.assets.draw(ctx, def.sprite, -31, -62, 62, 60);
@@ -214,7 +219,7 @@ export class FactoryRenderer {
     for (const { side, output } of ports) if (!output) arrow(ctx, x + 36 + DIRS[side][0] * 32, y + 36 + DIRS[side][1] * 32, (side + 2) % 4, '#ecd0ae', 5);
     if (def.kind !== 'depot') arrow(ctx, x + 36 + DIRS[b.dir][0] * 29, y + 36 + DIRS[b.dir][1] * 29, b.dir, '#879d73', 8);
     else if (b.mode === 'store') { round(ctx, x + 44, y + 3, 25, 18, 5, '#b9cbd7'); ctx.fillStyle = '#526b79'; ctx.font = 'bold 10px system-ui'; ctx.textAlign = 'center'; ctx.fillText('仓', x + 56, y + 16); }
-    if (def.duration) {
+    if (def.duration || def.kind === 'depot') {
       round(ctx, x + 15, y + 65, 42, 3, 1.5, '#d6c7a2');
       if (b.progress > 0) round(ctx, x + 15, y + 65, Math.max(2, 42 * b.progress / game.duration(b)), 3, 1.5, '#9daa83');
     }

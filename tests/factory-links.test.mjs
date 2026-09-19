@@ -32,7 +32,7 @@ test('all eight L corners draw exactly two ports and deliver through the turn', 
     const geometry = ports(game, corner);
     assert.deepEqual(new Set(geometry.ports), new Set([(dir + 2) % 4, nextDir]));
     assert.deepEqual(geometry.blockedEnds, []);
-    source.output = 'bread'; run(game, 2);
+    source.output = 'bread'; run(game, 4);
     assert.equal(game.state.delivered.bread, 1); assert.equal(source.output, null); assert.equal(corner.output, null);
   }
 });
@@ -72,7 +72,7 @@ test('continuing an existing belt turns it and charges only for the new tile', (
   const result = game.extendBelt(old, { x: 2, y: 3 });
   assert.equal(result.ok, true); assert.equal(result.created, true); assert.equal(old.dir, 1);
   assert.equal(result.building.dir, 1); assert.equal(game.state.coins, wallet - 8);
-  add(game, 'depot', 2, 4); run(game, 2); assert.equal(game.state.delivered.bread, 1);
+  add(game, 'depot', 2, 4); run(game, 4); assert.equal(game.state.delivered.bread, 1);
 });
 
 test('joining an existing perpendicular belt preserves its route, cargo and paid cost', () => {
@@ -113,7 +113,7 @@ test('machine inputs allow continuing a stroke along the outlet, only depots ter
   const depot = add(game, 'depot', 5, 2, 2);
   assert.equal(game.extendBelt({ x: 4, y: 2 }, depot).terminal, true);
   assert.equal(game.extendBelt(depot, { x: 6, y: 2 }).ok, false);
-  belt.output = 'dough'; run(game, 6); assert.equal(game.state.delivered.bread, 1);
+  belt.output = 'dough'; run(game, 9); assert.equal(game.state.delivered.bread, 1);
 });
 
 test('machine sleeves expose only live directional joins in all four orientations', () => {
@@ -176,7 +176,7 @@ test('saved corner routes restore with identical future delivery and no lost goo
   game.extendBelt(first, { x: 3, y: 2 }); game.extendBelt({ x: 3, y: 2 }, { x: 3, y: 3 });
   add(game, 'depot', 3, 4); first.output = 'bread'; game.update(.1);
   const restored = new FactoryGame(); assert.equal(restored.restore(game.serialize()), true);
-  run(game, 3); run(restored, 3);
+  run(game, 5); run(restored, 5);
   assert.deepEqual(restored.state.delivered, { bread: 1 }); assert.equal(restored.state.coins, game.state.coins);
   assert.equal(restored.state.buildings.some(b => b.output), false);
 });

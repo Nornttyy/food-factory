@@ -23,14 +23,14 @@ test('all eight future sale prices are halved, including warehouse sales and res
   }
 });
 
-test('starter income slows without slowing production, removing capital or blocking unlocks', () => {
+test('paced starter keeps the lower income, original capital and reachable unlocks', () => {
   const game = new FactoryGame(); assert.equal(game.state.coins, 450);
   game.acceptContract(0); run(game, 60);
-  assert.equal(game.state.totalSold, 16); assert.equal(game.state.coins, 450 + 96);
+  assert.equal(game.state.totalSold, 9); assert.equal(game.state.coins, 450 + 54);
   assert.equal(game.claimOrder().reward, 95); assert.equal(game.claimContract().reward, 30);
-  assert.equal(game.state.coins, 450 + 221); assert.equal(game.unlockLevel, 1);
-  run(game, 240); assert.equal(game.state.coins, 450 + 671);
-  assert.ok(671 < 1592 * .45, 'five-minute earnings are less than half the previous 1592');
+  assert.equal(game.state.coins, 450 + 179); assert.equal(game.unlockLevel, 1);
+  run(game, 240); assert.equal(game.state.coins, 450 + 479);
+  assert.ok(479 < 1592 * .45, 'five-minute earnings remain well below the original economy');
   assert.ok(game.state.coins >= game.expansionCost);
 });
 

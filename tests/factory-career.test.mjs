@@ -45,7 +45,7 @@ test('claiming a completed contract rewards once, including after save and reloa
 test('deadline accepts the last tick, and a ready reward never expires', () => {
   const game = new FactoryGame({ starter: false }); game.acceptContract(0);
   sell(game, 'bread', 5); game.state.time = 59.9;
-  const belt = game.place('belt', 1, 1).building; game.place('depot', 2, 1); belt.output = 'bread';
+  const depot = game.place('depot', 2, 1).building; depot.input = 'bread'; depot.progress = 1.9;
   game.update(.1); assert.equal(game.state.time, 60); assert.equal(game.contract.status, 'ready');
   run(game, 100); assert.equal(game.contract.status, 'ready'); assert.equal(game.claimContract().ok, true);
 });
@@ -84,10 +84,11 @@ test('production research preserves completion, original ingredients and valid p
 test('each transport research level decreases actual travel by one simulation tick', () => {
   for (let level = 0; level <= 3; level++) {
     const game = new FactoryGame({ starter: false }); game.state.career.research.transport = level;
-    const source = game.place('belt', 1, 1).building, target = game.place('belt', 2, 1).building; game.place('depot', 3, 1);
+    const source = game.place('belt', 1, 1).building, target = game.place('belt', 2, 1).building, depot = game.place('depot', 3, 1).building;
     source.output = 'bread'; game.update(.1); assert.equal(target.output, 'bread');
-    for (let tick = 0; tick < 3 - level; tick++) { game.update(.1); assert.equal(game.state.totalSold, 0); }
-    game.update(.1); assert.equal(game.state.totalSold, 1); assert.equal(game.state.time, (5 - level) / 10);
+    for (let tick = 0; tick < 11 - level; tick++) { game.update(.1); assert.equal(depot.input, null); }
+    game.update(.1); assert.equal(depot.input, 'bread'); assert.equal(game.state.time, (13 - level) / 10);
+    run(game, 1.9); assert.equal(game.state.totalSold, 0); run(game, .1); assert.equal(game.state.totalSold, 1);
   }
 });
 test('packaging yields integer coins for every saleable item and round-trips correctly', () => {
@@ -108,7 +109,9 @@ test('corrupted career saves cannot replace a working factory or inject rewards'
 test('starter can fulfill the easy challenge while difficult contracts reward improved capacity', () => {
   const starter = new FactoryGame(); starter.acceptContract(0); run(starter, 60); assert.equal(starter.contract.status, 'ready');
   const difficult = new FactoryGame(); difficult.acceptContract(1); run(difficult, 60); assert.equal(difficult.contract.status, 'expired');
-  const improved = new FactoryGame(); improved.upgrade(improved.at(5, 2).id); improved.upgrade(improved.at(3, 2).id); improved.acceptContract(1); run(improved, 60); assert.equal(improved.contract.status, 'ready');
+  const improved = new FactoryGame();
+  ['flour_hopper', 'dough_mixer', 'bread_oven', 'depot'].forEach((type, x) => assert.equal(improved.place(type, x + 1, 4).ok, true));
+  improved.acceptContract(1); run(improved, 60); assert.equal(improved.contract.status, 'ready');
   assert.ok(contractFor(2, 0, 2).wants.orange_juice);
 });
 test('saved contract fields cannot override trusted rewards, wants or research points', () => {

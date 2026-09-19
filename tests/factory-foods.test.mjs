@@ -39,8 +39,9 @@ test('new processing machines respect unlocks, inputs, research and refunds', ()
     assert.equal(game.canReceive(b, def.input), true);
     assert.equal(game.canReceive(b, 'flour'), false);
     game.state.career.points = 20;
+    const duration = game.duration(b);
     assert.equal(game.research('production').ok, true);
-    assert.ok(game.duration(b) < def.duration);
+    assert.ok(game.duration(b) < duration);
     assert.equal(game.research('value').ok, true);
     const coins = game.state.coins; game.deliver(def.output, b);
     assert.equal(game.state.coins - coins, Math.round(ITEMS[def.output].value * 1.1));
@@ -93,7 +94,7 @@ test('practice teaches actual connected production, upgrades and claiming withou
   simulate(game, 20); assert.equal(nextLesson(2, game, 'select'), 3);
   assert.equal(nextLesson(3, game, 'select'), 3); game.upgrade(game.at(5, 2).id);
   assert.equal(nextLesson(3, game, 'select'), 4);
-  simulate(game, 10); assert.equal(game.claimOrder().ok, true);
+  simulate(game, 20); assert.equal(game.claimOrder().ok, true);
   assert.equal(nextLesson(4, game, 'select'), 5); assert.equal(nextLesson(5, game, 'select'), 5);
   assert.equal(LESSONS.length, 6); assert.equal(real.serialize(), before);
 });

@@ -4,10 +4,10 @@ import { FactoryGame, BUILDINGS, ITEMS, DIRS, AREAS, makeEntity, orderFor, upgra
 function run(game, seconds) { for (let i = 0; i < Math.round(seconds * 10); i++) game.update(.1); }
 function empty() { const g = new FactoryGame({ starter: false }); g.state.coins = 10000; return g; }
 function add(g, type, x, y, dir = 0) { const result = g.place(type, x, y, dir); assert.equal(result.ok, true, result.message); return result.building; }
-function countItems(g) { return g.state.buildings.reduce((n, b) => n + Number(Boolean(b.input)) + Number(Boolean(b.output)), 0); }
+function countItems(g) { return g.state.buildings.reduce((n, b) => n + Number(Boolean(b.input)) + Number(Boolean(b.output)) + Number(Boolean(b.buffer)), 0); }
 
 test('starter makes bread, sells once and completes the first order without input', () => {
-  const g = new FactoryGame(); run(g, 30);
+  const g = new FactoryGame(); run(g, 45);
   assert.ok(g.state.delivered.bread >= 4); assert.equal(g.orderReady, true);
   assert.equal(g.state.coins, 450 + g.state.delivered.bread * ITEMS.bread.value);
   const before = g.state.coins; assert.equal(g.claimOrder().ok, true);
@@ -25,13 +25,13 @@ test('four directions move one item at most once per tick and at equal speed', (
     const a = add(g, 'belt', 4, 3, dir), b = add(g, 'belt', 4 + dx, 3 + dy, dir), c = add(g, 'belt', 4 + dx * 2, 3 + dy * 2, dir);
     a.output = 'bread'; g.update(.1);
     assert.equal(a.output, null); assert.equal(b.output, 'bread'); assert.equal(c.output, null); assert.equal(countItems(g), 1);
-    run(g, .5); assert.equal(c.output, 'bread'); assert.equal(countItems(g), 1);
+    run(g, 1.1); assert.equal(c.output, null); run(g, .1); assert.equal(c.output, 'bread'); assert.equal(countItems(g), 1);
   }
 });
-test('merge competition reserves one target slot and neither duplicates nor loses items', () => {
+test('merge competition reserves two target slots and neither duplicates nor loses items', () => {
   const g = empty(), a = add(g, 'belt', 1, 1), b = add(g, 'belt', 2, 0, 1), target = add(g, 'merger', 2, 1);
   a.output = 'bread'; b.output = 'orange_juice'; g.update(.1);
-  assert.equal(countItems(g), 2); assert.ok(target.output); assert.notEqual(Boolean(a.output), Boolean(b.output));
+  assert.equal(countItems(g), 2); assert.ok(target.output); assert.ok(target.buffer); assert.equal(a.output, null); assert.equal(b.output, null);
   run(g, 10); assert.equal(countItems(g), 2);
 });
 test('splitter alternates and falls back to an open branch', () => {
@@ -39,6 +39,7 @@ test('splitter alternates and falls back to an open branch', () => {
   s.output = 'bread'; g.update(.1); assert.equal(right.output, 'bread'); assert.equal(s.roundRobin, 1);
   s.output = 'bread'; g.update(.1); assert.equal(down.output, 'bread'); assert.equal(s.roundRobin, 0);
   right.output = null; s.output = 'bread'; g.update(.1); assert.equal(right.output, 'bread');
+  down.buffer = { item: 'bread', readyAt: down.readyAt + .6 };
   right.output = null; s.output = 'bread'; g.update(.1); assert.equal(right.output, 'bread'); assert.equal(s.roundRobin, 1);
 });
 test('wrong ingredients stay outside a machine and raw materials cannot be sold', () => {
@@ -50,12 +51,12 @@ test('blocked machines preserve output and buffered input without accumulating a
   const g = empty(), oven = add(g, 'bread_oven', 2, 1); oven.input = 'dough';
   run(g, 10); assert.equal(oven.output, 'bread'); oven.input = 'dough'; run(g, 30);
   assert.equal(oven.output, 'bread'); assert.equal(oven.input, 'dough'); assert.equal(oven.progress, 0);
-  add(g, 'depot', 3, 1); run(g, .1); assert.equal(g.state.totalSold, 1); assert.equal(oven.output, null);
-  run(g, 1); assert.equal(g.state.totalSold, 1); run(g, 3); assert.equal(g.state.totalSold, 2);
+  add(g, 'depot', 3, 1); run(g, .1); assert.equal(g.state.totalSold, 0); assert.equal(oven.output, null);
+  run(g, 2); assert.equal(g.state.totalSold, 1); run(g, 5); assert.equal(g.state.totalSold, 2);
 });
 test('a full closed belt loop conserves its contents', () => {
-  const g = empty(); [[2, 2, 0], [3, 2, 1], [3, 3, 2], [2, 3, 3]].forEach(([x, y, dir]) => { add(g, 'belt', x, y, dir).output = 'dough'; });
-  run(g, 100); assert.equal(countItems(g), 4); assert.ok(g.state.buildings.every(b => b.blocked));
+  const g = empty(); [[2, 2, 0], [3, 2, 1], [3, 3, 2], [2, 3, 3]].forEach(([x, y, dir]) => { const b = add(g, 'belt', x, y, dir); b.output = 'dough'; b.buffer = { item: 'dough', readyAt: .6 }; });
+  run(g, 100); assert.equal(countItems(g), 8); assert.ok(g.state.buildings.every(b => b.blocked));
 });
 test('full recipes produce strawberry donuts and juice through separate lines', () => {
   const g = empty(); g.state.orderIndex = 2;

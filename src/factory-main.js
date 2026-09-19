@@ -1,9 +1,9 @@
-import { FactoryGame, BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, AREAS, WIDTH, HEIGHT, upgradeCost } from './factory-core.js?v=0.10.2';
-import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.10.2';
-import { directionBetween, nextBeltCell } from './factory-links.js?v=0.10.2';
-import { RESEARCH } from './factory-career.js?v=0.10.2';
-import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.10.2';
-import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS } from './factory-business.js?v=0.10.2';
+import { FactoryGame, BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, AREAS, WIDTH, HEIGHT, upgradeCost, isTransport, transportCount } from './factory-core.js?v=0.11.0';
+import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.11.0';
+import { directionBetween, nextBeltCell } from './factory-links.js?v=0.11.0';
+import { RESEARCH } from './factory-career.js?v=0.11.0';
+import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.11.0';
+import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS } from './factory-business.js?v=0.11.0';
 
 const $ = selector => document.querySelector(selector);
 let game = new FactoryGame();
@@ -50,7 +50,12 @@ try {
   const stored = localStorage.getItem(SAVE_KEY);
   if (stored && game.restore(stored)) {
     hasSave = true;
-    if (JSON.parse(stored).shop) {
+    const previous = JSON.parse(stored);
+    if (previous.flowVersion === undefined) {
+      try { localStorage.setItem(`${SAVE_KEY}-before-paced-flow`, stored); }
+      catch { protectOriginalSave = true; toast('原存档已保留，本次试玩暂不保存'); }
+    }
+    if (previous.shop) {
       try { localStorage.setItem(`${SAVE_KEY}-before-classic`, stored); }
       catch { protectOriginalSave = true; toast('原存档已保留，本次试玩暂不保存'); }
     }
@@ -112,7 +117,7 @@ function renderOrder() {
 function recipeLabel(def) {
   if (def.kind === 'source') return `持续供应 ${ITEMS[def.output].label}`;
   if (def.kind === 'machine') return `${ITEMS[def.input].label} → ${ITEMS[def.output].label}`;
-  if (def.kind === 'depot') return '接收成品，自动换取金币';
+  if (def.kind === 'depot') return '逐件出货 · 可升级提速';
   if (def.kind === 'splitter') return '向前 / 顺时针侧口轮流出货';
   return '沿箭头方向运送物品';
 }
@@ -130,9 +135,9 @@ function renderInspector() {
   $('#inspector-title').textContent = b ? `${def.label} · Lv.${b.level}` : def.label;
   const icon = assets.icon(def.sprite); icon.className = 'inspector-art'; root.append(icon);
   const info = document.createElement('p'); info.className = 'machine-info';
-  const status = b ? (b.blocked ? '出口堵住了' : b.output ? '等待运出' : b.input || def.kind === 'source' ? '正在生产' : '等待原料') : `${def.cost} 金币 / 台`;
+  const status = b ? (b.blocked ? (b.type === 'depot' ? '仓库已满' : '出口堵住了') : b.type === 'depot' ? (b.input ? '正在出货' : '等待成品') : b.output ? '等待运出' : b.input || def.kind === 'source' ? '正在生产' : '等待原料') : `${def.cost} 金币 / 台`;
   info.textContent = recipeLabel(def); info.append(document.createElement('br'));
-  info.append(document.createTextNode(def.duration && b ? `${game.duration(b).toFixed(1)} 秒 / 份 · ${status}` : b && def.kind !== 'depot' ? status : b ? '已连接出货口' : `${def.cost} 金币 · 点空格摆放`)); root.append(info);
+  info.append(document.createTextNode(b ? (isTransport(b) ? `${game.duration(b).toFixed(1)} 秒 / 格 · ${transportCount(b)}/2 件 · ${status}` : `${game.duration(b).toFixed(1)} 秒 / 份 · ${status}`) : `${def.cost} 金币 · 点空格摆放`)); root.append(info);
   if (b) {
     const actions = document.createElement('div'); actions.className = 'inspector-actions';
     if (b.type === 'depot') {
@@ -145,8 +150,8 @@ function renderInspector() {
       }
       root.append(modes, element('p', b.mode === 'store' ? `入库用于合作 · 仓储 ${game.warehouseUsed}/${game.warehouseCapacity}` : '现卖赚金币，并推进工坊订单和急单', 'tiny-note'));
     }
-    if (def.duration) {
-      const up = document.createElement('button'); up.id = 'upgrade-building'; up.textContent = b.level >= 3 ? '已满级' : `升级 · ${upgradeCost(b)}`; up.disabled = b.level >= 3;
+    if (def.duration || b.type === 'depot') {
+      const up = document.createElement('button'); up.id = 'upgrade-building'; up.textContent = b.level >= 3 ? '已满级' : b.type === 'depot' ? `提速至 ${game.duration({ ...b, level: b.level + 1 }).toFixed(1)} 秒 · ${upgradeCost(b)}` : `升级 · ${upgradeCost(b)}`; up.disabled = b.level >= 3;
       up.disabled ||= Boolean(practice && (practice.step !== 3 || b.type !== 'bread_oven'));
       up.classList.toggle('tutorial-highlight', Boolean(practice?.step === 3 && b.type === 'bread_oven'));
       up.addEventListener('click', () => { const result = game.upgrade(b.id); if (action(result, '设备升级完成')) { renderer.pulse(b.id, 'upgrade'); renderer.burst(b.x, b.y, 'upgrade'); } }); actions.append(up);
@@ -169,7 +174,7 @@ function renderUi(force = false) {
     }
   }
   const s = game.state, b = s.buildings.find(b => b.id === ui.selected);
-  const key = JSON.stringify([practice?.step, s.coins, s.orderIndex, s.orderProgress, s.totalSold, s.expansion, s.paused, s.speed, s.career, s.business, s.career.contract?.status === 'active' ? Math.ceil(s.time) : 0, ui.screen, ui.careerTab, ui.businessTab, ui.mapOpen, ui.tool, ui.selected, ui.dir, ui.dockOpen, ui.ordersOpen, ui.inspectorOpen, ui.focus, ui.reducedMotion, b?.mode, b?.level, b?.blocked, b?.input, b?.output]);
+  const key = JSON.stringify([practice?.step, s.coins, s.orderIndex, s.orderProgress, s.totalSold, s.expansion, s.paused, s.speed, s.career, s.business, s.career.contract?.status === 'active' ? Math.ceil(s.time) : 0, ui.screen, ui.careerTab, ui.businessTab, ui.mapOpen, ui.tool, ui.selected, ui.dir, ui.dockOpen, ui.ordersOpen, ui.inspectorOpen, ui.focus, ui.reducedMotion, b?.mode, b?.level, b?.blocked, b?.input, b?.output, b?.buffer?.item]);
   if (!force && key === lastUi) return; lastUi = key;
   renderFront();
   $('#coins').textContent = s.coins.toLocaleString('zh-CN');
@@ -202,7 +207,7 @@ function renderUi(force = false) {
   $('#motion-toggle').setAttribute('aria-pressed', String(ui.reducedMotion));
   const orderKey = JSON.stringify([s.orderIndex, s.orderProgress]);
   if (force || orderKey !== lastOrder) { renderOrder(); lastOrder = orderKey; }
-  const inspectorKey = JSON.stringify([ui.tool, ui.selected, s.orderIndex, s.totalSold, s.career.research, b?.mode, game.warehouseUsed, game.warehouseCapacity, b?.level, b?.paid, b?.blocked, b?.input, b?.output]);
+  const inspectorKey = JSON.stringify([ui.tool, ui.selected, s.orderIndex, s.totalSold, s.career.research, b?.mode, game.warehouseUsed, game.warehouseCapacity, b?.level, b?.paid, b?.blocked, b?.input, b?.output, b?.buffer?.item]);
   if (force || inspectorKey !== lastInspector) { renderInspector(); lastInspector = inspectorKey; }
   renderTutorial();
   $('#minimap-panel').hidden = !ui.mapOpen || ui.screen !== 'workshop' || ui.focus || ui.inspectorOpen || ui.ordersOpen;

@@ -274,8 +274,15 @@ test('factory entry loads generated atlases and wires construction, production, 
     const shopTime = runtime.game.state.time; frames.shift()(performance.now() + 350000); assert.equal(runtime.game.state.time, shopTime);
     nodes.get('business-locate-depot').click(); assert.equal(nodes.get('business-dialog').open, false);
     assert.equal(runtime.game.state.buildings.find(b => b.id === runtime.ui.selected).type, 'depot');
+    const dispatch = runtime.game.at(8, 2), beforeDispatchUpgrade = runtime.game.state.coins;
+    assert.match(nodes.get('upgrade-building').textContent, /提速至 1\.5 秒 · 60/);
+    nodes.get('upgrade-building').click(); assert.equal(dispatch.level, 2); assert.equal(runtime.game.duration(dispatch), 1.5);
+    assert.equal(runtime.game.state.coins, beforeDispatchUpgrade - 60);
+    assert.match(nodes.get('upgrade-building').textContent, /提速至 1\.0 秒 · 81/);
+    nodes.get('upgrade-building').click(); assert.equal(dispatch.level, 3); assert.equal(runtime.game.duration(dispatch), 1);
+    assert.equal(nodes.get('upgrade-building').disabled, true); assert.equal(runtime.game.state.coins, beforeDispatchUpgrade - 141);
     nodes.get('depot-store').click(); assert.equal(runtime.game.at(8, 2).mode, 'store');
-    for (let n = 0; n < 600; n++) runtime.game.update(.1);
+    for (let n = 0; n < 900; n++) runtime.game.update(.1);
     frames.shift()(performance.now() + 353000); assert.ok(runtime.game.warehouseUsed >= 12); assert.equal(runtime.game.state.totalSold, 0);
     nodes.get('business-toggle').click(); const shipButton = nodes.get('wholesale-offers').children[0].children.find(el => el.dataset?.wholesale);
     assert.equal(shipButton.disabled, false); shipButton.click(); assert.equal(runtime.game.state.business.shipments, 1);
@@ -324,6 +331,16 @@ test('factory entry loads generated atlases and wires construction, production, 
     storage.set('food-factory-preferences-v1', '{');
     await import(`../src/factory-main.js?bad-preference=${Date.now()}`);
     assert.equal(nodes.get('menu-restore').hidden, false, 'damaged settings must not hide an existing backup');
+    // Preserve a genuine single-slot save before applying new transport timings.
+    const oldFlow = await readFile(new URL('./fixtures/flow-v0102-save.json', import.meta.url), 'utf8');
+    storage.set('food-factory-v1', oldFlow);
+    await import(`../src/factory-main.js?flow-migration=${Date.now()}`);
+    assert.equal(storage.get('food-factory-v1-before-paced-flow'), oldFlow);
+    assert.equal(JSON.parse(storage.get('food-factory-v1')).flowVersion, 2);
+    storage.set('food-factory-v1', oldFlow); failStorageKey = 'food-factory-v1-before-paced-flow';
+    await import(`../src/factory-main.js?flow-protected=${Date.now()}`);
+    nodes.get('menu-play').click(); nodes.get('menu-home').click();
+    assert.equal(storage.get('food-factory-v1'), oldFlow); failStorageKey = null;
     // Preserve the raw cat-era save before the migrated factory can auto-save.
     const catFixtures = JSON.parse(await readFile(new URL('./fixtures/cat-v010-saves.json', import.meta.url), 'utf8'));
     const catRaw = JSON.stringify(catFixtures.working);

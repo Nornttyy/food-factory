@@ -1,9 +1,12 @@
-import { LINK_DIRS, directionBetween, opposite, canLink, outputDirections } from './factory-links.js?v=0.10.2';
-import { RESEARCH, CAREER_CATALOG, freshCareer, contractFor, contractComplete, validCareer } from './factory-career.js?v=0.10.2';
-import { freshBusiness, validBusiness, warehouseCapacity, warehouseUsed, wholesaleFor, MILESTONES } from './factory-business.js?v=0.10.2';
-import { validShop, cookSeconds, STAFF, LEGACY_SHOP_PRICES } from './factory-shop.js?v=0.10.2';
+import { LINK_DIRS, directionBetween, opposite, canLink, outputDirections } from './factory-links.js?v=0.11.0';
+import { RESEARCH, CAREER_CATALOG, freshCareer, contractFor, contractComplete, validCareer } from './factory-career.js?v=0.11.0';
+import { freshBusiness, validBusiness, warehouseCapacity, warehouseUsed, wholesaleFor, MILESTONES } from './factory-business.js?v=0.11.0';
+import { validShop, cookSeconds, STAFF, LEGACY_SHOP_PRICES } from './factory-shop.js?v=0.11.0';
 export const SAVE_KEY = 'food-factory-v1';
 export const ORDER_CATALOG = 4;
+export const FLOW_VERSION = 2;
+export const PRODUCTION_TIME_SCALE = 1.5;
+export const DEPOT_SECONDS = [2, 1.5, 1];
 export const WIDTH = 40;
 export const HEIGHT = 24;
 export const AREAS = [[14, 8], [18, 10], [22, 12], [28, 16], [34, 20], [40, 24]];
@@ -82,17 +85,20 @@ export function orderFor(index, catalog = 1) {
   return { title: ['街角早餐', '甜蜜派对', '果园来信'][n % 3], wants: { [item]: Math.min(80, 12 + n * 3) }, reward: Math.min(2400, 400 + n * 100), note: '新的订单，新的日常' };
 }
 export function upgradeCost(building) { return Math.round(BUILDINGS[building.type].cost * (0.65 + building.level * 0.35)); }
+export function isTransport(building) { return ['belt', 'splitter'].includes(BUILDINGS[building.type]?.kind); }
+export function transportCount(building) { return Number(Boolean(building.output)) + Number(Boolean(building.buffer)); }
 export function durationFor(building, research = {}) {
+  if (building.type === 'depot') return DEPOT_SECONDS[building.level - 1];
   const machine = Boolean(BUILDINGS[building.type].duration);
-  if (!machine) return (4 - (research.transport || 0)) / 10;
-  return BUILDINGS[building.type].duration / (1 + (building.level - 1) * 0.5) / (1 + (research.production || 0) * .15);
+  if (!machine) return (12 - (research.transport || 0)) / 10;
+  return PRODUCTION_TIME_SCALE * BUILDINGS[building.type].duration / (1 + (building.level - 1) * 0.5) / (1 + (research.production || 0) * .15);
 }
 export function makeEntity(type, x, y, dir, id, paid = 0) {
-  return { id, type, x, y, dir, level: 1, paid, input: null, output: null, progress: 0, readyAt: 0, roundRobin: 0, blocked: false, idle: 0 };
+  return { id, type, x, y, dir, level: 1, paid, input: null, output: null, buffer: null, progress: 0, readyAt: 0, roundRobin: 0, blocked: false, idle: 0 };
 }
 export class FactoryGame {
   constructor({ starter = true } = {}) {
-    this.state = { version: 1, coins: 450, expansion: 0, orderIndex: 0, orderProgress: {}, delivered: {}, stock: {}, buildings: [], nextId: 1, time: 0, tick: 0, paused: false, speed: 1, totalSold: 0 };
+    this.state = { version: 1, flowVersion: FLOW_VERSION, coins: 450, expansion: 0, orderIndex: 0, orderProgress: {}, delivered: {}, stock: {}, buildings: [], nextId: 1, time: 0, tick: 0, paused: false, speed: 1, totalSold: 0 };
     this.state.career = freshCareer();
     this.state.business = freshBusiness();
     this.state.orderCatalog = ORDER_CATALOG;
@@ -169,9 +175,17 @@ export class FactoryGame {
     if (!Object.hasOwn(RESEARCH, key) || career.research[key] >= 3) return { ok: false, message: '研究已满级' };
     const cost = career.research[key] + 1;
     if (career.points < cost) return { ok: false, message: '完成急单，获得研究点' };
-    const progress = this.state.buildings.map(b => b.progress / this.duration(b));
+    const durations = this.state.buildings.map(b => this.duration(b));
+    const progress = this.state.buildings.map((b, i) => b.progress / durations[i]);
     career.points -= cost; career.research[key]++;
-    this.state.buildings.forEach((b, i) => b.progress = progress[i] * this.duration(b));
+    this.state.buildings.forEach((b, i) => {
+      const duration = this.duration(b); b.progress = progress[i] * duration;
+      if (key === 'transport' && isTransport(b)) {
+        b.readyAt = this.state.time + Math.max(0, b.readyAt - this.state.time) * duration / durations[i];
+        b.motion = undefined;
+        if (b.buffer) { b.buffer.readyAt = this.state.time + Math.max(0, b.buffer.readyAt - this.state.time) * duration / durations[i]; b.buffer.motion = undefined; }
+      }
+    });
     return { ok: true };
   }
   at(x, y) { return this.state.buildings.find(b => b.x === x && b.y === y); }
@@ -198,7 +212,7 @@ export class FactoryGame {
     this.state.coins += b.paid;
     if (b.gifted) this.state.stock[b.type] = (this.state.stock[b.type] || 0) + 1;
     this.state.buildings.splice(index, 1);
-    return { ok: true, refund: b.paid, restocked: Boolean(b.gifted), discarded: Boolean(b.input || b.output) };
+    return { ok: true, refund: b.paid, restocked: Boolean(b.gifted), discarded: Boolean(b.input || b.output || b.buffer) };
   }
   extendBelt(fromCell, toCell) {
     const from = this.at(fromCell.x, fromCell.y), dir = directionBetween(fromCell, toCell);
@@ -224,7 +238,7 @@ export class FactoryGame {
   rotate(id) { const b = this.state.buildings.find(b => b.id === id); if (!b) return false; b.dir = (b.dir + 1) % 4; return true; }
   upgrade(id) {
     const b = this.state.buildings.find(b => b.id === id);
-    if (!b || !['machine', 'source'].includes(BUILDINGS[b.type].kind)) return { ok: false, message: '这台设备无需升级' };
+    if (!b || !['machine', 'source', 'depot'].includes(BUILDINGS[b.type].kind)) return { ok: false, message: '这台设备无需升级' };
     if (b.level >= 3) return { ok: false, message: '已经是最高等级' };
     const cost = upgradeCost(b);
     if (this.state.coins < cost) return { ok: false, message: '金币还不够' };
@@ -266,9 +280,9 @@ export class FactoryGame {
     if (!target || (source && !canLink(source, target))) return false;
     const def = BUILDINGS[target.type];
     if (def.kind === 'source') return false;
-    if (def.kind === 'depot') return Boolean(ITEMS[item]?.value) && (target.mode !== 'store' || this.warehouseUsed < this.warehouseCapacity);
+    if (def.kind === 'depot') return !target.input && Boolean(ITEMS[item]?.value) && (target.mode !== 'store' || this.warehouseUsed < this.warehouseCapacity);
     if (def.kind === 'machine') return !target.input && def.input === item;
-    return !target.output;
+    return transportCount(target) < 2;
   }
   update(seconds) {
     if (!Number.isFinite(seconds) || seconds <= 0 || this.state.paused) return;
@@ -279,10 +293,23 @@ export class FactoryGame {
     const s = this.state;
     s.time = Math.round((s.time + STEP) * 10) / 10; s.tick++;
     this.events = this.events.filter(e => s.time - e.time < 1.5);
+    // Finish existing depot work before accepting new food: even the first item waits
+    // a full processing cycle. Sequential commits reserve the shared warehouse safely.
+    for (const b of s.buildings) if (b.type === 'depot' && b.input) {
+      b.progress = Math.min(this.duration(b), b.progress + STEP);
+      if (b.progress + 1e-9 < this.duration(b)) continue;
+      b.blocked = b.mode === 'store' && this.warehouseUsed >= this.warehouseCapacity;
+      if (b.blocked) continue;
+      if (b.mode === 'store') {
+        s.business.warehouse[b.input] = (s.business.warehouse[b.input] || 0) + 1;
+        this.events.push({ kind: 'store', x: b.x, y: b.y, time: s.time });
+      } else this.deliver(b.input, b);
+      b.input = null; b.progress = 0; b.flashUntil = s.time + .5;
+    }
     const map = new Map(s.buildings.map(b => [`${b.x},${b.y}`, b]));
     // Eligibility is a start-of-tick snapshot. No item can be transferred twice in one tick.
     const candidates = s.buildings.filter(b => b.output && b.readyAt <= s.time + 1e-9);
-    const reserved = new Set();
+    const reserved = new Map();
     let storageReserved = 0;
     const storageFree = this.warehouseCapacity - this.warehouseUsed;
     const moves = [];
@@ -297,30 +324,35 @@ export class FactoryGame {
       for (const dir of dirs) {
         const [dx, dy] = DIRS[dir];
         const target = map.get(`${b.x + dx},${b.y + dy}`);
-        if (target && !reserved.has(target.id) && this.canReceive(target, b.output, b)) {
+        const free = target ? (isTransport(target) ? 2 - transportCount(target) : 1) : 0;
+        if (target && (reserved.get(target.id) || 0) < free && this.canReceive(target, b.output, b)) {
           if (target.type === 'depot' && target.mode === 'store' && storageReserved >= storageFree) continue;
           chosen = { from: b, to: target, item: b.output, dir }; break;
         }
       }
       b.blocked = !chosen;
-      if (chosen) { reserved.add(chosen.to.id); if (chosen.to.type === 'depot' && chosen.to.mode === 'store') storageReserved++; moves.push(chosen); }
+      if (chosen) { reserved.set(chosen.to.id, (reserved.get(chosen.to.id) || 0) + 1); if (chosen.to.type === 'depot' && chosen.to.mode === 'store') storageReserved++; moves.push(chosen); }
     }
-    for (const { from, to, item, dir } of moves) {
-      from.output = null; from.blocked = false;
+    // Remove all snapshot heads before enqueueing, so arrivals cannot be forwarded
+    // twice or overwrite a waiting second item when neighbors move together.
+    for (const { from, dir } of moves) {
+      if (from.buffer) {
+        const gap = this.duration(from) / 2;
+        from.output = from.buffer.item; from.readyAt = Math.max(from.buffer.readyAt, s.time + gap);
+        from.motion = { x: from.x, y: from.y, offset: -14, dir: from.dir, start: s.time, duration: gap };
+        from.buffer = null;
+      } else { from.output = null; from.motion = undefined; }
+      from.blocked = false;
       if (BUILDINGS[from.type].kind === 'splitter') from.roundRobin = dir === from.dir ? 1 : 0;
+    }
+    for (const { from, to, item } of moves) {
       const def = BUILDINGS[to.type];
-      if (def.kind === 'depot') {
-        if (to.mode === 'store') {
-          s.business.warehouse[item] = (s.business.warehouse[item] || 0) + 1;
-          this.events.push({ kind: 'store', x: to.x, y: to.y, time: s.time });
-        } else this.deliver(item, to);
-        to.flashUntil = s.time + 0.5;
-      }
-      else if (def.kind === 'machine') { to.input = item; to.progress = 0; }
+      if (def.kind === 'depot' || def.kind === 'machine') { to.input = item; to.progress = 0; to.blocked = false; }
       else {
         const travel = this.duration(to);
-        to.output = item; to.readyAt = s.time + travel;
-        to.motion = { x: from.x, y: from.y, start: s.time, duration: travel };
+        const motion = { x: from.x, y: from.y, dir: from.dir, offset: isTransport(from) ? 14 : 0, start: s.time, duration: travel };
+        if (!to.output) { to.output = item; to.readyAt = s.time + travel; to.motion = motion; }
+        else to.buffer = { item, readyAt: Math.max(s.time + travel, to.readyAt + travel / 2), motion };
       }
     }
     for (const b of s.buildings) {
@@ -335,12 +367,14 @@ export class FactoryGame {
     if (s.career.contract?.status === 'active' && s.time >= s.career.contract.deadline) s.career.contract.status = 'expired';
   }
   serialize() {
-    return JSON.stringify({ ...this.state, buildings: this.state.buildings.map(({ motion, flashUntil, ...b }) => b) });
+    return JSON.stringify({ ...this.state, buildings: this.state.buildings.map(({ motion, flashUntil, ...b }) => ({ ...b, buffer: b.buffer ? { item: b.buffer.item, readyAt: b.buffer.readyAt } : null })) });
   }
   restore(raw) {
     try {
       if (typeof raw !== 'string' || raw.length > 500000) return false;
       const s = JSON.parse(raw);
+      const legacyFlow = s?.flowVersion === undefined;
+      if (!legacyFlow && s.flowVersion !== FLOW_VERSION) return false;
       const integer = (v, max = 1e12) => Number.isSafeInteger(v) && v >= 0 && v <= max;
       const nonnegative = v => Number.isFinite(v) && v >= 0 && v <= 1e12;
       if (!s || s.version !== 1 || !integer(s.coins) || !integer(s.expansion, AREAS.length - 1) || !integer(s.orderIndex, 100000) || !integer(s.totalSold) || !integer(s.nextId) || !integer(s.tick) || !nonnegative(s.time) || ![1, 2].includes(s.speed) || typeof s.paused !== 'boolean' || !Array.isArray(s.buildings) || s.buildings.length > WIDTH * HEIGHT) return false;
@@ -364,18 +398,33 @@ export class FactoryGame {
       const ids = new Set(), cells = new Set();
       for (const b of s.buildings) {
         const def = BUILDINGS[b.type];
-        if (!Object.hasOwn(BUILDINGS, b.type) || def.unlock > Math.min(s.orderIndex, 2) || !integer(b.id) || b.id >= s.nextId || !integer(b.x, w - 1) || !integer(b.y, h - 1) || !integer(b.dir, 3) || b.level < 1 || !integer(b.level, 3) || !integer(b.paid) || !nonnegative(b.progress) || b.progress > durationFor(b, s.career.research) + 0.1 || !nonnegative(b.readyAt) || b.readyAt > s.time + 1 || !integer(b.roundRobin, 1)) return false;
+        if (!Object.hasOwn(BUILDINGS, b.type)) return false;
+        const duration = durationFor(b, s.career.research);
+        const previousDuration = def.duration ? duration / PRODUCTION_TIME_SCALE : (4 - s.career.research.transport) / 10;
+        const progressLimit = legacyFlow ? previousDuration : duration;
+        const travelLimit = legacyFlow ? 1 : Math.max(1, duration);
+        if (def.unlock > Math.min(s.orderIndex, 2) || !integer(b.id) || b.id >= s.nextId || !integer(b.x, w - 1) || !integer(b.y, h - 1) || !integer(b.dir, 3) || b.level < 1 || !integer(b.level, 3) || !integer(b.paid) || !nonnegative(b.progress) || b.progress > progressLimit + 0.1 || !nonnegative(b.readyAt) || b.readyAt > s.time + travelLimit + 1e-8 || !integer(b.roundRobin, 1)) return false;
         if (ids.has(b.id) || cells.has(`${b.x},${b.y}`)) return false;
-        if (b.input !== null && (def.kind !== 'machine' || b.input !== def.input)) return false;
-        if (b.output !== null && (!ITEMS[b.output] || def.kind === 'depot' || (['source', 'machine'].includes(def.kind) && b.output !== def.output))) return false;
+        if (b.input !== null && (typeof b.input !== 'string' || !(def.kind === 'machine' ? b.input === def.input : !legacyFlow && def.kind === 'depot' && Boolean(ITEMS[b.input]?.value)))) return false;
+        if (def.kind === 'depot' && !b.input && b.progress !== 0) return false;
+        if (b.output !== null && (typeof b.output !== 'string' || !Object.hasOwn(ITEMS, b.output) || def.kind === 'depot' || (['source', 'machine'].includes(def.kind) && b.output !== def.output))) return false;
+        if (b.buffer !== undefined && b.buffer !== null) {
+          const q = b.buffer;
+          if (legacyFlow || !isTransport(b) || !b.output || typeof q !== 'object' || Array.isArray(q) || Object.keys(q).length !== 2 || !Object.hasOwn(q, 'item') || !Object.hasOwn(q, 'readyAt') || typeof q.item !== 'string' || !Object.hasOwn(ITEMS, q.item) || !nonnegative(q.readyAt) || q.readyAt < b.readyAt || q.readyAt > s.time + duration * 1.5 + 1e-8) return false;
+        }
         if (b.gifted !== undefined && typeof b.gifted !== 'boolean') return false;
         if (b.mode !== undefined && (b.type !== 'depot' || !['sell', 'store'].includes(b.mode))) return false;
         if (b.gifted) gifts[b.type] = (gifts[b.type] || 0) + 1;
         // Historical cat-era purchases refund their actual payment, not today's price.
         let maxPaid = b.gifted ? 0 : Math.max(def.cost, { belt: 35, splitter: 140, merger: 100, depot: 160 }[b.type] || 0);
         for (let level = 1; level < b.level; level++) maxPaid += upgradeCost({ type: b.type, level });
-        if (b.paid > maxPaid || (!['source', 'machine'].includes(def.kind) && b.level !== 1)) return false;
+        if (b.paid > maxPaid || (!['source', 'machine', ...(legacyFlow ? [] : ['depot'])].includes(def.kind) && b.level !== 1)) return false;
         ids.add(b.id); cells.add(`${b.x},${b.y}`);
+        if (legacyFlow) {
+          if (def.duration) b.progress = Math.min(1, b.progress / previousDuration) * duration;
+          if (isTransport(b) && b.output) b.readyAt = s.time + Math.min(1, Math.max(0, b.readyAt - s.time) / previousDuration) * duration;
+        }
+        b.buffer ??= null;
       }
       if (Object.entries(gifts).some(([type, n]) => n > (giftLimits[type] || 0))) return false;
       if (s.shop) {
@@ -402,6 +451,7 @@ export class FactoryGame {
         if (!integer(s.coins) || !integer(s.nextId)) return false;
       }
       delete s.shop;
+      s.flowVersion = FLOW_VERSION;
       this.state = { ...s, buildings: s.buildings.map(b => ({ ...b, motion: undefined, blocked: false, idle: 0 })) };
       this.accumulator = 0; this.events = [];
       return true;

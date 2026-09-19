@@ -19,7 +19,7 @@ test('classic gameplay keeps automatic production and starter kit with balanced 
   assert.equal(g.state.coins, 450); assert.equal(g.state.buildings.length, 8);
   assert.equal(g.state.shop, undefined); assert.equal(g.order.reward, 95);
   assert.deepEqual(['belt', 'splitter', 'merger', 'depot'].map(k => BUILDINGS[k].cost), [8, 35, 25, 60]);
-  assert.equal(ITEMS.bread.value, 6); run(g, 30);
+  assert.equal(ITEMS.bread.value, 6); run(g, 45);
   assert.ok(g.state.totalSold >= 4); assert.equal(g.orderReady, true);
 });
 test('zero-coin cat save becomes a working free starter factory only once', () => {
@@ -27,7 +27,7 @@ test('zero-coin cat save becomes a working free starter factory only once', () =
   assert.equal(g.state.coins, 450); assert.equal(g.state.shop, undefined);
   assert.equal(g.state.buildings.length, 8); assert.ok(g.state.buildings.every(b => b.gifted));
   assert.equal(Object.values(g.state.stock).reduce((a, b) => a + b, 0), 0);
-  roundTrip(g); run(g, 30); assert.ok(g.state.totalSold >= 4);
+  roundTrip(g); run(g, 45); assert.ok(g.state.totalSold >= 4);
 });
 test('counter meals, held meals and staff are credited once without recording sales', () => {
   const s = fixture('working'), g = restore(s);
