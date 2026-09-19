@@ -1,6 +1,7 @@
-import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.14.0';
-import { CELL, FactoryCamera, jellyPose, foodPose, presentationTime } from './factory-feel.js?v=0.14.0';
-import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.14.0';
+import { WIDTH, HEIGHT, BUILDINGS, ITEMS, DIRS } from './factory-core.js?v=0.15.0';
+import { CELL, FactoryCamera, jellyPose, foodPose, presentationTime } from './factory-feel.js?v=0.15.0';
+import { conveyorPorts, connectedPorts } from './factory-links.js?v=0.15.0';
+import { worldArea, yardLayout, drawYardGround } from './factory-yard.js?v=0.15.0';
 // Match the flour hopper: cream rails, cocoa outlines, sage/peach accents.
 const CREAM = { cream: '#fff2d9', biscuit: '#e7cea7', peach: '#e4b69f', sage: '#b9c7ad', cocoa: '#846a57', belt: '#b09b86' };
 const BELT_LAYERS = [[43, CREAM.cocoa], [38, CREAM.cream], [28, CREAM.belt]];
@@ -12,7 +13,7 @@ export class FactoryAssets {
     const images = {};
     onProgress(0, 1);
     const loading = (async () => {
-      const response = await fetch(base + 'manifest.json?v=0.14.0', { signal: controller.signal });
+      const response = await fetch(base + 'manifest.json?v=0.15.0', { signal: controller.signal });
       if (!response.ok) throw new Error('素材清单读取失败');
       const manifest = await response.json();
       if (stopped) return;
@@ -126,7 +127,7 @@ export class FactoryRenderer {
     const rect = !measure && this.viewport ? this.viewport : (this.viewport = this.canvas.getBoundingClientRect()), dpr = Math.min(window.devicePixelRatio || 1, 2);
     const w = Math.max(1, Math.round(rect.width * dpr)), h = Math.max(1, Math.round(rect.height * dpr));
     if (this.canvas.width !== w || this.canvas.height !== h) { this.canvas.width = w; this.canvas.height = h; }
-    this.transform = { ...this.camera.resize(rect.width, rect.height, area, ui), dpr };
+    this.transform = { ...this.camera.resize(rect.width, rect.height, ui.customerArea ? worldArea(area) : area, ui), dpr };
   }
   zoom(factor, clientX, clientY) {
     const rect = this.canvas.getBoundingClientRect();
@@ -158,8 +159,11 @@ export class FactoryRenderer {
     this.particles = this.reduced ? [] : this.particles.filter(p => timestamp - p.start < 650);
   }
   cellAt(clientX, clientY) {
+    const p = this.worldAt(clientX, clientY); return { x: Math.floor(p.x), y: Math.floor(p.y) };
+  }
+  worldAt(clientX, clientY) {
     const rect = this.canvas.getBoundingClientRect(), t = this.transform;
-    return { x: Math.floor((clientX - rect.left - t.x) / t.scale / CELL), y: Math.floor((clientY - rect.top - t.y) / t.scale / CELL) };
+    return { x: (clientX - rect.left - t.x) / t.scale / CELL, y: (clientY - rect.top - t.y) / t.scale / CELL };
   }
   draw(game, ui, timestamp) {
     this.grid = new Map(game.state.buildings.map(b => [`${b.x},${b.y}`, b]));
@@ -169,7 +173,7 @@ export class FactoryRenderer {
     ctx.setTransform(t.dpr * t.scale, 0, 0, t.dpr * t.scale, t.x * t.dpr, t.y * t.dpr);
     const [areaW, areaH] = game.area;
     const left = Math.max(0, Math.floor(-t.x / t.scale / CELL) - 2), top = Math.max(0, Math.floor(-t.y / t.scale / CELL) - 2);
-    const right = Math.min(WIDTH, Math.ceil((this.canvas.width / t.dpr - t.x) / t.scale / CELL) + 2), bottom = Math.min(HEIGHT, Math.ceil((this.canvas.height / t.dpr - t.y) / t.scale / CELL) + 2);
+    const right = Math.min(game.service ? areaW : WIDTH, Math.ceil((this.canvas.width / t.dpr - t.x) / t.scale / CELL) + 2), bottom = Math.min(game.service ? areaH : HEIGHT, Math.ceil((this.canvas.height / t.dpr - t.y) / t.scale / CELL) + 2);
     const visible = s.buildings.filter(b => b.x >= left && b.x < right && b.y >= top && b.y < bottom);
     for (let y = top; y < bottom; y++) for (let x = left; x < right; x++) {
       const active = x < areaW && y < areaH;
@@ -181,9 +185,10 @@ export class FactoryRenderer {
       ctx.save(); ctx.strokeStyle = '#c3bda2'; ctx.setLineDash([5, 7]); ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(areaW * CELL, 0); ctx.lineTo(areaW * CELL, areaH * CELL); ctx.lineTo(0, areaH * CELL); ctx.stroke(); ctx.restore();
       ctx.fillStyle = '#b2aa8e'; ctx.textAlign = 'center'; ctx.font = '14px system-ui';
-      ctx.fillText('扩建后开放', (areaW + 1.1) * CELL, Math.min(3, areaH / 2) * CELL);
-      ctx.fillText('扩建后开放', Math.min(5, areaW / 2) * CELL, (areaH + .7) * CELL);
+      if (!game.service) ctx.fillText('扩建后开放', (areaW + 1.1) * CELL, Math.min(3, areaH / 2) * CELL);
+      if (!game.service) ctx.fillText('扩建后开放', Math.min(5, areaW / 2) * CELL, (areaH + .7) * CELL);
     }
+    if (game.service) drawYardGround(ctx, game.area, this.assets);
     for (const b of visible) if (['belt', 'splitter'].includes(BUILDINGS[b.type].kind)) this.drawBelt(b, game);
     for (const b of visible) if (!['belt', 'splitter'].includes(BUILDINGS[b.type].kind)) this.drawMachine(b, game, timestamp);
     for (const b of visible) {
@@ -230,6 +235,7 @@ export class FactoryRenderer {
       ctx.beginPath(); ctx.roundRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2, 10); ctx.stroke();
       arrow(ctx, x * CELL + 36, y * CELL - 9, 1, '#c78442', 10); ctx.restore();
     }
+    if (game.service) this.serviceView?.draw(ctx, game);
     for (const event of game.events) {
       const age = presentationTime(game) - event.time;
       ctx.save(); ctx.globalAlpha = Math.max(0, 1 - age / 1.5); ctx.fillStyle = '#79915e'; ctx.textAlign = 'center'; ctx.font = 'bold 16px system-ui';
@@ -301,9 +307,14 @@ export class FactoryRenderer {
   }
   drawMinimap(canvas, game) {
     const ctx = canvas.getContext('2d'), w = canvas.width, h = canvas.height, [aw, ah] = game.area;
-    const sx = w / WIDTH, sy = h / HEIGHT;
+    const [mapW, mapH] = game.worldArea || [WIDTH, HEIGHT], sx = w / mapW, sy = h / mapH;
     ctx.clearRect(0, 0, w, h); ctx.fillStyle = '#e8e3d4'; ctx.fillRect(0, 0, w, h);
     ctx.fillStyle = '#f6e9c9'; ctx.fillRect(0, 0, aw * sx, ah * sy);
+    if (game.service) {
+      const yard = yardLayout(game.area); ctx.fillStyle = '#d1dfb2'; ctx.fillRect(yard.x * sx, yard.y * sy, yard.width * sx, yard.height * sy);
+      for (const p of yard.spots) { ctx.fillStyle = '#bd8e78'; ctx.fillRect((p.x - .25) * sx, (p.y - .25) * sy, Math.max(3, .5 * sx), Math.max(3, .5 * sy)); }
+      for (const p of game.service.workers) { ctx.fillStyle = '#607b67'; ctx.fillRect(p.x * sx - 1, p.y * sy - 1, 3, 3); }
+    }
     for (const b of game.state.buildings) {
       const kind = BUILDINGS[b.type].kind;
       ctx.fillStyle = b.mode === 'store' ? '#7196ae' : kind === 'depot' ? '#c99558' : kind === 'source' ? '#91a76f' : kind === 'machine' ? '#c68e80' : '#aa9578';
@@ -313,7 +324,7 @@ export class FactoryRenderer {
     if (view) {
       const i = view.insets;
       const x = Math.max(0, (i.left - t.x) / t.scale / CELL), y = Math.max(0, (i.top - t.y) / t.scale / CELL);
-      const right = Math.min(aw, (view.width - i.right - t.x) / t.scale / CELL), bottom = Math.min(ah, (view.height - i.bottom - t.y) / t.scale / CELL);
+      const right = Math.min(mapW, (view.width - i.right - t.x) / t.scale / CELL), bottom = Math.min(mapH, (view.height - i.bottom - t.y) / t.scale / CELL);
       ctx.strokeStyle = '#6e8655'; ctx.lineWidth = 2; ctx.strokeRect(x * sx, y * sy, Math.max(0, right - x) * sx, Math.max(0, bottom - y) * sy);
     }
   }

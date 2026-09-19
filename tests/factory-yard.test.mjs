@@ -1,75 +1,108 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { WorkerMotion, customerPose, yardLayout } from '../src/factory-yard.js';
-import { presentationTime, yardWidth } from '../src/factory-feel.js';
-import { CafeFactoryGame } from '../src/factory-service.js';
+import { worldArea, yardLayout, serviceHit, findPath, shelfApproaches, customerPose } from '../src/factory-yard.js';
+import { presentationTime, cameraInsets } from '../src/factory-feel.js';
+import { CafeFactoryGame, WALK_SPEED } from '../src/factory-service.js';
 import { FactoryRenderer } from '../src/factory-renderer.js';
+import { AREAS } from '../src/factory-core.js';
 
-test('presentation time advances continuously across tick boundaries at both speeds and freezes on pause', () => {
+test('one world plot stays outside every expansion, without reserving any existing buildable tile', () => {
+  for (const area of AREAS) {
+    const yard = yardLayout(area), bounds = worldArea(area);
+    assert.ok(yard.x >= area[0]); assert.ok(yard.x + yard.width < bounds[0]); assert.ok(yard.y + yard.height < bounds[1]);
+    for (const [i, p] of yard.spots.entries()) assert.deepEqual(serviceHit(p, area), { kind: 'customer', slot: i });
+    assert.deepEqual(serviceHit(yard.hire, area), { kind: 'hire' }); assert.equal(serviceHit({ x: 8.5, y: 2.5 }, area), null);
+  }
+});
+test('world hit tests follow the very same camera pan, zoom and resize as machines on phones and desktop', () => {
+  const old = globalThis.window; globalThis.window = { devicePixelRatio: 2 };
+  try {
+    for (const [width, height] of [[1440, 900], [844, 390], [390, 844], [320, 568]]) {
+      const canvas = { getContext: () => ({}), getBoundingClientRect: () => ({ width, height, left: 9, top: 17 }) };
+      const renderer = new FactoryRenderer(canvas, {}), g = new CafeFactoryGame(), spot = yardLayout(g.area).spots[0];
+      renderer.resize(g.area, { customerArea: true }); renderer.camera.centerOn(spot.x, spot.y); renderer.resize(g.area, { customerArea: true });
+      let previous;
+      for (let n = 0; n < 3; n++) {
+        const t = renderer.transform, x = 9 + t.x + spot.x * 72 * t.scale, y = 17 + t.y + spot.y * 72 * t.scale;
+        const hit = renderer.worldAt(x, y); assert.ok(Math.abs(hit.x - spot.x) < 1e-9); assert.deepEqual(serviceHit(hit, g.area), { kind: 'customer', slot: 0 });
+        if (previous) assert.notDeepEqual([x, y], previous); previous = [x, y]; renderer.pan(31, -19); renderer.zoom(1.17, 100, 110);
+      }
+      const inset = cameraInsets(width, height, { customerArea: true }); assert.equal(inset.left, inset.right, 'no hidden customer sidebar consumes the map');
+    }
+  } finally { globalThis.window = old; }
+});
+test('walking routes avoid conveyors and machines, and sealed shelves have no route', () => {
+  const g = new CafeFactoryGame(), start = yardLayout(g.area).homes[0], shelf = g.shelves[0];
+  const path = findPath(g.area, g.state.buildings, start, shelfApproaches(shelf)); assert.ok(path.length > 5);
+  let previous = start;
+  for (const p of path) { assert.equal(g.at(Math.floor(p.x), Math.floor(p.y)), undefined); assert.equal(Math.abs(p.x - previous.x) + Math.abs(p.y - previous.y), 1); previous = p; }
+  for (const p of shelfApproaches(shelf)) if (!g.at(Math.floor(p.x), Math.floor(p.y))) g.place('belt', Math.floor(p.x), Math.floor(p.y));
+  assert.equal(findPath(g.area, g.state.buildings, start, shelfApproaches(shelf)), null);
+  g.state.totalSold = g.service.served = 4; g.shelves[0].goods = ['bread']; g.recruit(); const coins = g.state.coins;
+  for (let i = 0; i < 150; i++) g.update(.1);
+  assert.equal(g.service.workers[0].job, null); assert.equal(g.state.coins, coins); assert.ok(g.shelves[0].goods.includes('bread'));
+});
+test('workers take real bounded steps, cannot be built over, and return to the rest area', () => {
+  const g = new CafeFactoryGame(); g.state.totalSold = g.service.served = 4; g.shelves[0].goods = ['bread']; g.state.buildings = [g.shelves[0]]; g.recruit();
+  const w = g.service.workers[0]; let carrying = false, visitedFactory = false;
+  for (let n = 0; n < 210; n++) {
+    const before = { x: w.x, y: w.y }; g.update(.1);
+    assert.ok(Math.hypot(w.x - before.x, w.y - before.y) <= WALK_SPEED * .1 + 1e-8);
+    assert.equal(g.at(Math.floor(w.x), Math.floor(w.y)), undefined);
+    visitedFactory ||= w.x < g.area[0]; carrying ||= w.job?.stage === 'deliver';
+    if (g.inside(Math.floor(w.x), Math.floor(w.y))) assert.equal(g.place('belt', Math.floor(w.x), Math.floor(w.y)).ok, false);
+  }
+  assert.ok(visitedFactory && carrying); assert.equal(g.service.served, 5); assert.equal(w.job, null);
+  assert.equal(w.x, yardLayout(g.area).homes[0].x); assert.equal(w.y, yardLayout(g.area).homes[0].y);
+});
+test('expansion preserves buildings and relocates the annex without losing carried food or breaking saves', () => {
+  const g = new CafeFactoryGame(); g.state.totalSold = g.service.served = 4; g.shelves[0].goods = ['bread']; g.recruit(); g.update(.1);
+  const layout = g.state.buildings.map(b => [b.id, b.x, b.y]), job = structuredClone(g.service.workers[0].job); g.state.coins = 10000;
+  g.expand(); assert.deepEqual(g.state.buildings.map(b => [b.id, b.x, b.y]), layout); assert.deepEqual(g.service.workers[0].job, job);
+  assert.equal(g.service.workers[0].path, null); const restored = new CafeFactoryGame(); assert.equal(restored.restore(g.serialize()), true);
+  for (let n = 0; n < 300 && restored.service.served < 5; n++) restored.update(.1); assert.equal(restored.service.served, 5);
+});
+test('legacy four-second carrying jobs migrate without a second pickup, loss or double payout', () => {
+  const g = new CafeFactoryGame(); g.state.totalSold = g.service.served = 4; g.state.buildings = [];
+  g.service.version = 1; g.service.workers = [{ id: 1, job: { customerId: 1, item: 'bread', remaining: 1.2, x: 8, y: 2 } }];
+  const coins = g.state.coins, loaded = new CafeFactoryGame(); assert.equal(loaded.restore(g.serialize()), true);
+  assert.equal(loaded.service.version, 2); assert.equal(loaded.service.workers[0].job.stage, 'deliver');
+  for (let n = 0; n < 300; n++) loaded.update(.1); assert.equal(loaded.state.coins, coins + 6); assert.equal(loaded.service.served, 5);
+  assert.equal(loaded.restore(loaded.serialize()), true); for (let n = 0; n < 100; n++) loaded.update(.1); assert.equal(loaded.state.coins, coins + 6);
+});
+test('blocking a carrying employee preserves the meal through save/restore and resumes after opening the path', () => {
+  const g = new CafeFactoryGame(); g.state.totalSold = g.service.served = 4; g.shelves[0].goods = ['bread']; g.recruit();
+  for (let n = 0; n < 200 && g.service.workers[0].job?.stage !== 'deliver'; n++) g.update(.1);
+  assert.equal(g.service.workers[0].job.stage, 'deliver');
+  for (const [x, y] of [[7, 3], [7, 4], [7, 5], [8, 5], [9, 5], [10, 5], [10, 4], [10, 3], [10, 2], [9, 2]]) assert.equal(g.place('belt', x, y).ok, true);
+  const coins = g.state.coins; for (let n = 0; n < 50; n++) g.update(.1);
+  assert.equal(g.state.coins, coins); assert.equal(g.service.workers[0].job.item, 'bread'); assert.equal(g.service.workers[0].path, null);
+  const loaded = new CafeFactoryGame(); assert.equal(loaded.restore(g.serialize()), true); loaded.remove(loaded.at(10, 3).id); const afterRefund = loaded.state.coins;
+  for (let n = 0; n < 200 && loaded.service.served < 5; n++) loaded.update(.1);
+  assert.equal(loaded.state.coins, afterRefund + 6); assert.equal(loaded.service.served, 5);
+});
+test('presentation advances between ticks at both speeds and freezes when paused; customer poses stay world-relative', () => {
   for (const speed of [1, 2]) {
     const g = new CafeFactoryGame(); g.state.speed = speed; let previous = presentationTime(g);
     for (let n = 0; n < 180; n++) { g.update(1 / 60); const next = presentationTime(g); assert.ok(Math.abs(next - previous - speed / 60) < 1e-8); previous = next; }
-    g.update(.013); const frozen = presentationTime(g); g.state.paused = true;
-    for (let n = 0; n < 60; n++) g.update(1 / 60); assert.equal(presentationTime(g), frozen);
+    g.state.paused = true; const frozen = presentationTime(g); g.update(.1); assert.equal(presentationTime(g), frozen);
   }
+  const spot = yardLayout([14, 8]).spots[0]; assert.ok(customerPose({ cooldown: 0 }, spot, 0).x > spot.x);
+  assert.equal(customerPose({ cooldown: 2 }, spot, 2).x, spot.x); assert.equal(customerPose({ cooldown: 0 }, spot, 0, 0, true).x, spot.x);
 });
-
-test('courier travels from counter to customer, returns continuously, and carries only after pickup', () => {
-  const route = new WorkerMotion(), worker = { id: 1, job: { customerId: 1 } }, home = { x: 20, y: 300 }, target = { x: 140, y: 80 };
-  let pose = route.pose(worker, home, target, 0, 0); assert.equal(pose.x, home.x); assert.equal(pose.y, home.y);
-  for (let n = 1; n <= 240; n++) {
-    const next = route.pose(worker, home, target, n / 60, n / 60); assert.ok(Math.hypot(next.x - pose.x, next.y - pose.y) < 2); pose = next;
-  }
-  assert.equal(pose.x, target.x); assert.equal(pose.y, target.y);
-  worker.job = null; const start = route.pose(worker, home, home, 4, 0); assert.equal(start.x, pose.x); assert.equal(start.y, pose.y);
-  pose = route.pose(worker, home, home, 4.5, 0); assert.ok(pose.y > target.y && pose.y < home.y);
-  pose = route.pose(worker, home, home, 5, 0); assert.equal(pose.y, home.y); assert.equal(pose.carrying, false);
-});
-
-test('back-to-back jobs do not teleport staff to the counter or shorten sales timing', () => {
-  const route = new WorkerMotion(), worker = { id: 1, job: { customerId: 1 } }, home = { x: 20, y: 300 }, a = { x: 140, y: 80 }, b = { x: 140, y: 180 };
-  route.pose(worker, home, a, 0, 0); const end = route.pose(worker, home, a, 4, 4);
-  worker.job = { customerId: 2 }; let p = route.pose(worker, home, b, 4, 0);
-  assert.equal(p.x, end.x); assert.equal(p.y, end.y); assert.equal(p.carrying, false);
-  p = route.pose(worker, home, b, 5, 1); assert.equal(p.x, home.x); assert.equal(p.y, home.y); assert.equal(p.carrying, true);
-  p = route.pose(worker, home, b, 8, 4); assert.equal(p.x, b.x); assert.equal(p.y, b.y);
-});
-
-test('customer entrance and departure ease continuously; reduced motion holds the serving spot', () => {
-  const spot = { x: 150, y: 100, size: 70 }, c = { cooldown: 0 };
-  const first = customerPose(c, spot, 0, 0), mid = customerPose(c, spot, .5, 0), end = customerPose(c, spot, 1, 0);
-  assert.ok(first.x > mid.x && mid.x > end.x); assert.equal(end.x, 150);
-  const fed = customerPose({ cooldown: 2 }, spot, 0, .02); assert.equal(fed.x, 150); assert.equal(fed.alpha, 1);
-  assert.ok(customerPose({ cooldown: .1 }, spot, 1.9, .05).x > 200);
-  assert.deepEqual(customerPose(c, spot, .2, .03, true), { x: 150, y: 100, alpha: 1 });
-});
-
-test('terrain layout separates customers, staff homes and the serving counter on desktop and phones', () => {
-  for (const [w, h] of [[1440, 900], [844, 390], [667, 375], [600, 320], [390, 782]]) {
-    const layout = yardLayout(yardWidth(w), h); assert.equal(layout.spots.length, 3); assert.equal(layout.homes.length, 3);
-    for (const spot of layout.spots) { assert.ok(spot.x + spot.size / 2 < layout.width); assert.ok(spot.y + spot.size * .4 < layout.counterY); }
-    for (const home of layout.homes) { assert.ok(home.x > 0 && home.x < layout.width); assert.ok(home.y < layout.counterY); }
-    assert.ok(layout.counterY + 45 < h - 34);
-  }
-});
-
-test('factory animation also avoids repeated layout queries and preserves the model', () => {
+test('world animation does not repeatedly measure DOM or write gameplay saves', () => {
   const old = globalThis.window; globalThis.window = { devicePixelRatio: 1 };
   try {
     let reads = 0; const ctx = new Proxy({}, { get: () => () => {} });
-    const canvas = { width: 900, height: 500, getContext: () => ctx, getBoundingClientRect: () => { reads++; return { left: 0, top: 0, width: 900, height: 500 }; } };
-    const renderer = new FactoryRenderer(canvas, { draw() {} }), game = new CafeFactoryGame(), before = game.serialize();
-    for (let n = 0; n < 120; n++) renderer.draw(game, { selected: null }, n * 16.67);
-    assert.equal(reads, 1); assert.equal(game.serialize(), before);
-    renderer.resize(game.area); assert.equal(reads, 2, 'explicit layout changes can refresh the cache');
+    const renderer = new FactoryRenderer({ getContext: () => ctx, getBoundingClientRect: () => { reads++; return { left: 0, top: 0, width: 900, height: 500 }; } }, { draw() {} });
+    const g = new CafeFactoryGame(), before = g.serialize(); for (let n = 0; n < 120; n++) renderer.draw(g, { selected: null, customerArea: true }, n * 16.67);
+    assert.equal(reads, 1); assert.equal(g.serialize(), before);
   } finally { globalThis.window = old; }
 });
-
-test('customer and employee area is a scene, while the workshop recipe is a nonmodal section', async () => {
+test('the independent customer viewport and portrait blocker are removed, recipes stay nonmodal', async () => {
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8'), css = await readFile(new URL('../factory-service.css', import.meta.url), 'utf8');
-  assert.match(html, /<section id="service-area" class="service-yard"/); assert.match(html, /<section id="quick-recipe"/);
-  assert.doesNotMatch(html, /<dialog[^>]*id="(?:service-area|quick-recipe)"/);
-  assert.match(css, /\.service-yard\{[^}]*top:0;bottom:0/); assert.doesNotMatch(css, /\.service-yard\{[^}]*(?:border-radius|box-shadow)/);
-  assert.doesNotMatch(css, /worker-puppet|service-workers|cat-puppet/);
+  assert.doesNotMatch(html, /service-area|service-yard|orientation-hint|portrait-continue/); assert.doesNotMatch(css, /service-width|service-scene|customer-spot/);
+  assert.match(html, /<section id="quick-recipe"/); for (const id of ['factory-jump', 'service-jump', 'staff-jump']) assert.ok(html.includes(`id="${id}"`));
+  assert.match(css, /min-height:44px/); assert.match(css, /safe-area-inset/);
 });

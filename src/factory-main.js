@@ -1,11 +1,12 @@
-import { BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, AREAS, WIDTH, HEIGHT, upgradeCost, isTransport, transportCount } from './factory-core.js?v=0.14.0';
-import { CafeFactoryGame as FactoryGame, shelfCapacity } from './factory-service.js?v=0.14.0';
-import { ServiceView } from './factory-service-view.js?v=0.14.0';
-import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.14.0';
-import { directionBetween, nextBeltCell } from './factory-links.js?v=0.14.0';
-import { RESEARCH } from './factory-career.js?v=0.14.0';
-import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.14.0';
-import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS } from './factory-business.js?v=0.14.0';
+import { BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, AREAS, WIDTH, HEIGHT, upgradeCost, isTransport, transportCount } from './factory-core.js?v=0.15.0';
+import { CafeFactoryGame as FactoryGame, shelfCapacity } from './factory-service.js?v=0.15.0';
+import { ServiceView } from './factory-service-view.js?v=0.15.0';
+import { yardLayout } from './factory-yard.js?v=0.15.0';
+import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.15.0';
+import { directionBetween, nextBeltCell } from './factory-links.js?v=0.15.0';
+import { RESEARCH } from './factory-career.js?v=0.15.0';
+import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.15.0';
+import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS } from './factory-business.js?v=0.15.0';
 
 const $ = selector => document.querySelector(selector);
 let game = new FactoryGame();
@@ -28,8 +29,8 @@ try { hasBackup = Boolean(localStorage.getItem(BACKUP_KEY)); } catch { /* A bad 
 motionQuery?.addEventListener?.('change', event => { if (!explicitMotion) { ui.reducedMotion = event.matches; renderUi(true); } });
 let saveWorks = true, protectOriginalSave = false, lastUi = '', lastOrder = '', lastInspector = '', dragging = false, lastCell = null, dragError = '', toastTimer;
 let activePointer = null, panning = false, panPoint = null, lastPointer = null, pendingTouch = null, touchOrigin = null, lastCoins = game.state.coins;
-const touchPointers = new Set();
-let blockedTouchGesture = false;
+const touchPointers = new Map();
+let blockedTouchGesture = false, pinch = null;
 
 function bounceElement(element, strong = false) {
   if (ui.reducedMotion || !element?.animate) return;
@@ -54,6 +55,10 @@ try {
   if (stored && game.restore(stored)) {
     hasSave = true;
     const previous = JSON.parse(stored);
+    if (previous.service?.version === 1) {
+      try { localStorage.setItem(`${SAVE_KEY}-before-world-service`, stored); }
+      catch { protectOriginalSave = true; toast('原存档已保留，本次试玩暂不保存'); }
+    }
     if (previous.service === undefined) {
       try { localStorage.setItem(`${SAVE_KEY}-before-customer-counter`, stored); }
       catch { protectOriginalSave = true; toast('原存档已保留，本次试玩暂不保存'); }
@@ -148,7 +153,7 @@ function renderInspector() {
   if (b) {
     const actions = document.createElement('div'); actions.className = 'inspector-actions';
     if (b.type === 'depot') {
-      root.append(element('p', `架上 ${b.goods?.length || 0}/${shelfCapacity(b)} 份 · 右侧拖动送餐`, 'tiny-note'));
+      root.append(element('p', `架上 ${b.goods?.length || 0}/${shelfCapacity(b)} 份 · 点货架拿取，再送给地图中的猫猫`, 'tiny-note'));
       const store = element('button', '移入合作仓库', 'soft-button'); store.id = 'shelf-store'; store.disabled = Boolean(practice) || !b.goods?.length;
       store.addEventListener('click', () => action(game.storeShelf(b.id), '已移入仓库，不计送餐收益'));
       root.append(store);
@@ -277,7 +282,7 @@ function renderTutorial() {
   $('#tutorial-copy').textContent = LESSONS[practice.step].copy;
   $('#tutorial-exit').textContent = practice.step === 5 ? '进入我的工坊 →' : '跳过练习';
 }
-function resetEffects() { renderer.previous.clear(); renderer.pulses.clear(); renderer.particles = []; renderer.camera.fit(game.area); }
+function resetEffects() { renderer.previous.clear(); renderer.pulses.clear(); renderer.particles = []; renderer.camera.fit(game.area); renderer.worldShown = false; }
 function startTutorial() {
   if (!assets.ready) return;
   finishDrag(); save();
@@ -398,6 +403,10 @@ function enterWorkshop() {
   if (!assets.ready) return;
   finishDrag(); if (!practice) hasSave = true; ui.screen = 'workshop'; previousTime = performance.now();
   renderUi(true); renderer.resize(game.area, ui); save(); canvas.focus({ preventScroll: true });
+  if (!practice && !renderer.worldShown) {
+    renderer.worldShown = true;
+    if (game.state.expansion === 0 && renderer.viewport.width >= 1000 && renderer.viewport.height >= 650) { renderer.camera.overview(); renderer.resize(game.area, ui); }
+  }
 }
 function enterMenu() {
   if (practice) { leaveTutorial(true); return; }
@@ -465,6 +474,7 @@ canvas.addEventListener('pointerdown', event => {
   if (event.pointerType === 'touch' && blockedTouchGesture) return;
   if (activePointer !== null) { finishDrag(); return; }
   if (![0, 1].includes(event.button) || !assets.ready) return;
+  if (!ui.focus && ui.tool === 'select' && serviceView?.startMap(event)) { ui.inspectorOpen = false; ui.selected = null; renderUi(true); return; }
   activePointer = event.pointerId;
   event.preventDefault(); canvas.focus({ preventScroll: true }); canvas.setPointerCapture(event.pointerId);
   lastPointer = { x: event.clientX, y: event.clientY };
@@ -478,13 +488,17 @@ canvas.addEventListener('pointerdown', event => {
 });
 canvas.addEventListener('pointermove', event => {
   if (ui.screen !== 'workshop' || document.querySelector('dialog[open]')) return;
+  if (blockedTouchGesture) return;
+  if (serviceView?.move(event)) return;
   if (activePointer !== null && event.pointerId !== activePointer) return;
   lastPointer = { x: event.clientX, y: event.clientY };
   if (panning && panPoint) { renderer.pan(event.clientX - panPoint.x, event.clientY - panPoint.y); panPoint = lastPointer; ui.hover = null; return; }
   const hit = document.elementFromPoint?.(event.clientX, event.clientY);
   if (hit && hit !== canvas) { lastCell = null; pendingTouch = null; ui.hover = null; return; }
   const cell = renderer.cellAt(event.clientX, event.clientY); ui.hover = cell;
-  if (pendingTouch && !dragging && touchOrigin && Math.hypot(event.clientX - touchOrigin.x, event.clientY - touchOrigin.y) > 8) pendingTouch = null;
+  if (pendingTouch && !dragging && touchOrigin && Math.hypot(event.clientX - touchOrigin.x, event.clientY - touchOrigin.y) > 8) {
+    renderer.pan(event.clientX - touchOrigin.x, event.clientY - touchOrigin.y); pendingTouch = null; panning = true; panPoint = lastPointer; ui.hover = null; return;
+  }
   if (!dragging || !game.inside(cell.x, cell.y)) return;
   if (!lastCell) { lastCell = cell; useCell(cell, true); return; }
   if (cell.x === lastCell.x && cell.y === lastCell.y) return;
@@ -523,20 +537,37 @@ function finishDrag(event, complete = false) {
   activePointer = null; pendingTouch = null; touchOrigin = null; panning = false; panPoint = null; canvas.dataset.panning = 'false';
   dragging = false; lastCell = null; dragError = '';
 }
-canvas.addEventListener('pointerup', event => finishDrag(event, true)); canvas.addEventListener('pointercancel', event => finishDrag(event));
-canvas.addEventListener('lostpointercapture', event => finishDrag(event));
-window.addEventListener('blur', () => { finishDrag(); touchPointers.clear(); blockedTouchGesture = false; });
+canvas.addEventListener('pointerup', event => { if (!serviceView?.end(event)) finishDrag(event, true); });
+canvas.addEventListener('pointercancel', event => { serviceView?.cancel(); finishDrag(event); });
+canvas.addEventListener('lostpointercapture', event => { if (serviceView?.drag?.id === event.pointerId) serviceView.cancel(); finishDrag(event); });
+window.addEventListener('blur', () => { finishDrag(); touchPointers.clear(); blockedTouchGesture = false; pinch = null; });
 // Capture all touch contacts, including contacts over HUD controls. A multi-touch
 // gesture cannot become a fresh paint stroke until every finger has been lifted.
 document.addEventListener('pointerdown', event => {
   if (event.pointerType !== 'touch') return;
-  touchPointers.add(event.pointerId);
-  if (touchPointers.size > 1) { blockedTouchGesture = true; finishDrag(); }
+  touchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY, board: event.target === canvas });
+  if (touchPointers.size > 1) { blockedTouchGesture = true; finishDrag(); serviceView?.cancel(); pinch = pinchPoints(); }
 }, true);
+function pinchPoints() {
+  const points = [...touchPointers.values()];
+  if (points.length !== 2 || !points.every(p => p.board)) return null;
+  return { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2, distance: Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y) };
+}
+document.addEventListener('pointermove', event => {
+  const point = touchPointers.get(event.pointerId); if (!point) return;
+  point.x = event.clientX; point.y = event.clientY;
+  const next = pinchPoints();
+  if (next && pinch && ui.screen === 'workshop' && !document.querySelector('dialog[open]')) {
+    event.preventDefault();
+    if (pinch.distance > 8 && next.distance > 8) renderer.zoom(next.distance / pinch.distance, pinch.x, pinch.y);
+    renderer.pan(next.x - pinch.x, next.y - pinch.y); ui.hover = null;
+  }
+  pinch = next;
+}, { capture: true, passive: false });
 for (const name of ['pointerup', 'pointercancel']) document.addEventListener(name, event => {
   if (event.pointerType !== 'touch') return;
   touchPointers.delete(event.pointerId);
-  if (touchPointers.size === 0) blockedTouchGesture = false;
+  pinch = null; if (touchPointers.size === 0) blockedTouchGesture = false;
 }, true);
 canvas.addEventListener('pointerleave', () => { if (!dragging) ui.hover = null; });
 canvas.addEventListener('contextmenu', event => { event.preventDefault(); chooseTool('select'); });
@@ -565,6 +596,17 @@ function refreshHover() { if (lastPointer) ui.hover = renderer.cellAt(lastPointe
 $('#zoom-in').addEventListener('click', () => { finishDrag(); renderer.zoom(1.2); refreshHover(); });
 $('#zoom-out').addEventListener('click', () => { finishDrag(); renderer.zoom(1 / 1.2); refreshHover(); });
 $('#zoom-reset').addEventListener('click', () => { finishDrag(); renderer.camera.fit(game.area); renderer.resize(game.area, ui); refreshHover(); });
+function visitYard(staff = false) {
+  finishDrag(); ui.tool = 'select'; ui.focus = false; ui.inspectorOpen = false; ui.ordersOpen = false; ui.mapOpen = false; ui.dockOpen = false; ui.hover = null;
+  renderer.resize(game.area, ui);
+  const view = renderer.camera.view, i = view.insets, yard = yardLayout(game.area), base = renderer.camera.transform.scale / renderer.camera.zoom;
+  const scale = Math.max(.43, Math.min((view.width - i.left - i.right) / (7 * 72), (view.height - i.top - i.bottom) / (10.5 * 72)));
+  renderer.camera.zoom = scale / base;
+  renderer.camera.centerOn(yard.x + 3, staff ? 8.3 : view.height < 600 ? 3.9 : 5.3); renderer.resize(game.area, ui); renderUi(true);
+}
+$('#service-jump').addEventListener('click', () => visitYard());
+$('#staff-jump').addEventListener('click', () => visitYard(true));
+$('#factory-jump').addEventListener('click', () => { finishDrag(); renderer.camera.fit(game.area); renderer.resize(game.area, ui); ui.hover = null; renderUi(true); });
 $('#map-toggle').addEventListener('click', () => { if (practice) return; finishDrag(); ui.mapOpen = !ui.mapOpen; ui.inspectorOpen = false; ui.ordersOpen = false; renderUi(true); });
 $('#close-minimap').addEventListener('click', () => { ui.mapOpen = false; renderUi(true); $('#map-toggle').focus(); });
 $('#map-overview').addEventListener('click', () => { finishDrag(); renderer.camera.overview(); renderer.resize(game.area, ui); ui.hover = null; refreshHover(); });
@@ -572,8 +614,9 @@ function jumpMap(event) {
   if (ui.screen !== 'workshop' || practice || !ui.mapOpen || document.querySelector('dialog[open]')) return;
   event.preventDefault(); finishDrag();
   const rect = $('#factory-minimap').getBoundingClientRect();
-  const x = Math.max(0, Math.min(game.area[0], (event.clientX - rect.left) / rect.width * WIDTH));
-  const y = Math.max(0, Math.min(game.area[1], (event.clientY - rect.top) / rect.height * HEIGHT));
+  const [mapW, mapH] = game.worldArea;
+  const x = Math.max(0, Math.min(mapW, (event.clientX - rect.left) / rect.width * mapW));
+  const y = Math.max(0, Math.min(mapH, (event.clientY - rect.top) / rect.height * mapH));
   renderer.camera.zoom = Math.max(1, renderer.camera.zoom); renderer.camera.centerOn(x, y); renderer.resize(game.area, ui); ui.hover = null;
   $('#factory-minimap').focus();
 }
@@ -621,7 +664,6 @@ document.addEventListener('pointerup', event => { const button = event.target?.c
 $('#help').addEventListener('click', () => $('#help-dialog').showModal());
 for (const selector of ['#close-help', '#help-done']) $(selector).addEventListener('click', () => $('#help-dialog').close());
 $('#close-recipes').addEventListener('click', () => $('#recipe-dialog').close());
-$('#portrait-continue').addEventListener('click', () => $('.orientation-hint').hidden = true);
 window.addEventListener('keydown', event => {
   if (ui.screen !== 'workshop') return;
   if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName) || document.querySelector('dialog[open]')) return;
@@ -645,7 +687,7 @@ let previousTime = performance.now(), previousSave = previousTime, previousUi = 
 function frame(now) {
   const dt = Math.min(.1, Math.max(0, (now - previousTime) / 1000)); previousTime = now;
   if (ui.screen === 'workshop' && !document.hidden && !document.querySelector('dialog[open]') && (!practice || (practice.step >= 2 && practice.step < 5))) game.update(dt);
-  if (ui.screen === 'workshop') { ui.customerArea = true; renderer.draw(game, ui, now); serviceView?.draw(); if (!$('#minimap-panel').hidden) renderer.drawMinimap($('#factory-minimap'), game); }
+  if (ui.screen === 'workshop') { ui.customerArea = true; serviceView?.tickDrag(dt); renderer.draw(game, ui, now); if (!$('#minimap-panel').hidden) renderer.drawMinimap($('#factory-minimap'), game); }
   $('#zoom-reset').textContent = `${Math.round(renderer.camera.zoom * 100)}%`;
   if (now - previousUi > 160) { renderUi(); previousUi = now; }
   if (now - previousSave > 2000) { save(); previousSave = now; }
@@ -653,9 +695,11 @@ function frame(now) {
 }
 try {
   await assets.load(undefined, (loaded, total) => window.factoryLoading?.progress(loaded, total));
-  serviceView = new ServiceView({ root: $('#service-area'), assets, getGame: () => game,
+  serviceView = new ServiceView({ root: $('#service-tools'), assets, renderer, visitYard, getGame: () => game,
     active: () => ui.screen === 'workshop' && !ui.focus && !document.hidden && !game.state.paused && !document.querySelector('dialog[open]') && (!practice || practice.step >= 2 && practice.step < 5),
     changed: () => { save(); renderUi(true); }, notify: toast, reduced: () => ui.reducedMotion, canRecruit: () => !practice });
+  serviceView.inspectShelf = id => { ui.selected = id; ui.inspectorOpen = true; renderUi(true); };
+  renderer.serviceView = serviceView;
   renderPalette(); renderRecipes(); renderUi(true);
   window.factoryLoading?.complete();
   $('#loading').hidden = true; $('#main-menu').inert = false;

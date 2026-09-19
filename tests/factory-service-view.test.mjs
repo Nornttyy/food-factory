@@ -2,132 +2,90 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ServiceView } from '../src/factory-service-view.js';
 import { CafeFactoryGame } from '../src/factory-service.js';
-import { cameraInsets } from '../src/factory-feel.js';
+import { FactoryRenderer } from '../src/factory-renderer.js';
+import { yardLayout } from '../src/factory-yard.js';
 
 function setup(t) {
   const listeners = {}, windowListeners = {}; let hit = null, enabled = true, changes = 0, measures = 0;
   let game = new CafeFactoryGame(); game.shelves[0].goods = ['bread', 'bread', 'bread'];
-  const context = new Proxy({}, { get: () => () => {} });
+  const context = new Proxy({ globalAlpha: 1 }, { get: (o, p) => p in o ? o[p] : () => {} });
   class Element {
     constructor(tag = 'div') { this.tagName = tag.toUpperCase(); this.children = []; this.style = {}; this.dataset = {}; this.listeners = {}; this.attrs = {}; this.classes = new Set(); this.classList = { toggle: (name, on) => on ? this.classes.add(name) : this.classes.delete(name) }; }
-    append(...children) { this.children.push(...children); }
-    replaceChildren(...children) { this.children = children; }
-    setAttribute(key, value) { this.attrs[key] = value; }
-    addEventListener(key, cb) { this.listeners[key] = cb; }
-    setPointerCapture(id) { this.capture = id; }
-    hasPointerCapture(id) { return this.capture === id; }
-    releasePointerCapture() { this.capture = null; }
-    closest() { return this; }
-    getContext() { return context; }
-    getBoundingClientRect() { measures++; return { left: 0, top: 0, right: 200, bottom: 400, width: 200, height: 400 }; }
+    append(...children) { this.children.push(...children); } replaceChildren(...children) { this.children = children; }
+    setAttribute(key, value) { this.attrs[key] = value; } addEventListener(key, cb) { this.listeners[key] = cb; }
+    setPointerCapture(id) { this.capture = id; } hasPointerCapture(id) { return this.capture === id; } releasePointerCapture() { this.capture = null; }
+    getContext() { return context; } getBoundingClientRect() { measures++; return { left: 0, top: 0, width: 1000, height: 700 }; }
     scrollBy({ left }) { this.scrollLeft = (this.scrollLeft || 0) + left; }
   }
   const oldDoc = globalThis.document, oldWin = globalThis.window;
   globalThis.document = { createElement: tag => new Element(tag), addEventListener: (event, fn) => listeners[event] = fn, elementFromPoint: () => hit, hidden: false };
-  globalThis.window = { addEventListener: (event, fn) => windowListeners[event] = fn };
+  globalThis.window = { devicePixelRatio: 1, addEventListener: (event, fn) => windowListeners[event] = fn };
   t.after(() => { globalThis.document = oldDoc; globalThis.window = oldWin; });
-  const root = new Element(), messages = [];
-  const view = new ServiceView({ root, assets: { icon: () => new Element('canvas'), draw() {} }, getGame: () => game, active: () => enabled && !document.hidden && !game.state.paused, changed: () => changes++, notify: text => messages.push(text), reduced: () => false });
-  view.render();
-  return { view, root, messages, listeners, windowListeners, get game() { return game; }, get changes() { return changes; }, get measures() { return measures; }, setGame: value => game = value, enabled: value => enabled = value, hit: value => hit = value };
+  const root = new Element(), canvas = new Element('canvas'), messages = [], assets = { icon: () => new Element('canvas'), draw() {} };
+  const renderer = new FactoryRenderer(canvas, assets); renderer.resize(game.area, { customerArea: true }); renderer.camera.overview(); renderer.resize(game.area, { customerArea: true });
+  const view = new ServiceView({ root, assets, renderer, getGame: () => game, active: () => enabled && !document.hidden && !game.state.paused, changed: () => changes++, notify: text => messages.push(text), reduced: () => false });
+  renderer.serviceView = view; view.render();
+  const point = (x, y, id = 7) => ({ button: 0, pointerId: id, pointerType: 'touch', clientX: renderer.transform.x + x * 72 * renderer.transform.scale, clientY: renderer.transform.y + y * 72 * renderer.transform.scale, preventDefault() {}, stopPropagation() {} });
+  return { view, renderer, canvas, root, messages, listeners, windowListeners, context, point, shelf: () => point(8.5, 2.5), customer: i => { const p = yardLayout(game.area).spots[i]; return point(p.x, p.y); }, get game() { return game; }, get changes() { return changes; }, get measures() { return measures; }, setGame: value => game = value, enabled: value => enabled = value, hit: value => hit = value };
 }
-const pointer = (pointerId = 7, x = 10, y = 10) => ({ button: 0, pointerId, pointerType: 'touch', clientX: x, clientY: y, preventDefault() {}, stopPropagation() {} });
-
-test('touch dragging from the mounted tray to a customer consumes and pays once, with no board gesture', t => {
-  const h = setup(t), button = h.view.foods.get('bread').button, coins = h.game.state.coins;
-  button.listeners.pointerdown(pointer()); assert.equal(button.capture, 7); assert.equal(h.view.ghost.hidden, false);
-  h.hit(h.view.rows[0].row); button.listeners.pointermove(pointer(7, 110, 30));
-  assert.equal(h.view.rows[0].row.classes.has('drop-hover'), true);
-  button.listeners.pointerup(pointer(7, 110, 30));
-  assert.equal(h.game.state.coins, coins + 6); assert.equal(h.game.shelves[0].goods.length, 2); assert.equal(h.changes, 1);
-  assert.equal(h.view.ghost.hidden, true); assert.equal(button.capture, null);
-  button.listeners.pointerup(pointer()); assert.equal(h.changes, 1); h.view.draw();
+test('food drags originate at the actual map shelf and drop into world-space customer targets exactly once', t => {
+  const h = setup(t), coins = h.game.state.coins;
+  assert.equal(h.view.startMap(h.shelf()), true); assert.equal(h.canvas.capture, 7); assert.equal(h.view.selection.rackId, h.game.shelves[0].id);
+  h.view.move(h.customer(0)); h.view.end(h.customer(0)); assert.equal(h.game.state.coins, coins + 6); assert.equal(h.changes, 1);
+  assert.equal(h.game.shelves[0].goods.length, 2); assert.equal(h.view.end(h.customer(0)), false); assert.equal(h.canvas.capture, null);
+  assert.equal(h.view.root.children.filter(el => el.tagName === 'CANVAS').length, 0, 'no separate scene canvas exists');
 });
-
-test('drop outside, wrong food, pointer cancellation and loss of capture keep all food and coins', t => {
-  const h = setup(t), button = h.view.foods.get('bread').button, before = h.game.serialize();
-  button.listeners.pointerdown(pointer()); button.listeners.pointermove(pointer(7, 80, 80)); button.listeners.pointerup(pointer(7, 80, 80));
-  assert.equal(h.game.serialize(), before); assert.equal(h.view.selection, null);
-  h.game.service.customers[0].want = 'butter_cookie'; h.hit(h.view.rows[0].row);
-  const wrong = h.game.serialize(); button.listeners.pointerdown(pointer()); button.listeners.pointerup(pointer()); assert.equal(h.game.serialize(), wrong); assert.match(h.messages[0], /食物/);
-  for (const event of ['pointercancel', 'lostpointercapture']) {
-    button.listeners.pointerdown(pointer()); button.listeners[event](); assert.equal(h.game.serialize(), wrong); assert.equal(h.view.ghost.hidden, true); assert.equal(h.view.selection, null);
-  }
+test('tap shelf, pan or jump the shared camera, and tap a cat works without dragging across a phone', t => {
+  const h = setup(t); h.view.startMap(h.shelf()); h.view.end(h.shelf()); assert.equal(h.view.selection.item, 'bread');
+  h.renderer.pan(-75, 20); h.renderer.zoom(1.2);
+  h.view.startMap(h.customer(1)); h.view.end(h.customer(1)); assert.equal(h.game.service.served, 1);
+  h.view.select('bread'); h.view.rows[0].row.listeners.click(); assert.equal(h.game.service.served, 2, 'keyboard delivery remains available');
 });
-
-test('food tap then cat tap and native keyboard clicks provide a non-drag alternative', t => {
-  const h = setup(t), button = h.view.foods.get('bread').button;
-  h.hit(button); button.listeners.pointerdown(pointer()); button.listeners.pointerup(pointer());
-  assert.equal(h.view.selection.item, 'bread'); h.view.rows[0].row.listeners.click(); assert.equal(h.changes, 1);
-  button.listeners.click({ detail: 0 }); h.view.rows[1].row.listeners.click(); assert.equal(h.changes, 2);
-  assert.equal(h.game.shelves[0].goods.length, 1); assert.equal(h.game.state.totalSold, 2);
+test('wrong food, outside drops, cancelled gestures and HUD-covered customers cannot consume stock', t => {
+  const h = setup(t), saved = h.game.serialize(); h.view.startMap(h.shelf()); h.view.move(h.point(10, 10)); h.view.end(h.point(10, 10)); assert.equal(h.game.serialize(), saved);
+  h.game.service.customers[0].want = 'butter_cookie'; const wrong = h.game.serialize();
+  h.view.startMap(h.shelf()); h.view.move(h.customer(0)); h.view.end(h.customer(0)); assert.equal(h.game.serialize(), wrong); assert.match(h.messages[0], /食物/);
+  h.view.startMap(h.shelf()); h.hit({}); h.view.end(h.customer(1)); assert.equal(h.game.serialize(), wrong); h.hit(null);
+  h.view.startMap(h.shelf()); h.view.cancel(); assert.equal(h.game.serialize(), wrong); assert.equal(h.view.drag, null);
 });
-
-test('multitouch, Escape, pause, menus, background, blur and pagehide cancel without inventory mutation', t => {
-  const h = setup(t), button = h.view.foods.get('bread').button;
-  const cases = [
-    () => h.listeners.pointerdown(pointer(8)), () => h.listeners.keydown({ key: 'Escape' }),
-    () => { h.game.state.paused = true; h.view.render(); h.game.state.paused = false; },
-    () => { h.enabled(false); h.view.render(); h.enabled(true); },
-    () => { document.hidden = true; h.listeners.visibilitychange(); document.hidden = false; },
-    () => h.windowListeners.blur(), () => h.windowListeners.pagehide(),
-  ];
-  const before = h.game.serialize();
-  for (const cancel of cases) { button.listeners.pointerdown(pointer()); cancel(); assert.equal(h.view.drag, null); assert.equal(h.view.selection, null); assert.equal(h.game.serialize(), before); }
+test('swiping a cat or recruitment sign pans the map and does not accidentally serve or hire', t => {
+  const h = setup(t); h.view.select('bread'); const saved = h.game.serialize(), x = h.renderer.camera.x;
+  const event = h.customer(0); h.view.startMap(event); h.view.move({ ...event, clientX: event.clientX + 80 }); h.view.end({ ...event, clientX: event.clientX + 80 });
+  assert.notEqual(h.renderer.camera.x, x); assert.equal(h.game.serialize(), saved);
 });
-
-test('employee pickup and replacing a practice factory cannot let a stale drag sell or mutate new stock', t => {
-  const h = setup(t), button = h.view.foods.get('bread').button;
-  button.listeners.pointerdown(pointer()); h.game.shelves[0].goods = []; h.view.render();
-  assert.equal(h.view.drag, null); assert.equal(h.view.selection, null);
-  h.game.shelves[0].goods = ['bread']; button.listeners.pointerdown(pointer());
-  h.setGame(new CafeFactoryGame()); const before = h.game.serialize(); h.hit(h.view.rows[0].row); button.listeners.pointerup(pointer());
-  assert.equal(h.game.serialize(), before); assert.equal(h.changes, 0);
+test('multitouch, Escape, pause, menus, hidden pages and blur cancel a held meal without selling it', t => {
+  const h = setup(t), saved = h.game.serialize();
+  const cancellations = [() => h.listeners.pointerdown({ pointerId: 9 }), () => h.listeners.keydown({ key: 'Escape' }), () => { h.game.state.paused = true; h.view.render(); h.game.state.paused = false; }, () => { h.enabled(false); h.view.render(); h.enabled(true); }, () => { document.hidden = true; h.listeners.visibilitychange(); document.hidden = false; }, () => h.windowListeners.blur(), () => h.windowListeners.pagehide()];
+  for (const cancel of cancellations) { h.view.startMap(h.shelf()); cancel(); assert.equal(h.view.drag, null); assert.equal(h.view.selection, null); assert.equal(h.game.serialize(), saved); }
 });
-
-test('recruitment is bound to the live game, frozen while inactive, and updates carrying worker canvases', t => {
-  const h = setup(t); h.view.hire.listeners.click(); assert.equal(h.game.service.workers.length, 0);
-  h.game.state.totalSold = h.game.service.served = 4; const coins = h.game.state.coins;
-  h.enabled(false); h.view.hire.listeners.click(); assert.equal(h.game.state.coins, coins); h.enabled(true);
-  h.view.hire.listeners.click(); assert.equal(h.game.state.coins, coins - 120); assert.equal(h.game.service.workers.length, 1);
-  h.game.update(.1); h.view.render(); h.view.draw();
-  assert.equal(h.view.actors.filter(a => a.staff).length, 1); assert.equal(h.view.actors.filter(a => !a.staff).length, 3);
-  assert.equal(h.view.root.children.filter(el => el.tagName === 'CANVAS').length, 1, 'everyone shares the scene canvas');
-  assert.match(h.view.staffStatus.textContent, /送餐/); assert.equal(h.view.rows[0].row.disabled, true);
+test('a staff reservation or restored game cannot allow a stale manual gesture to sell twice', t => {
+  const h = setup(t); h.game.shelves[0].goods = ['bread']; h.view.startMap(h.shelf()); h.game.state.totalSold = h.game.service.served = 4; h.game.recruit(); h.game.update(.1); h.view.render();
+  assert.equal(h.view.selection, null); assert.equal(h.game.shelves[0].goods.length, 1, 'reserved food remains physically on the shelf');
+  h.game.service.workers = []; h.view.startMap(h.shelf()); const newGame = new CafeFactoryGame(); h.setGame(newGame); const saved = newGame.serialize();
+  h.view.end(h.customer(0)); assert.equal(newGame.serialize(), saved); assert.equal(h.changes, 0);
 });
-
-test('customer strip reserves a narrow working inset without changing when a drawer opens', () => {
-  for (const [w, h] of [[1440, 900], [844, 390], [600, 360], [390, 844]]) {
-    const a = cameraInsets(w, h, { customerArea: true }); const b = cameraInsets(w, h, { customerArea: true, inspectorOpen: true, ordersOpen: true });
-    assert.deepEqual(a, b); assert.ok(a.right <= 360); assert.ok(w - a.left - a.right > 150);
-  }
+test('recruitment sign is in the map, staff are rendered at model positions, and all actors share the factory canvas', t => {
+  const h = setup(t); h.game.state.totalSold = h.game.service.served = 4; const p = yardLayout(h.game.area).hire;
+  h.view.startMap(h.point(p.x, p.y)); h.view.end(h.point(p.x, p.y)); assert.equal(h.game.service.workers.length, 1);
+  h.renderer.draw(h.game, { customerArea: true, selected: null }, 0);
+  assert.equal(h.view.actors.filter(a => a.staff).length, 1); assert.equal(h.view.actors.filter(a => a.customer).length, 3);
+  assert.equal(h.view.scene, undefined); assert.equal(h.view.actors.find(a => a.staff).x, h.game.service.workers[0].x);
 });
-
-test('couriers move on intervening animation frames without per-frame layout reads or model writes', t => {
-  const h = setup(t); h.game.state.totalSold = h.game.service.served = 4; h.game.recruit(); h.game.update(.1); h.view.render(); h.view.draw();
-  const positions = [], steps = [];
-  for (let n = 0; n < 24; n++) {
-    h.game.update(1 / 60); const before = h.game.serialize(); h.view.draw();
-    positions.push(h.view.actors.find(a => a.staff).y); steps.push(h.game.state.tick); assert.equal(h.game.serialize(), before);
-  }
-  assert.ok(new Set(positions).size > 20); assert.ok(new Set(steps).size < 6, 'motion is smoother than the 10 Hz simulation');
-  assert.equal(h.measures, 1, 'canvas geometry is cached, not read for every character each frame');
-  h.windowListeners.resize(); h.view.draw(); assert.equal(h.measures, 2);
-  h.game.state.paused = true; h.view.render(); h.view.draw(); const frozen = JSON.stringify(h.view.actors);
-  for (let i = 0; i < 20; i++) { h.game.update(1 / 60); h.view.draw(); }
-  assert.equal(JSON.stringify(h.view.actors), frozen);
+test('staff interpolate between simulation steps, pause without drifting and do not trigger layout reads', t => {
+  const h = setup(t); h.game.state.totalSold = h.game.service.served = 4; h.game.recruit(); h.game.update(.2); const reads = h.measures, poses = [];
+  for (let n = 0; n < 60; n++) { h.game.update(1 / 60); const saved = h.game.serialize(); h.view.draw(h.context, h.game); poses.push(h.view.actors.find(a => a.staff).x); assert.equal(h.game.serialize(), saved); }
+  assert.ok(new Set(poses).size > 40); assert.equal(h.measures, reads);
+  h.game.state.paused = true; h.view.draw(h.context, h.game); const frozen = structuredClone(h.view.actors);
+  h.game.update(.1); h.view.draw(h.context, h.game); assert.deepEqual(h.view.actors, frozen);
 });
-
-test('serving does not replay customer arrival, and restoring the same game clears stale routes', t => {
-  const h = setup(t); for (let i = 0; i < 20; i++) h.game.update(.1); h.view.render(); h.view.draw();
-  const cat = h.view.actors.find(a => !a.staff && a.skin === 0), born = h.view.rows[0].bornAt;
-  h.view.select('bread'); h.view.drop(0); h.view.draw();
-  const fed = h.view.actors.find(a => !a.staff && a.skin === 0); assert.equal(fed.x, cat.x); assert.equal(h.view.rows[0].bornAt, born);
-  h.game.restore(new CafeFactoryGame().serialize()); h.view.draw(); assert.equal(h.view.rows[0].bornAt, 0); assert.equal(h.view.routes.tracks.size, 0);
+test('customer celebration does not re-run its entrance; replacing service data cancels held food', t => {
+  const h = setup(t); h.game.update(1); h.game.update(1); h.view.select('bread'); h.view.drop(0); h.view.draw(h.context, h.game);
+  assert.equal(h.view.actors.find(a => a.slot === 0).x, yardLayout(h.game.area).spots[0].x);
+  h.view.select('bread'); assert.equal(h.game.restore(h.game.serialize()), true); h.view.render(); assert.equal(h.view.selection, null);
 });
-
-test('counter arrow buttons expose food offscreen without requiring a drag gesture', t => {
-  const h = setup(t); h.game.shelves[0].goods = ['bread', 'butter_cookie', 'orange_juice', 'donut_plain']; h.view.draw(); h.view.render();
-  assert.equal(h.view.trayNav[1].hidden, false); h.view.trayNav[1].listeners.click(); assert.equal(h.view.tray.scrollLeft, 100);
-  h.view.trayNav[0].listeners.click(); assert.equal(h.view.tray.scrollLeft, 0);
+test('edge dragging pans the shared map without inventory mutation; all eight foods remain reachable by arrows', t => {
+  const h = setup(t), saved = h.game.serialize(); h.view.startMap(h.shelf()); h.view.move({ ...h.shelf(), clientX: 995 }); const x = h.renderer.camera.x;
+  h.view.tickDrag(.1); assert.ok(h.renderer.camera.x > x); assert.equal(h.game.serialize(), saved);
+  h.view.cancel(); h.game.shelves[0].goods = [...h.view.foods.keys()]; h.view.select('bread'); h.view.render();
+  assert.equal(h.view.trayNav[1].hidden, false); h.view.trayNav[1].listeners.click(); assert.equal(h.view.tray.scrollLeft, 100); h.view.trayNav[0].listeners.click(); assert.equal(h.view.tray.scrollLeft, 0);
 });

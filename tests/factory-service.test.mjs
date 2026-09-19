@@ -77,15 +77,16 @@ test('staff recruitment requires four deliveries, deducts increasing prices once
   assert.equal(poor.recruit().ok, false); assert.equal(poor.service.workers.length, 0);
 });
 
-test('workers reserve distinct customers, carry one meal and pay only after four seconds', () => {
+test('workers reserve distinct meals, physically fetch them, and pay only upon reaching customers', () => {
   const game = new CafeFactoryGame(); unlockStaff(game); game.state.coins = 1000;
   advance(game, 50); for (let i = 0; i < 3; i++) assert.equal(game.recruit().ok, true);
   const rack = game.at(8, 2), startStock = rack.goods.length, coins = game.state.coins;
-  advance(game, .1); assert.equal(rack.goods.length, startStock - 3);
+  advance(game, .1); assert.equal(rack.goods.length, startStock, 'reservation does not teleport food off the shelf');
   const jobs = game.service.workers.map(w => w.job); assert.equal(new Set(jobs.map(j => j.customerId)).size, 3);
-  assert.ok(jobs.every(j => j.remaining === DELIVERY_SECONDS)); assert.equal(game.state.coins, coins);
+  assert.ok(jobs.every(j => j.stage === 'pickup')); assert.equal(game.state.coins, coins);
   assert.equal(game.serveFromShelf(rack.id, 'bread', jobs[0].customerId).ok, false);
-  advance(game, 3.9); assert.equal(game.state.coins, coins); advance(game, .1);
+  advance(game, 4); assert.equal(game.state.coins, coins);
+  for (let i = 0; i < 300 && game.service.served < 7; i++) game.update(.1);
   assert.equal(game.state.coins, coins + 18); assert.equal(game.service.served, 7);
   assert.ok(game.service.workers.every(w => w.job === null));
 });
@@ -97,7 +98,8 @@ test('in-flight delivery, paused time and pending shelf items survive save/resum
   const frozen = restored.serialize(); advance(restored, 10); assert.equal(restored.serialize(), frozen); assert.deepEqual(restored.service, game.service);
   game.state.paused = restored.state.paused = false;
   advance(game, 2.9); advance(restored, 2.9); assert.deepEqual(stable(restored), stable(game));
-  advance(game, .1); advance(restored, .1); assert.deepEqual(stable(restored), stable(game)); assert.equal(game.service.served, 5);
+  for (let n = 0; n < 200 && game.service.served < 5; n++) { advance(game, .1); advance(restored, .1); assert.deepEqual(stable(restored), stable(game)); }
+  assert.equal(game.service.served, 5);
   const once = restored.serialize(); const again = new CafeFactoryGame(); assert.equal(again.restore(once), true); assert.equal(again.state.coins, restored.state.coins);
 });
 
@@ -105,10 +107,13 @@ test('one food cannot be assigned to multiple employees or sold again by a racin
   const game = new CafeFactoryGame(); unlockStaff(game); game.state.coins = 1000; advance(game, 2);
   game.state.buildings = [game.at(8, 2)]; const rack = game.shelves[0]; rack.input = null; rack.progress = 0; rack.goods = ['bread'];
   for (let i = 0; i < 3; i++) game.recruit(); const coins = game.state.coins;
-  advance(game, .1); assert.equal(game.service.workers.filter(w => w.job).length, 1); assert.deepEqual(rack.goods, []);
+  advance(game, .1); assert.equal(game.service.workers.filter(w => w.job).length, 1); assert.deepEqual(rack.goods, ['bread']);
   assert.equal(game.serveFromShelf(rack.id, 'bread', game.service.customers[1].id).ok, false);
+  assert.equal(game.remove(rack.id).ok, false, 'reserved food still occupies the actual shelf');
+  for (let n = 0; n < 200 && game.service.workers[0].job.stage !== 'deliver'; n++) game.update(.1);
+  assert.deepEqual(rack.goods, []);
   assert.equal(game.remove(rack.id).ok, true, 'employee owns the already-picked food, not the source shelf');
-  const restored = new CafeFactoryGame(); assert.equal(restored.restore(game.serialize()), true); advance(restored, 4);
+  const restored = new CafeFactoryGame(); assert.equal(restored.restore(game.serialize()), true); advance(restored, 20);
   assert.equal(restored.state.coins, coins + 6); assert.equal(restored.service.served, 5);
 });
 
@@ -162,6 +167,10 @@ test('corrupted service, shelves and job reservations reject atomically', () => 
     s => s.service.workers[0].job.remaining = 5, s => s.service.workers[0].job.item = 'dough',
     s => s.service.workers[0].job.customerId = 100, s => s.service.workers[0].job.x = -1,
     s => s.service.workers.push({ ...s.service.workers[0], id: 2 }),
+    s => s.service.workers.push(null), s => s.service.workers[0].x = null,
+    s => s.service.workers[0].path = {}, s => s.service.workers[0].path[0].x += 10,
+    s => s.service.workers[0].path = [], s => s.service.workers[0].job.stage = 'teleport',
+    s => s.service.workers[0].job.shelfId = 999,
     s => s.buildings.find(b => b.type === 'depot').goods = Array(9).fill('bread'),
     s => s.buildings.find(b => b.type === 'depot').goods = ['flour'], s => s.buildings[0].goods = ['bread'],
     s => delete s.buildings.find(b => b.type === 'depot').goods,

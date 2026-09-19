@@ -4,7 +4,6 @@ export const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 // Presentation advances between 10 Hz simulation ticks. The accumulator is
 // unchanged during pauses, dialogs, menus and backgrounding, so poses freeze too.
 export const presentationTime = game => game.state.time + clamp(game.accumulator || 0, 0, .1);
-export const yardWidth = width => width <= 600 ? Math.max(136, width * .30) : clamp(width * .26, 190, 320);
 
 // Pure display-only functions. Neither camera nor squash is saved in the simulation.
 export function jellyPose(seconds, kind = 'tap', reduced = false) {
@@ -32,8 +31,8 @@ export function cameraInsets(width, height, ui = {}) {
   if (ui.focus) return { left: 22, right: 22, top: 20, bottom: 20 };
   const compact = height < 600 && width > height;
   // Opening a drawer overlays the world; it must never shrink or recenter the camera.
-  const service = ui.customerArea ? yardWidth(width) : 0;
-  return { left: compact ? 22 : 40, right: (compact ? 22 : 40) + service, top: compact ? 61 : 87, bottom: compact ? 76 : 99 };
+  const portrait = width < 600 && height > width;
+  return { left: portrait ? 14 : compact ? 22 : 40, right: portrait ? 14 : compact ? 22 : 40, top: ui.customerArea ? compact ? 100 : 120 : compact ? 61 : 87, bottom: ui.customerArea ? portrait ? 155 : compact ? 100 : 130 : compact ? 76 : 99 };
 }
 
 export class FactoryCamera {

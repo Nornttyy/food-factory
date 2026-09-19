@@ -8,7 +8,7 @@ test('factory entry loads generated atlases and wires construction, production, 
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   const manifest = JSON.parse(await readFile(new URL('../assets/generated/factory/cream-v1/manifest.json', import.meta.url), 'utf8'));
   const nodes = new Map(), storage = new Map(), frames = [], draws = [], documentListeners = {}, windowListeners = {};
-  let failStorageKey = null;
+  let failStorageKey = null, viewport = { width: 1008, height: 576 };
   const context = new Proxy({ globalAlpha: 1, drawImage: (...args) => draws.push(args) }, { get: (t, p) => p in t ? t[p] : () => {}, set: (t, p, v) => { t[p] = v; return true; } });
   class Element {
     constructor(tag = 'div') { this.tagName = tag.toUpperCase(); this.children = []; this.style = {}; this.dataset = {}; this.listeners = {}; this.hidden = false; this.classList = { toggle() {} }; }
@@ -19,7 +19,7 @@ test('factory entry loads generated atlases and wires construction, production, 
     addEventListener(name, callback) { this.listeners[name] = callback; }
     click() { if (!this.disabled) this.listeners.click?.({}); }
     getContext() { return context; }
-    getBoundingClientRect() { return { left: 0, top: 0, width: 1008, height: 576 }; }
+    getBoundingClientRect() { return { left: 0, top: 0, ...viewport }; }
     focus() { document.activeElement = this; }
     setPointerCapture() {}
     showModal() { this.open = true; }
@@ -269,7 +269,7 @@ test('factory entry loads generated atlases and wires construction, production, 
     nodes.get('help').click(); nodes.get('help-tutorial').click(); assert.equal(runtime.practice.step, 0); assert.equal(nodes.get('help-dialog').open, false);
     nodes.get('tutorial-exit').click(); assert.equal(runtime.game.serialize(), beforePracticeMenu);
     nodes.get('help').click(); assert.equal(nodes.get('help-dialog').open, true); nodes.get('help-done').click(); assert.equal(nodes.get('help-dialog').open, false);
-    nodes.get('portrait-continue').click(); assert.equal(orientation.hidden, true);
+    assert.equal(nodes.has('portrait-continue'), false, 'portrait play has no blocking rotate-device overlay');
     // Warehouse routing, shipping and milestone buttons use real core transitions.
     nodes.get('menu-home').click(); const beforeBusinessUi = runtime.game.serialize();
     assert.equal(runtime.game.restore(new FactoryGame().serialize()), true); nodes.get('menu-play').click();
@@ -310,7 +310,7 @@ test('factory entry loads generated atlases and wires construction, production, 
     assert.equal(nodes.get('expand').disabled, true); assert.equal(nodes.get('minimap-panel').hidden, false);
     nodes.get('palette').children.find(b => b.dataset.building === 'belt').click();
     down(strokeEvent(93, 10, 5)); const beforeMapJump = runtime.game.state.buildings.length;
-    nodes.get('factory-minimap').listeners.pointerdown({ preventDefault() {}, clientX: 1008 * 39.5 / 40, clientY: 576 * 23.5 / 24 });
+    nodes.get('factory-minimap').listeners.pointerdown({ preventDefault() {}, clientX: 1008 * 39.5 / runtime.game.worldArea[0], clientY: 576 * 23.5 / runtime.game.worldArea[1] });
     assert.equal(runtime.renderer.camera.x, 39.5 * 72); assert.equal(runtime.renderer.camera.y, 23.5 * 72);
     move(strokeEvent(93, 39, 23)); up(strokeEvent(93, 39, 23));
     assert.equal(runtime.game.state.buildings.length, beforeMapJump, 'minimap navigation cannot continue a stale belt stroke');
@@ -350,7 +350,31 @@ test('factory entry loads generated atlases and wires construction, production, 
     windowListeners.keydown({ key: 'f', preventDefault() {} }); assert.equal(nodes.get('quick-recipe').hidden, false);
     nodes.get('help').click(); nodes.get('open-recipes').click(); assert.equal(nodes.get('help-dialog').open, false); assert.equal(nodes.get('recipe-dialog').open, undefined);
     nodes.get('close-quick-recipe').click(); assert.equal(nodes.get('quick-recipe').hidden, true);
-    runtime.game.restore(beforeQuick); nodes.get('menu-home').click();
+    runtime.game.restore(beforeQuick);
+    // Real entry handlers: two board contacts zoom without painting or serving.
+    nodes.get('palette').children.find(b => b.dataset.building === 'belt')?.click();
+    const beforePinch = runtime.game.serialize(), oldZoom = runtime.renderer.camera.zoom;
+    const fingerA = { button: 0, pointerType: 'touch', pointerId: 801, target: board, clientX: 400, clientY: 280, preventDefault() {} };
+    const fingerB = { ...fingerA, pointerId: 802, clientX: 600 };
+    down(fingerA); down(fingerB);
+    documentEvent('pointermove', { ...fingerB, clientX: 670 }); board.listeners.pointermove({ ...fingerB, clientX: 670 });
+    assert.ok(runtime.renderer.camera.zoom > oldZoom); assert.equal(runtime.game.serialize(), beforePinch);
+    up(fingerA); up(fingerB); assert.equal(runtime.game.serialize(), beforePinch);
+    nodes.get('select-tool').click();
+    const panStart = runtime.renderer.camera.x;
+    const swipe = { ...fingerA, pointerId: 803, ...point(12, 10) }; down(swipe); board.listeners.pointermove({ ...swipe, clientX: swipe.clientX + 45 }); up({ ...swipe, clientX: swipe.clientX + 45 });
+    assert.ok(runtime.renderer.camera.x < panStart); assert.equal(runtime.game.serialize(), beforePinch);
+    // Phone portrait gets a usable map view, no character drawer or rotation blocker.
+    viewport = { width: 390, height: 844 }; runtime.renderer.viewport = null;
+    nodes.get('service-jump').click();
+    const yardX = runtime.game.area[0] + 5.5, transform = runtime.renderer.transform;
+    const catScreenX = transform.x + yardX * 72 * transform.scale;
+    assert.ok(catScreenX > 44 && catScreenX < 346); assert.ok(1.7 * 72 * transform.scale >= 44);
+    assert.equal(runtime.ui.tool, 'select'); assert.equal(nodes.has('service-area'), false);
+    nodes.get('staff-jump').click(); assert.equal(runtime.renderer.camera.y, 8.3 * 72);
+    nodes.get('factory-jump').click(); assert.equal(runtime.renderer.camera.zoom, 1);
+    viewport = { width: 1008, height: 576 }; runtime.renderer.viewport = null; runtime.renderer.resize(runtime.game.area, runtime.ui);
+    nodes.get('menu-home').click();
     // Reload an old-format save into the menu, retaining explicit settings over OS defaults.
     const legacy = JSON.parse(storage.get('food-factory-v1')); delete legacy.career;
     storage.set('food-factory-v1', JSON.stringify(legacy));
@@ -382,7 +406,15 @@ test('factory entry loads generated atlases and wires construction, production, 
     assert.equal(storage.get('food-factory-v1'), classicRaw); failStorageKey = null;
     await import(`../src/factory-main.js?customer-migration=${Date.now()}`);
     assert.equal(storage.get('food-factory-v1-before-customer-counter'), classicRaw);
-    assert.equal(JSON.parse(storage.get('food-factory-v1')).service.version, 1);
+    assert.equal(JSON.parse(storage.get('food-factory-v1')).service.version, 2);
+    const oldWorld = JSON.parse(storage.get('food-factory-v1')); oldWorld.service.version = 1;
+    const oldWorldRaw = JSON.stringify(oldWorld); storage.set('food-factory-v1', oldWorldRaw);
+    await import(`../src/factory-main.js?world-migration=${Date.now()}`);
+    assert.equal(storage.get('food-factory-v1-before-world-service'), oldWorldRaw);
+    assert.equal(JSON.parse(storage.get('food-factory-v1')).service.version, 2);
+    storage.set('food-factory-v1', oldWorldRaw); failStorageKey = 'food-factory-v1-before-world-service';
+    await import(`../src/factory-main.js?world-protected=${Date.now()}`);
+    nodes.get('menu-play').click(); nodes.get('menu-home').click(); assert.equal(storage.get('food-factory-v1'), oldWorldRaw); failStorageKey = null;
     // Preserve the raw cat-era save before the migrated factory can auto-save.
     const catFixtures = JSON.parse(await readFile(new URL('./fixtures/cat-v010-saves.json', import.meta.url), 'utf8'));
     const catRaw = JSON.stringify(catFixtures.working);
