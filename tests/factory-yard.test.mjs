@@ -12,6 +12,7 @@ test('one world plot stays outside every expansion, without reserving any existi
     const yard = yardLayout(area), bounds = worldArea(area);
     assert.ok(yard.x >= area[0]); assert.ok(yard.x + yard.width < bounds[0]); assert.ok(yard.y + yard.height < bounds[1]);
     for (const [i, p] of yard.spots.entries()) assert.deepEqual(serviceHit(p, area), { kind: 'customer', slot: i });
+    for (const [i, p] of yard.spots.entries()) assert.deepEqual(serviceHit({ x: p.x + .5, y: p.y - 1.4 }, area), { kind: 'customer', slot: i }, 'the food bubble is tappable too');
     assert.deepEqual(serviceHit(yard.hire, area), { kind: 'hire' }); assert.equal(serviceHit({ x: 8.5, y: 2.5 }, area), null);
   }
 });
@@ -105,4 +106,6 @@ test('the independent customer viewport and portrait blocker are removed, recipe
   assert.doesNotMatch(html, /service-area|service-yard|orientation-hint|portrait-continue/); assert.doesNotMatch(css, /service-width|service-scene|customer-spot/);
   assert.match(html, /<section id="quick-recipe"/); for (const id of ['factory-jump', 'service-jump', 'staff-jump']) assert.ok(html.includes(`id="${id}"`));
   assert.match(css, /min-height:44px/); assert.match(css, /safe-area-inset/);
+  assert.match(css, /top:calc\(max\(8px,env\(safe-area-inset-top\)\) \+ 104px\)/);
+  assert.match(css, /bottom:calc\(max\(9px,env\(safe-area-inset-bottom\)\) \+ 73px\)/);
 });

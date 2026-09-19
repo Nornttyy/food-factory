@@ -1,4 +1,4 @@
-import { CELL } from './factory-feel.js?v=0.15.0';
+import { CELL } from './factory-feel.js?v=0.15.1';
 
 // Map cells, never viewport pixels. Expansion moves the annex outward without
 // taking land or buildings away from an existing save.
@@ -15,7 +15,7 @@ export function yardLayout(area) {
 }
 export function serviceHit(point, area) {
   const yard = yardLayout(area);
-  const slot = yard.spots.findIndex(p => Math.abs(point.x - p.x) <= .85 && point.y >= p.y - 1.25 && point.y <= p.y + .35);
+  const slot = yard.spots.findIndex(p => Math.abs(point.x - p.x) <= .85 && point.y >= p.y - 1.55 && point.y <= p.y + .35);
   if (slot >= 0) return { kind: 'customer', slot };
   const h = yard.hire;
   if (Math.abs(point.x - h.x) <= h.width / 2 && Math.abs(point.y - h.y) <= h.height / 2) return { kind: 'hire' };

@@ -1,5 +1,5 @@
-import { CafeFactoryGame as FactoryGame } from './factory-service.js?v=0.15.0';
-import { canLink } from './factory-links.js?v=0.15.0';
+import { CafeFactoryGame as FactoryGame } from './factory-service.js?v=0.15.1';
+import { canLink } from './factory-links.js?v=0.15.1';
 
 export const TUTORIAL_KEY = 'food-factory-tutorial-v1';
 export const LESSONS = [

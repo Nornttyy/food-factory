@@ -1,6 +1,6 @@
-import { FactoryGame, ITEMS, FOOD_RECIPES, STEP, AREAS } from './factory-core.js?v=0.15.0';
-import { canLink } from './factory-links.js?v=0.15.0';
-import { worldArea, yardLayout, findPath, shelfApproaches } from './factory-yard.js?v=0.15.0';
+import { FactoryGame, ITEMS, FOOD_RECIPES, STEP, AREAS } from './factory-core.js?v=0.15.1';
+import { canLink } from './factory-links.js?v=0.15.1';
+import { worldArea, yardLayout, findPath, shelfApproaches } from './factory-yard.js?v=0.15.1';
 
 export const STAFF_COSTS = [120, 240, 400];
 export const DELIVERY_SECONDS = 4;
