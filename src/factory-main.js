@@ -1,14 +1,14 @@
-import { BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, WIDTH, HEIGHT, upgradeCost, isTransport, transportCount } from './factory-core.js?v=0.21.0';
-import { AutomaticFactoryGame as FactoryGame, createPackingTrial } from './factory-automation.js?v=0.21.0';
-import { PACKING_SAVE_KEY, PACK_RECIPES, PACK_GOALS, TRIAL_BUILDINGS, ingredientsReady } from './factory-packing.js?v=0.21.0';
-import { CraftingView } from './factory-crafting-view.js?v=0.21.0';
-import { KitchenView } from './factory-kitchen-view.js?v=0.21.0';
-import { CRAFT_ITEM, craftUnlocks } from './factory-crafting.js?v=0.21.0';
-import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.21.0';
-import { directionBetween, nextBeltCell } from './factory-links.js?v=0.21.0';
-import { RESEARCH } from './factory-career.js?v=0.21.0';
-import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.21.0';
-import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS, WAREHOUSE_FOODS } from './factory-business.js?v=0.21.0';
+import { BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, WIDTH, HEIGHT, upgradeCost, isTransport, transportCount } from './factory-core.js?v=0.22.0';
+import { AutomaticFactoryGame as FactoryGame, createPackingTrial } from './factory-automation.js?v=0.22.0';
+import { PACKING_SAVE_KEY, PACK_RECIPES, PACK_GOALS, TRIAL_BUILDINGS, ingredientsReady } from './factory-packing.js?v=0.22.0';
+import { CraftingView } from './factory-crafting-view.js?v=0.22.0';
+import { KitchenView } from './factory-kitchen-view.js?v=0.22.0';
+import { CRAFT_ITEM, craftUnlocks } from './factory-crafting.js?v=0.22.0';
+import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.22.0';
+import { directionBetween, nextBeltCell } from './factory-links.js?v=0.22.0';
+import { RESEARCH } from './factory-career.js?v=0.22.0';
+import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.22.0';
+import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS, WAREHOUSE_FOODS } from './factory-business.js?v=0.22.0';
 
 const $ = selector => document.querySelector(selector);
 let game = new FactoryGame();
@@ -767,7 +767,7 @@ for (const selector of ['#close-help', '#help-done']) $(selector).addEventListen
 $('#close-recipes').addEventListener('click', () => $('#recipe-dialog').close());
 window.addEventListener('keydown', event => {
   if (ui.screen === 'kitchen') {
-    if (event.key === 'Escape' && !event.repeat) { event.preventDefault(); kitchenView.pause(!kitchenView.game.shift?.paused); }
+    if (event.key === 'Escape' && !event.repeat) { event.preventDefault(); if (kitchenView.decorOpen) kitchenView.closeDecor(); else kitchenView.pause(!kitchenView.game.shift?.paused); }
     return;
   }
   if (ui.screen === 'craft') {

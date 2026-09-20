@@ -630,6 +630,66 @@ test('factory entry loads generated atlases and wires construction, production, 
     assert.ok([...storage.entries()].some(([key, value]) => key.startsWith('food-factory-kitchen-v1-recovery-') && value === '{bad-kitchen'));
     nodes.get('menu-kitchen').click(); assert.equal(JSON.parse(storage.get('food-factory-kitchen-v1')).coins, 0);
     nodes.get('kitchen-home').click(); assert.equal(storage.get('food-factory-v1'), factoryBeforeKitchenReload);
+    {
+      const { runtime: expandedKitchen } = await import(`../src/factory-main.js?kitchen-expanded=${Date.now()}`);
+      const view = expandedKitchen.kitchenView, g = view.game;
+      g.state.day = 4; g.state.totalServed = 18; g.state.coins = 240; g.state.shift = null;
+      nodes.get('menu-kitchen').click();
+      const step = seconds => { for (let i = 0; i < Math.round(seconds * 10); i++) view.step(.1); };
+      const choose = (id, part) => nodes.get(id).children.find(b => b.dataset?.ingredient === part).click();
+      const pantry = part => { nodes.get('kitchen-pantry').children.find(b => b.dataset?.pantry === part).click(); view.plateNodes[0].click(); };
+      const event = (id, x = 10) => ({ button: 0, pointerId: id, isPrimary: true, pointerType: 'touch', clientX: x, clientY: 50, preventDefault() {} });
+      const emit = (kind, e) => documentListeners[kind]?.forEach(fn => fn(e));
+      assert.equal(nodes.get('kitchen-drink-station').hidden, false);
+      assert.equal(nodes.get('kitchen-pan-art-0').children[0].tagName, 'CANVAS');
+      // Assemble an actual sandwich via the live ingredient buttons, flipped egg and chopped tomato.
+      pantry('slice'); choose('kitchen-pan-picker', 'egg'); nodes.get('kitchen-pan-0').click();
+      step(3.2); assert.equal(g.panStage(0), 'flip'); nodes.get('kitchen-pan-0').click(); step(3.2);
+      assert.equal(g.panStage(0), 'ready'); nodes.get('kitchen-pan-0').click(); view.plateNodes[0].click();
+      choose('kitchen-board-picker', 'tomato'); for (let n = 0; n < 5; n++) nodes.get('kitchen-board').click(); view.plateNodes[0].click();
+      pantry('lettuce'); pantry('slice'); assert.deepEqual(g.shift.plates[0], ['slice', 'egg', 'tomato', 'lettuce', 'slice']);
+      assert.ok(view.plateNodes[0].children.some(c => c.className === 'plate-complete'));
+      view.orderNodes.get(1).button.click(); assert.equal(g.state.coins, 259);
+      // Hold-to-pour, release in range, then serve the resulting real drink.
+      step(1.2); nodes.get('kitchen-drink').listeners.pointerdown(event(620)); step(2.4);
+      emit('pointerup', event(620)); assert.equal(g.shift.drink.stage, 'ready');
+      nodes.get('kitchen-drink').listeners.click({ detail: 1 }); assert.equal(g.shift.drink.stage, 'ready');
+      view.suppressClickUntil = 0; nodes.get('kitchen-drink').click(); view.plateNodes[1].click();
+      view.orderNodes.get(2).button.click(); assert.equal(g.state.coins, 268);
+      choose('kitchen-drink-picker', 'shake'); nodes.get('kitchen-drink').listeners.pointerdown(event(621)); step(2.4); emit('pointerup', event(621));
+      assert.equal(g.shift.drink.stage, 'mixing'); view.suppressClickUntil = 0;
+      nodes.get('kitchen-drink').listeners.pointerdown(event(622));
+      for (const x of [100, -100, 100, -100]) emit('pointermove', event(622, x));
+      emit('pointerup', event(622, -100)); assert.equal(g.shift.drink.stage, 'ready');
+      view.suppressClickUntil = 0; nodes.get('kitchen-drink-clear').click();
+      nodes.get('kitchen-drink').listeners.pointerdown(event(623)); step(1);
+      emit('pointercancel', event(623)); const fill = g.shift.drink.fill; step(1); assert.equal(g.shift.drink.fill, fill);
+      view.suppressClickUntil = 0; nodes.get('kitchen-drink-clear').click();
+      for (let n = 0; n < 10; n++) nodes.get('kitchen-pour-step').click();
+      assert.equal(g.shift.drink.stage, 'ready', 'keyboard-friendly pour steps and mixing finish a real milkshake');
+      // The shop is a paused scene; buying changes generated plate/cloth/pan sprites, not only its thumbnail.
+      nodes.get('kitchen-decor-toggle').click(); assert.equal(g.shift.paused, true); assert.equal(nodes.get('kitchen-service').hidden, true);
+      const decorButton = id => nodes.get('kitchen-decor-items').children.map(c => c.children.at(-1)).find(b => b.dataset.decor === id);
+      decorButton('plate_peach').click(); assert.equal(g.state.decor.equipped.plate, 'plate_peach'); assert.equal(g.state.coins, 213);
+      decorButton('plate_cream').click(); decorButton('plate_peach').click(); assert.equal(g.state.coins, 213);
+      nodes.get('kitchen-decor-tabs').children.find(b => b.textContent === '桌布').click(); decorButton('cloth_sage').click();
+      assert.equal(g.state.decor.equipped.cloth, 'cloth_sage'); assert.equal(nodes.get('kitchen-counter-skin').children[0].tagName, 'CANVAS');
+      nodes.get('kitchen-decor-back').click(); assert.equal(g.shift.paused, false); assert.equal(nodes.get('kitchen-decor').hidden, true);
+      nodes.get('kitchen-decor-toggle').click(); view.pause(false); assert.equal(g.shift.paused, true);
+      windowListeners.keydown({ key: 'Escape', preventDefault() {} }); assert.equal(view.decorOpen, false); assert.equal(g.shift.paused, false);
+      assert.equal(JSON.parse(storage.get('food-factory-kitchen-v1')).decor.equipped.plate, 'plate_peach');
+      nodes.get('kitchen-home').click(); assert.equal(storage.get('food-factory-v1'), factoryBeforeKitchenReload);
+      // A migration backup failure must protect the untouched version-one raw save.
+      const legacy = JSON.parse(storage.get('food-factory-kitchen-v1')); legacy.version = 1; delete legacy.decor; legacy.shift = null;
+      storage.set('food-factory-kitchen-v1', JSON.stringify(legacy)); failStorageKey = 'food-factory-kitchen-v1-before-recipes-v2';
+      await import(`../src/factory-main.js?kitchen-legacy-protected=${Date.now()}`);
+      nodes.get('menu-kitchen').click(); nodes.get('kitchen-home').click(); assert.equal(storage.get('food-factory-kitchen-v1'), JSON.stringify(legacy));
+      failStorageKey = null; await import(`../src/factory-main.js?kitchen-legacy-migration=${Date.now()}`);
+      nodes.get('menu-kitchen').click(); nodes.get('kitchen-home').click();
+      assert.equal(storage.get('food-factory-kitchen-v1-before-recipes-v2'), JSON.stringify(legacy));
+      assert.equal(JSON.parse(storage.get('food-factory-kitchen-v1')).version, 2);
+      assert.equal(storage.get('food-factory-v1'), factoryBeforeKitchenReload); dropTarget = null;
+    }
   } finally {
     for (const [name, descriptor] of savedGlobals) { if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name]; }
   }

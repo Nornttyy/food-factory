@@ -84,8 +84,18 @@ function playDay(game) {
     const order = game.shift.orders[0];
     if (!order) { advance(game, .1); continue; }
     for (const part of DISHES[order.dish].parts) {
-      if (part === 'toast') { fry(game); assert.ok(game.addToPlate({ kind: 'pan', index: 0 }, 0).ok); }
-      else { chop(game); assert.ok(game.addToPlate({ kind: 'board' }, 0).ok); }
+      if (['toast', 'patty', 'egg'].includes(part)) {
+        assert.ok(game.startPan(0, part).ok); advance(game, part === 'toast' ? 5.1 : part === 'patty' ? 6.1 : 3.1);
+        if (part === 'egg') { assert.ok(game.flipPan(0).ok); advance(game, 3.1); }
+        assert.ok(game.addToPlate({ kind: 'pan', index: 0 }, 0).ok);
+      } else if (['fruit', 'tomato'].includes(part)) {
+        game.chop(part); for (let n = 0; n < game.chopCount; n++) game.chop(part);
+        assert.ok(game.addToPlate({ kind: 'board' }, 0).ok);
+      } else if (['juice', 'shake'].includes(part)) {
+        game.startDrink(part); for (let n = 0; n < 5; n++) game.pourDrink(.5); game.finishPour();
+        if (part === 'shake') for (let n = 0; n < 4; n++) game.stirDrink();
+        assert.ok(game.addToPlate({ kind: 'drink' }, 0).ok);
+      } else assert.ok(game.addToPlate({ kind: 'pantry', part }, 0).ok);
     }
     assert.ok(game.serve(0, order.id).ok);
   }

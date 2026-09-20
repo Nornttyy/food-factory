@@ -1,9 +1,9 @@
-import { LINK_DIRS, directionBetween, opposite, canLink, outputDirections } from './factory-links.js?v=0.21.0';
-import { RESEARCH, CAREER_CATALOG, freshCareer, contractFor, contractComplete, validCareer } from './factory-career.js?v=0.21.0';
-import { freshBusiness, validBusiness, warehouseCapacity, warehouseUsed, wholesaleFor, MILESTONES } from './factory-business.js?v=0.21.0';
-import { validShop, cookSeconds, STAFF, LEGACY_SHOP_PRICES } from './factory-shop.js?v=0.21.0';
-import { PACK_RECIPES, PACK_GOALS, PACK_FREEPLAY, validPackingTrial, ingredientsReady } from './factory-packing.js?v=0.21.0';
-import { freshCrafting, validCrafting, craftUnlocks, CRAFT_ITEM, startCraft, stampCraft, startFrying, advanceCraft, liftCraft, paintCraft, finishCraft } from './factory-crafting.js?v=0.21.0';
+import { LINK_DIRS, directionBetween, opposite, canLink, outputDirections } from './factory-links.js?v=0.22.0';
+import { RESEARCH, CAREER_CATALOG, freshCareer, contractFor, contractComplete, validCareer } from './factory-career.js?v=0.22.0';
+import { freshBusiness, validBusiness, warehouseCapacity, warehouseUsed, wholesaleFor, MILESTONES } from './factory-business.js?v=0.22.0';
+import { validShop, cookSeconds, STAFF, LEGACY_SHOP_PRICES } from './factory-shop.js?v=0.22.0';
+import { PACK_RECIPES, PACK_GOALS, PACK_FREEPLAY, validPackingTrial, ingredientsReady } from './factory-packing.js?v=0.22.0';
+import { freshCrafting, validCrafting, craftUnlocks, CRAFT_ITEM, startCraft, stampCraft, startFrying, advanceCraft, liftCraft, paintCraft, finishCraft } from './factory-crafting.js?v=0.22.0';
 export const SAVE_KEY = 'food-factory-v1';
 export const ORDER_CATALOG = 4;
 export const FLOW_VERSION = 2;
