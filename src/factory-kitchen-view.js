@@ -1,5 +1,5 @@
-import { KitchenGame, KITCHEN_SAVE_KEY, KITCHEN_UPGRADES, DISHES, PARTS, PANTRY, DECOR, TOAST_SECONDS } from './factory-kitchen.js?v=0.24.0';
-import { dishMatches } from './factory-kitchen-content.js?v=0.24.0';
+import { KitchenGame, KITCHEN_SAVE_KEY, KITCHEN_UPGRADES, DISHES, PARTS, PANTRY, DECOR, TOAST_SECONDS } from './factory-kitchen.js?v=0.25.0';
+import { dishMatches } from './factory-kitchen-content.js?v=0.25.0';
 
 const $ = id => document.querySelector(`#${id}`);
 const el = (tag, text = '', className = '') => { const node = document.createElement(tag); node.textContent = text; node.className = className; return node; };

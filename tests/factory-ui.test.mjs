@@ -56,7 +56,47 @@ test('factory entry loads generated atlases and wires construction, production, 
     nodes.get('menu-settings').click(); assert.equal(nodes.get('settings-dialog').open, true);
     nodes.get('settings-motion').click(); assert.equal(JSON.parse(storage.get('food-factory-preferences-v1')).reducedMotion, true);
     nodes.get('settings-motion').click(); nodes.get('close-settings').click();
-    // The new primary mode uses actual food pieces, three plates, and cats on one counter.
+    // The primary sushi mode is a portrait world with fitted touch coordinates, real movement and old saves untouched.
+    {
+      nodes.get('menu-sushi').click(); assert.equal(runtime.ui.screen, 'sushi'); assert.equal(nodes.get('sushi-room').hidden, false);
+      assert.equal(storage.has('food-factory-v1'), false); assert.equal(storage.has('food-factory-kitchen-v1'), false); assert.equal(storage.has('food-factory-sort-v1'), false);
+      const view = runtime.sushiView, g = view.game, board = nodes.get('sushi-board');
+      assert.ok(board.height > board.width); assert.equal(nodes.get('sushi-foods').children.length, 3);
+      const step = seconds => { for (let n = 0; n < seconds * 10; n++) view.step(.1); };
+      viewport = { width: 390, height: 570 };
+      const point = (x, y, id = 901) => {
+        const scale = Math.min(viewport.width / board.width, viewport.height / board.height);
+        return { button: 0, pointerId: id, pointerType: 'touch', isPrimary: true, preventDefault() {}, clientX: (viewport.width - board.width * scale) / 2 + (x + .5) * 56 * scale, clientY: (viewport.height - board.height * scale) / 2 + (y + .5) * 56 * scale };
+      };
+      const tap = (x, y, id) => { board.listeners.pointerdown(point(x, y, id)); board.listeners.pointerup(point(x, y, id)); };
+      assert.deepEqual(view.point(point(2, 2).clientX, point(2, 2).clientY), { x: 2, y: 2 }); assert.equal(view.point(0, 0), null, 'letterboxing is not a walkable part of the shop');
+      const before = g.serialize(); board.listeners.pointerdown(point(2, 2)); board.listeners.pointercancel(); board.listeners.pointerup(point(2, 2)); assert.equal(g.serialize(), before);
+      board.listeners.pointerdown(point(2, 2, 902)); board.listeners.pointerdown({ ...point(2, 2, 903), isPrimary: false }); board.listeners.pointerup(point(2, 2, 902)); assert.equal(g.serialize(), before);
+      board.listeners.pointerdown(point(2, 2, 904)); board.listeners.pointermove(point(5, 2, 904)); board.listeners.pointerup(point(5, 2, 904)); assert.equal(g.serialize(), before, 'a swipe is not a tap on a station');
+      tap(2, 2, 905); assert.equal(g.state.batch, null); step(1); assert.equal(g.state.batch.step, 1);
+      nodes.get('sushi-action').click(); assert.equal(g.state.batch.step, 2);
+      board.focus(); windowListeners.keydown({ key: ' ', repeat: false, preventDefault() {} }); assert.equal(g.state.player.held, 'salmon');
+      assert.match(nodes.get('sushi-action').textContent, /回转带/); nodes.get('sushi-action').click(); assert.equal(g.state.dishes.length, 0);
+      step(4); assert.equal(g.state.player.held, null); assert.equal(g.state.dishes.length, 1); assert.equal(g.state.coins, 0);
+      view.draw(performance.now(), true); step(45); assert.equal(g.state.totalSold, 1); assert.equal(g.state.coins, 6);
+      const dirty = g.state.dirty[0]; assert.notEqual(dirty, undefined); nodes.get('sushi-clean').click(); assert.ok(g.state.dirty.includes(dirty)); step(10); assert.equal(g.state.dirty.includes(dirty), false);
+      nodes.get('sushi-pause').click(); const paused = g.serialize(); step(30); assert.equal(g.serialize(), paused); assert.equal(nodes.get('sushi-paused').hidden, false);
+      windowListeners.keydown({ key: 'Escape', repeat: false, preventDefault() {} }); assert.equal(g.state.paused, false);
+      windowListeners.blur(); assert.equal(g.state.paused, true); nodes.get('sushi-resume').click();
+      document.hidden = true; documentListeners.visibilitychange.forEach(fn => fn()); assert.equal(g.state.paused, true);
+      document.hidden = false; documentListeners.visibilitychange.forEach(fn => fn()); nodes.get('sushi-resume').click();
+      nodes.get('sushi-shop-toggle').click(); assert.equal(g.state.paused, true); assert.equal(board.hidden, true); assert.equal(nodes.get('sushi-shop').hidden, false);
+      let hire = nodes.get('sushi-shop-items').children[0].children.at(-1); assert.equal(hire.disabled, true);
+      g.state.totalSold = 8; g.state.coins = 150; view.render(); hire = nodes.get('sushi-shop-items').children[0].children.at(-1); hire.click();
+      assert.equal(g.state.staff.length, 1); assert.equal(g.state.coins, 0); hire = nodes.get('sushi-shop-items').children[0].children.at(-1); hire.click(); assert.equal(g.state.staff.length, 1);
+      nodes.get('sushi-shop-back').click(); assert.equal(g.state.paused, false); assert.equal(board.hidden, false); step(1); assert.ok(g.state.staff[0].path.length);
+      const originalFactory = runtime.game.serialize(); frames.shift()(performance.now() + 100); assert.equal(runtime.game.serialize(), originalFactory);
+      failStorageKey = 'food-factory-sushi-v1'; view.save(); assert.match(nodes.get('sushi-save-status').textContent, /无法保存/); failStorageKey = null;
+      nodes.get('sushi-home').click(); assert.equal(runtime.ui.screen, 'menu'); assert.equal(g.state.paused, true);
+      assert.equal(JSON.parse(storage.get('food-factory-sushi-v1')).staff.length, 1); assert.equal(storage.has('food-factory-v1'), false); assert.equal(storage.has('food-factory-sort-v1'), false);
+      viewport = { width: 1008, height: 576 };
+    }
+    // The prior sorting mode still uses actual food pieces, three plates, and cats on one counter.
     {
       nodes.get('menu-sort').click(); assert.equal(runtime.ui.screen, 'sorting');
       assert.equal(nodes.get('sort-room').hidden, false); assert.equal(nodes.get('kitchen-room').hidden, true);
@@ -798,6 +838,18 @@ test('factory entry loads generated atlases and wires construction, production, 
       nodes.get('menu-sort').click(); assert.equal(JSON.parse(storage.get('food-factory-sort-v1')).coins, 0);
       nodes.get('sort-home').click();
       assert.equal(storage.get('food-factory-v1'), oldFactory); assert.equal(storage.get('food-factory-kitchen-v1'), oldKitchen);
+    }
+    {
+      const oldFactory = storage.get('food-factory-v1'), oldKitchen = storage.get('food-factory-kitchen-v1'), oldSorting = storage.get('food-factory-sort-v1');
+      const { runtime: restored } = await import(`../src/factory-main.js?sushi-restored=${Date.now()}`);
+      nodes.get('menu-sushi').click(); assert.equal(restored.sushiView.game.state.paused, true); assert.equal(restored.sushiView.game.state.staff.length, 1); nodes.get('sushi-home').click();
+      storage.set('food-factory-sushi-v1', '{bad-sushi'); failStorageKey = 'all';
+      const { runtime: protectedGame } = await import(`../src/factory-main.js?sushi-protected=${Date.now()}`);
+      nodes.get('menu-sushi').click(); assert.equal(protectedGame.sushiView.protectSave, true); nodes.get('sushi-home').click(); assert.equal(storage.get('food-factory-sushi-v1'), '{bad-sushi');
+      failStorageKey = null; await import(`../src/factory-main.js?sushi-recovery=${Date.now()}`);
+      assert.ok([...storage.entries()].some(([key, value]) => key.startsWith('food-factory-sushi-v1-recovery-') && value === '{bad-sushi'));
+      nodes.get('menu-sushi').click(); nodes.get('sushi-home').click(); assert.equal(JSON.parse(storage.get('food-factory-sushi-v1')).coins, 0);
+      assert.equal(storage.get('food-factory-v1'), oldFactory); assert.equal(storage.get('food-factory-kitchen-v1'), oldKitchen); assert.equal(storage.get('food-factory-sort-v1'), oldSorting);
     }
   } finally {
     for (const [name, descriptor] of savedGlobals) { if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name]; }

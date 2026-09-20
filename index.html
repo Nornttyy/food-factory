@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="description" content="猫咪开饭啦：把散乱的美食拖进餐盘，配齐套餐招待小猫，赚金币装饰小店。奶油手绘风，不限时，原厨房与工坊进度保留。" />
+    <meta name="description" content="猫咪开饭啦：竖屏俯视回转寿司店。亲手做寿司、送上回转带、招猫咪员工，赚金币扩建小店。奶油手绘风，旧玩法和存档保留。" />
     <meta name="theme-color" content="#fff2d9" />
     <meta name="color-scheme" content="light" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -11,27 +11,28 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://nornttyy.github.io/food-factory/" />
-    <meta property="og:title" content="猫咪开饭啦｜美食整理与小店经营" />
-    <meta property="og:description" content="整理美味，招待小猫。慢慢配套餐，赚金币装饰小店。" />
-    <meta property="og:image" content="https://nornttyy.github.io/food-factory/public/og.png?v=0.24.0" />
+    <meta property="og:title" content="猫咪开饭啦｜回转寿司店" />
+    <meta property="og:description" content="竖屏开一家猫咪寿司店，亲手做餐、回转送餐、招募员工。" />
+    <meta property="og:image" content="https://nornttyy.github.io/food-factory/public/og.png?v=0.25.0" />
     <meta property="og:image:width" content="1672" />
     <meta property="og:image:height" content="941" />
     <meta property="og:image:alt" content="猫咪开饭啦：三只小猫在奶油色柜台后等待整理好的早餐套餐" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:image" content="https://nornttyy.github.io/food-factory/public/og.png?v=0.24.0" />
-    <meta name="twitter:title" content="猫咪开饭啦｜美食整理与小店经营" />
-    <meta name="twitter:description" content="整理美味，招待小猫。慢慢配套餐，赚金币装饰小店。" />
-    <title>猫咪开饭啦｜美食整理与小店经营</title>
+    <meta name="twitter:image" content="https://nornttyy.github.io/food-factory/public/og.png?v=0.25.0" />
+    <meta name="twitter:title" content="猫咪开饭啦｜回转寿司店" />
+    <meta name="twitter:description" content="竖屏开一家猫咪寿司店，亲手做餐、回转送餐、招募员工。" />
+    <title>猫咪开饭啦｜回转寿司店</title>
     <link rel="canonical" href="https://nornttyy.github.io/food-factory/" />
     <link rel="icon" href="data:," />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./factory.css?v=0.24.0" />
-    <link rel="stylesheet" href="./factory-layout.css?v=0.24.0" />
-    <link rel="stylesheet" href="./factory-menu.css?v=0.24.0" />
-    <link rel="stylesheet" href="./factory-service.css?v=0.24.0" />
-    <link rel="stylesheet" href="./factory-crafting.css?v=0.24.0" />
-    <link rel="stylesheet" href="./factory-kitchen.css?v=0.24.0" />
-    <link rel="stylesheet" href="./factory-sorting.css?v=0.24.0" />
+    <link rel="stylesheet" href="./factory.css?v=0.25.0" />
+    <link rel="stylesheet" href="./factory-layout.css?v=0.25.0" />
+    <link rel="stylesheet" href="./factory-menu.css?v=0.25.0" />
+    <link rel="stylesheet" href="./factory-service.css?v=0.25.0" />
+    <link rel="stylesheet" href="./factory-crafting.css?v=0.25.0" />
+    <link rel="stylesheet" href="./factory-kitchen.css?v=0.25.0" />
+    <link rel="stylesheet" href="./factory-sorting.css?v=0.25.0" />
+    <link rel="stylesheet" href="./factory-sushi.css?v=0.25.0" />
   </head>
   <body class="menu-open">
     <section id="loading" class="loading" aria-labelledby="loading-title" aria-busy="true">
@@ -48,13 +49,16 @@
       </div>
     </section>
     <main id="main-menu" class="main-menu" aria-label="猫咪开饭啦主菜单" inert>
-      <div class="menu-scene"><img src="./public/og.png?v=0.24.0" alt="猫咪开饭啦，三只小猫在奶油色柜台后等待早餐" width="1672" height="941" /><p>整理美味 · 招待小猫 · 装饰小店</p></div>
+      <div class="menu-scene"><img src="./public/og.png?v=0.25.0" alt="猫咪开饭啦，三只小猫在奶油色柜台后等待早餐" width="1672" height="941" /><p>亲手制作 · 回转送餐 · 猫咪小店</p></div>
       <section class="menu-card">
-        <span class="section-label">美食整理 · 猫咪小店</span><h1>猫咪开饭啦</h1>
+        <span class="section-label">回转寿司 · 猫咪小店</span><h1>猫咪开饭啦</h1>
+        <p id="sushi-menu-summary" class="menu-summary">亲手做寿司，让美味绕着小店转。</p>
+        <button id="menu-sushi" class="primary-button menu-play" disabled>开一家回转寿司店 →</button>
+        <small class="menu-note">手作寿司 · 招募助手 · 扩建回转带</small>
+        <details class="classic-modes"><summary>之前的整理、厨房与自动化工坊</summary>
         <p id="sort-menu-summary" class="menu-summary">整理一份美味，招待一只小猫。</p>
         <button id="menu-sort" class="primary-button menu-play" disabled>开门迎客 →</button>
         <small class="menu-note">配好套餐 · 慢慢经营 · 装饰小店</small>
-        <details class="classic-modes"><summary>之前的厨房与自动化工坊</summary>
         <p id="kitchen-menu-summary" class="menu-summary">双锅开火，给小猫做一份热早餐。</p>
         <button id="menu-kitchen" class="primary-button menu-play" disabled>进入小厨房 →</button>
         <small class="menu-note">亲手制作 · 连击出餐 · 升级厨具</small>
@@ -153,6 +157,16 @@
         <small class="craft-note">研发不扣金币 · 离开制作台自动暂停</small>
       </footer>
     </main>
+    <main id="sushi-room" class="sushi-room" aria-label="猫咪回转寿司店，俯视角经营" hidden>
+      <header class="sushi-header"><button id="sushi-home">← 菜单</button><div><h1>猫咪回转寿司</h1><small id="sushi-day">第 1 天 · 小店开张</small></div><strong id="sushi-coins">0 金币</strong><button id="sushi-shop-toggle">经营</button><button id="sushi-pause">暂停</button></header>
+      <section class="sushi-stage"><canvas id="sushi-board" width="672" height="896" tabindex="0" aria-label="竖屏俯视寿司店，点地面走动，点料理台制作，点上菜口送入回转带。方向键移动，空格操作。"></canvas>
+        <div id="sushi-paused" class="sushi-paused" hidden><strong>小店休息一下</strong><button id="sushi-resume" class="primary-button">继续营业 →</button></div>
+        <section id="sushi-shop" class="sushi-shop" aria-label="员工招募与店铺扩建，营业暂停" hidden><div class="sushi-shop-heading"><div><h2>给小店添个帮手</h2><p>员工会在店内走动工作</p></div><button id="sushi-shop-back">← 回店</button></div><div id="sushi-shop-items" class="sushi-shop-items"></div></section>
+      </section>
+      <div id="sushi-footer" class="sushi-footer"><nav id="sushi-foods" aria-label="选择制作的寿司"></nav><div class="sushi-actions"><button id="sushi-action" class="primary-button">去料理台</button><button id="sushi-next" class="primary-button" hidden>明天开门 →</button><button id="sushi-stock">补货</button><button id="sushi-clean">收盘</button><button id="sushi-reclaim" aria-label="走到上菜口撤下一盘剩余寿司，不计收入" hidden>撤盘</button></div></div>
+      <p id="sushi-hint" class="sushi-hint" role="status" aria-live="polite">点料理台，开始做第一份寿司。</p>
+      <small id="sushi-save-status" class="sushi-save-status">本机自动保存</small>
+    </main>
     <main id="sort-room" class="sort-room" aria-label="猫咪开饭啦，美食整理小店" hidden>
       <header class="sort-header"><button id="sort-home">← 菜单</button><div><h1>猫咪开饭啦</h1><small id="sort-day">第 1 天</small></div><strong id="sort-coins">0 金币</strong><button id="sort-decor-toggle">装饰</button><button id="sort-pause" aria-pressed="false">暂停</button></header>
       <section id="sort-service" class="sort-service">
@@ -208,7 +222,7 @@
       <small id="kitchen-save-status" class="kitchen-save-status">自动保存 · 离开自动暂停</small>
     </main>
     <noscript><style>#loading{display:none}</style>需要启用 JavaScript 才能开始游戏。</noscript>
-    <script defer src="./src/factory-loading.js?v=0.24.0"></script>
-    <script id="factory-entry" type="module" src="./src/factory-main.js?v=0.24.0"></script>
+    <script defer src="./src/factory-loading.js?v=0.25.0"></script>
+    <script id="factory-entry" type="module" src="./src/factory-main.js?v=0.25.0"></script>
   </body>
 </html>

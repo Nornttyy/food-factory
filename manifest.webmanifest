@@ -1,7 +1,7 @@
 {
   "name": "猫咪开饭啦",
   "short_name": "猫咪开饭啦",
-  "description": "奶油手绘美食整理：配齐套餐、招待猫咪、装饰小店",
+  "description": "竖屏奶油手绘回转寿司店：亲手做餐、回转送餐、招募员工",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",

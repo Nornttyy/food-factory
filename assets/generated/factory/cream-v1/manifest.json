@@ -9,6 +9,7 @@
     "cocoa": "#846A57"
   },
   "atlases": {
+    "sushi": { "file": "sushi-v1.png", "width": 1254, "height": 1254, "columns": 4, "rows": 4 },
     "kitchenFoods": { "file": "kitchen-foods-v1.png", "width": 1254, "height": 1254, "columns": 4, "rows": 4 },
     "kitchenProps": { "file": "kitchen-props-v1.png", "width": 1254, "height": 1254, "columns": 4, "rows": 4 },
     "packing": { "file": "packing-table-v1.png", "width": 1254, "height": 1254, "columns": 1, "rows": 1 },
@@ -37,6 +38,22 @@
     }
   },
   "sprites": [
+    {"id":"s_salmon","label":"三文鱼握寿司","atlas":"sushi","frame":{"x":29,"y":95,"w":270,"h":194},"category":"item"},
+    {"id":"s_egg","label":"玉子握寿司","atlas":"sushi","frame":{"x":357,"y":99,"w":257,"h":192},"category":"item"},
+    {"id":"s_maki","label":"黄瓜海苔卷","atlas":"sushi","frame":{"x":686,"y":95,"w":190,"h":206},"category":"item"},
+    {"id":"s_shrimp","label":"鲜虾握寿司","atlas":"sushi","frame":{"x":957,"y":117,"w":288,"h":178},"category":"item"},
+    {"id":"s_rice","label":"寿司米饭","atlas":"sushi","frame":{"x":47,"y":409,"w":229,"h":163},"category":"item"},
+    {"id":"s_fish","label":"三文鱼片","atlas":"sushi","frame":{"x":351,"y":411,"w":263,"h":168},"category":"item"},
+    {"id":"s_tamago","label":"玉子片","atlas":"sushi","frame":{"x":665,"y":414,"w":252,"h":158},"category":"item"},
+    {"id":"s_nori","label":"海苔片","atlas":"sushi","frame":{"x":979,"y":392,"w":226,"h":190},"category":"item"},
+    {"id":"s_rice_cooker","label":"寿司饭锅","atlas":"sushi","frame":{"x":40,"y":653,"w":243,"h":238},"category":"machine"},
+    {"id":"s_prep","label":"寿司料理台","atlas":"sushi","frame":{"x":323,"y":689,"w":300,"h":190},"category":"machine"},
+    {"id":"s_ingredients","label":"鲜食柜","atlas":"sushi","frame":{"x":646,"y":698,"w":298,"h":179},"category":"machine"},
+    {"id":"s_register","label":"收银机","atlas":"sushi","frame":{"x":978,"y":649,"w":245,"h":239},"category":"machine"},
+    {"id":"s_stool","label":"寿司吧座椅","atlas":"sushi","frame":{"x":40,"y":951,"w":238,"h":221},"category":"prop"},
+    {"id":"s_plates","label":"餐盘堆","atlas":"sushi","frame":{"x":350,"y":954,"w":247,"h":202},"category":"prop"},
+    {"id":"s_supply","label":"食材补货箱","atlas":"sushi","frame":{"x":651,"y":955,"w":277,"h":205},"category":"machine"},
+    {"id":"s_sink","label":"洗盘池","atlas":"sushi","frame":{"x":984,"y":925,"w":237,"h":251},"category":"machine"},
     {"id":"k_egg_raw","label":"k_egg_raw","atlas":"kitchenFoods","frame":{"x":30,"y":84,"w":281,"h":200},"anchor":{"x":0.5,"y":0.5},"category":"item"},
     {"id":"k_egg_cooked","label":"k_egg_cooked","atlas":"kitchenFoods","frame":{"x":337,"y":73,"w":274,"h":217},"anchor":{"x":0.5,"y":0.5},"category":"item"},
     {"id":"k_egg_flip","label":"k_egg_flip","atlas":"kitchenFoods","frame":{"x":646,"y":72,"w":280,"h":216},"anchor":{"x":0.5,"y":0.5},"category":"item"},

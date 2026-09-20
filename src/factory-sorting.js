@@ -1,4 +1,4 @@
-import { DECOR } from './factory-kitchen-content.js?v=0.24.0';
+import { DECOR } from './factory-kitchen-content.js?v=0.25.0';
 
 export const SORT_SAVE_KEY = 'food-factory-sort-v1';
 export const SORT_FOODS = {

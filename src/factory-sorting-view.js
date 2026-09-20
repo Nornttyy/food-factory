@@ -1,4 +1,4 @@
-import { SortingGame, SORT_SAVE_KEY, SORT_FOODS, SORT_MEALS, SORT_DECOR } from './factory-sorting.js?v=0.24.0';
+import { SortingGame, SORT_SAVE_KEY, SORT_FOODS, SORT_MEALS, SORT_DECOR } from './factory-sorting.js?v=0.25.0';
 
 const $ = id => document.querySelector(`#${id}`);
 const el = (tag, text = '', className = '') => { const node = document.createElement(tag); node.textContent = text; node.className = className; return node; };
