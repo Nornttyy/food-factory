@@ -25,12 +25,12 @@
     <link rel="canonical" href="https://nornttyy.github.io/food-factory/" />
     <link rel="icon" href="data:," />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./factory.css?v=0.22.0" />
-    <link rel="stylesheet" href="./factory-layout.css?v=0.22.0" />
-    <link rel="stylesheet" href="./factory-menu.css?v=0.22.0" />
-    <link rel="stylesheet" href="./factory-service.css?v=0.22.0" />
-    <link rel="stylesheet" href="./factory-crafting.css?v=0.22.0" />
-    <link rel="stylesheet" href="./factory-kitchen.css?v=0.22.0" />
+    <link rel="stylesheet" href="./factory.css?v=0.23.0" />
+    <link rel="stylesheet" href="./factory-layout.css?v=0.23.0" />
+    <link rel="stylesheet" href="./factory-menu.css?v=0.23.0" />
+    <link rel="stylesheet" href="./factory-service.css?v=0.23.0" />
+    <link rel="stylesheet" href="./factory-crafting.css?v=0.23.0" />
+    <link rel="stylesheet" href="./factory-kitchen.css?v=0.23.0" />
   </head>
   <body class="menu-open">
     <section id="loading" class="loading" aria-labelledby="loading-title" aria-busy="true">
@@ -155,17 +155,31 @@
         <div class="kitchen-status"><span id="kitchen-clock">第一单 · 慢慢来</span><span id="kitchen-goal">目标 4 份</span></div>
         <div id="kitchen-orders" class="kitchen-orders" aria-label="顾客与订单"></div>
         <div id="kitchen-pause-band" class="kitchen-pause-band" hidden><strong>休息一下，锅和顾客都在等你</strong><button id="kitchen-resume" class="primary-button">继续下厨</button></div>
-        <nav id="kitchen-prep" class="kitchen-prep" aria-label="选择要加工的原料"><div id="kitchen-pan-picker" class="kitchen-picker"></div><div id="kitchen-board-picker" class="kitchen-picker"></div><div id="kitchen-drink-picker" class="kitchen-picker"></div></nav>
         <section class="kitchen-counter" aria-label="料理操作台">
-          <div id="kitchen-counter-skin" class="kitchen-counter-skin" aria-hidden="true"></div><div id="kitchen-ornament" class="kitchen-ornament" aria-hidden="true"></div>
+          <div id="kitchen-ornament" class="kitchen-ornament" aria-hidden="true"></div>
           <div class="kitchen-cooktops">
-            <button id="kitchen-pan-0" class="kitchen-station pan-station" aria-label="左煎锅"><span class="station-heading">煎锅 ①</span><span class="pan-art"><span id="kitchen-pan-art-0" class="kitchen-equipment"></span><span id="kitchen-pan-food-0" class="kitchen-food"></span></span><span id="kitchen-pan-label-0">点一下，下面包</span><progress id="kitchen-pan-progress-0" max="1" value="0" aria-label="左锅火候"></progress></button>
-            <button id="kitchen-pan-1" class="kitchen-station pan-station" aria-label="右煎锅"><span class="station-heading">煎锅 ②</span><span class="pan-art"><span id="kitchen-pan-art-1" class="kitchen-equipment"></span><span id="kitchen-pan-food-1" class="kitchen-food"></span></span><span id="kitchen-pan-label-1">点一下，下面包</span><progress id="kitchen-pan-progress-1" max="1" value="0" aria-label="右锅火候"></progress></button>
-            <button id="kitchen-board" class="kitchen-station board-station" aria-label="切配砧板"><span class="station-heading">切配砧板</span><span class="board-art"><span id="kitchen-board-art" class="kitchen-equipment"></span><span id="kitchen-board-food" class="kitchen-food"></span><span id="kitchen-knife-art" class="kitchen-knife-art"></span></span><span id="kitchen-board-label">点一下，放草莓</span><progress id="kitchen-board-progress" max="3" value="0" aria-label="切配进度"></progress></button>
-            <div id="kitchen-drink-station" class="kitchen-station drink-station" hidden><button id="kitchen-drink" class="kitchen-drink-button" aria-label="按住倒饮品，绿色刻度松手"><span class="station-heading">饮品台</span><span class="drink-art"><span id="kitchen-drink-vessel" class="drink-vessel"></span><span id="kitchen-drink-tool" class="drink-tool"></span></span><span id="kitchen-drink-label">按住倒到绿区</span></button><div class="drink-meter"><i aria-hidden="true"></i><progress id="kitchen-drink-progress" max="1" value="0" aria-label="倒饮品刻度，55% 到 75% 为绿区"></progress></div><div class="drink-actions"><button id="kitchen-pour-step" class="soft-button">加一点</button><button id="kitchen-drink-clear" class="soft-button">清空</button></div></div>
+            <div class="kitchen-hot-zone">
+              <div class="kitchen-pans">
+                <button id="kitchen-pan-0" class="kitchen-station pan-station" aria-label="左煎锅"><span class="pan-art"><span id="kitchen-pan-art-0" class="kitchen-equipment"></span><span id="kitchen-pan-food-0" class="kitchen-food"></span></span><span id="kitchen-pan-label-0" class="station-status">下面包</span><progress id="kitchen-pan-progress-0" max="1" value="0" aria-label="左锅火候"></progress></button>
+                <button id="kitchen-pan-1" class="kitchen-station pan-station" aria-label="右煎锅"><span class="pan-art"><span id="kitchen-pan-art-1" class="kitchen-equipment"></span><span id="kitchen-pan-food-1" class="kitchen-food"></span></span><span id="kitchen-pan-label-1" class="station-status">下面包</span><progress id="kitchen-pan-progress-1" max="1" value="0" aria-label="右锅火候"></progress></button>
+              </div>
+              <nav id="kitchen-pan-picker" class="kitchen-picker" aria-label="选择下锅原料"></nav>
+            </div>
+            <div class="kitchen-cut-zone">
+              <button id="kitchen-board" class="kitchen-station board-station" aria-label="切配砧板"><span class="board-art"><span id="kitchen-board-art" class="kitchen-equipment"></span><span id="kitchen-board-food" class="kitchen-food"></span><span id="kitchen-knife-art" class="kitchen-knife-art"></span></span><span id="kitchen-board-label" class="station-status">放草莓</span><progress id="kitchen-board-progress" max="3" value="0" aria-label="切配进度"></progress></button>
+              <nav id="kitchen-board-picker" class="kitchen-picker" aria-label="选择切配原料"></nav>
+            </div>
+            <div id="kitchen-drink-station" class="kitchen-drink-zone" hidden>
+              <div class="drink-station"><button id="kitchen-drink" class="kitchen-drink-button" aria-label="按住倒饮品，绿色刻度松手"><span class="drink-art"><span id="kitchen-drink-vessel" class="drink-vessel"></span><span id="kitchen-drink-tool" class="drink-tool"></span></span><span id="kitchen-drink-label" class="station-status">按住倒到绿区</span></button><div class="drink-meter"><i aria-hidden="true"></i><progress id="kitchen-drink-progress" max="1" value="0" aria-label="倒饮品刻度，55% 到 75% 为绿区"></progress></div><div class="drink-actions"><button id="kitchen-pour-step">加一点</button><button id="kitchen-drink-clear">清空</button></div></div>
+              <nav id="kitchen-drink-picker" class="kitchen-picker" aria-label="选择饮品"></nav>
+            </div>
           </div>
-          <nav id="kitchen-pantry" class="kitchen-pantry" aria-label="叠餐配料，先选配料再点餐盘" hidden></nav>
-          <div class="kitchen-plating"><span class="plating-label">装盘台</span><div id="kitchen-plates" class="kitchen-plates"></div><button id="kitchen-bin" class="soft-button kitchen-bin" aria-label="清空选中的餐盘">清空盘子</button></div>
+          <div class="kitchen-plating">
+            <div id="kitchen-counter-skin" class="kitchen-counter-skin" aria-hidden="true"></div>
+            <nav id="kitchen-pantry" class="kitchen-pantry" aria-label="叠餐配料，先选配料再点餐盘" hidden></nav>
+            <div id="kitchen-plates" class="kitchen-plates" aria-label="装盘与出餐"></div>
+            <button id="kitchen-bin" class="kitchen-bin" aria-label="清空选中的餐盘">清空盘子</button>
+          </div>
         </section>
         <p id="kitchen-hint" class="kitchen-hint" role="status" aria-live="polite">点煎锅下面包，等金黄后装盘。</p>
       </section>
@@ -174,7 +188,7 @@
       <small id="kitchen-save-status" class="kitchen-save-status">自动保存 · 离开自动暂停</small>
     </main>
     <noscript><style>#loading{display:none}</style>需要启用 JavaScript 才能开始游戏。</noscript>
-    <script defer src="./src/factory-loading.js?v=0.22.0"></script>
-    <script id="factory-entry" type="module" src="./src/factory-main.js?v=0.22.0"></script>
+    <script defer src="./src/factory-loading.js?v=0.23.0"></script>
+    <script id="factory-entry" type="module" src="./src/factory-main.js?v=0.23.0"></script>
   </body>
 </html>

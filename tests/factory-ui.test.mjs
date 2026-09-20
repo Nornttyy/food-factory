@@ -61,6 +61,12 @@ test('factory entry loads generated atlases and wires construction, production, 
     assert.equal(nodes.get('kitchen-room').hidden, false); assert.equal(nodes.get('factory-app').hidden, true);
     assert.equal(storage.has('food-factory-v1'), false, 'opening the kitchen cannot replace the old factory save');
     const kitchen = runtime.kitchenView, kg = kitchen.game;
+    assert.equal(nodes.get('kitchen-orders').children.length, kg.shift.orders.length, 'empty places are open counter space, not placeholder cards');
+    const firstCustomer = kitchen.orderNodes.get(1).button;
+    assert.deepEqual(firstCustomer.children.map(child => child.className), ['kitchen-ticket', 'kitchen-cat']);
+    assert.deepEqual(firstCustomer.children[1].children.map(child => child.className), ['cat-body', 'cat-head', 'cat-hand_l', 'cat-hand_r']);
+    assert.equal(firstCustomer.children[0].children[1].children[0].tagName, 'CANVAS', 'recipes are actual generated food sprites on the ticket');
+    assert.ok(kitchen.plateNodes.every(plate => plate.children.every(child => child.tagName === 'CANVAS')), 'no repeated text plaque covers the plates');
     const tickKitchen = seconds => { for (let t = 0; t < seconds; t += .1) kitchen.step(.1); };
     const kitchenEvent = (type, event) => documentListeners[type]?.forEach(fn => fn(event));
     const kitchenPointer = (id, x = 10, y = 10) => ({ pointerId: id, pointerType: 'touch', isPrimary: true, button: 0, clientX: x, clientY: y, preventDefault() {} });
@@ -642,8 +648,17 @@ test('factory entry loads generated atlases and wires construction, production, 
       const emit = (kind, e) => documentListeners[kind]?.forEach(fn => fn(e));
       assert.equal(nodes.get('kitchen-drink-station').hidden, false);
       assert.equal(nodes.get('kitchen-pan-art-0').children[0].tagName, 'CANVAS');
+      for (const id of ['kitchen-pan-picker', 'kitchen-board-picker', 'kitchen-drink-picker', 'kitchen-pantry']) {
+        assert.ok(nodes.get(id).children.every(child => child.tagName === 'BUTTON'));
+        assert.ok(nodes.get(id).children.every(child => child['aria-label']), 'integrated ingredients retain explicit accessible names');
+      }
+      const sandwichTicket = view.orderNodes.get(1).button.children[0];
+      assert.equal(sandwichTicket.children[1].children.filter(child => child.tagName === 'CANVAS').length, 5);
+      assert.deepEqual(sandwichTicket.children[1].children.filter(child => child.className === 'recipe-separator').map(child => child.textContent), ['›', '›', '›', '›']);
+      assert.match(view.orderNodes.get(1).button['aria-label'], /面包 → 蛋 → 番茄 → 生菜 → 面包/);
       // Assemble an actual sandwich via the live ingredient buttons, flipped egg and chopped tomato.
       pantry('slice'); choose('kitchen-pan-picker', 'egg'); nodes.get('kitchen-pan-0').click();
+      assert.match(view.plateNodes[0].children.find(child => child.className === 'plate-food').style.top, /%$/, 'food layers scale with the plate on small screens');
       step(3.2); assert.equal(g.panStage(0), 'flip'); nodes.get('kitchen-pan-0').click(); step(3.2);
       assert.equal(g.panStage(0), 'ready'); nodes.get('kitchen-pan-0').click(); view.plateNodes[0].click();
       choose('kitchen-board-picker', 'tomato'); for (let n = 0; n < 5; n++) nodes.get('kitchen-board').click(); view.plateNodes[0].click();
@@ -674,6 +689,9 @@ test('factory entry loads generated atlases and wires construction, production, 
       decorButton('plate_cream').click(); decorButton('plate_peach').click(); assert.equal(g.state.coins, 213);
       nodes.get('kitchen-decor-tabs').children.find(b => b.textContent === '桌布').click(); decorButton('cloth_sage').click();
       assert.equal(g.state.decor.equipped.cloth, 'cloth_sage'); assert.equal(nodes.get('kitchen-counter-skin').children[0].tagName, 'CANVAS');
+      const clothFrame = expandedKitchen.assets.sprites.k_cloth_sage.frame;
+      const clothCanvas = nodes.get('kitchen-counter-skin').children[0];
+      assert.equal(clothCanvas.height, Math.round(clothCanvas.width * clothFrame.h / clothFrame.w), 'cloth drawing preserves the generated sprite aspect ratio');
       nodes.get('kitchen-decor-back').click(); assert.equal(g.shift.paused, false); assert.equal(nodes.get('kitchen-decor').hidden, true);
       nodes.get('kitchen-decor-toggle').click(); view.pause(false); assert.equal(g.shift.paused, true);
       windowListeners.keydown({ key: 'Escape', preventDefault() {} }); assert.equal(view.decorOpen, false); assert.equal(g.shift.paused, false);

@@ -1,4 +1,4 @@
-import { CELL } from './factory-feel.js?v=0.22.0';
+import { CELL } from './factory-feel.js?v=0.23.0';
 
 // Map cells, never viewport pixels. Expansion moves the annex outward without
 // taking land or buildings away from an existing save.

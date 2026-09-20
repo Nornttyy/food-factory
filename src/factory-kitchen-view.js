@@ -1,5 +1,5 @@
-import { KitchenGame, KITCHEN_SAVE_KEY, KITCHEN_UPGRADES, DISHES, PARTS, PANTRY, DECOR, TOAST_SECONDS } from './factory-kitchen.js?v=0.22.0';
-import { dishMatches } from './factory-kitchen-content.js?v=0.22.0';
+import { KitchenGame, KITCHEN_SAVE_KEY, KITCHEN_UPGRADES, DISHES, PARTS, PANTRY, DECOR, TOAST_SECONDS } from './factory-kitchen.js?v=0.23.0';
+import { dishMatches } from './factory-kitchen-content.js?v=0.23.0';
 
 const $ = id => document.querySelector(`#${id}`);
 const el = (tag, text = '', className = '') => { const node = document.createElement(tag); node.textContent = text; node.className = className; return node; };
@@ -210,11 +210,12 @@ export class KitchenView {
   render() {
     const game = this.game, s = game.shift; this.renderMenu(); if (!s) return;
     const done = s.status === 'done', locked = !game.active;
+    $('kitchen-room').dataset.paused = String(locked);
     this.renderSkins(); this.renderPickers(locked);
     $('kitchen-day').textContent = `第 ${game.state.day} 天 · 早餐营业`;
     $('kitchen-coins').textContent = `${game.state.coins} 金币`;
     $('kitchen-combo').textContent = s.combo > 1 ? `${s.combo} 连击 · 出餐 ${s.served} 份` : `出餐 ${s.served} 份`;
-    $('kitchen-clock').textContent = s.guided ? '第一单 · 不计时，慢慢来' : `营业剩余 ${Math.max(0, Math.ceil(game.duration - s.time))} 秒`;
+    $('kitchen-clock').textContent = s.guided ? '第一单 · 慢慢来' : `剩余 ${Math.max(0, Math.ceil(game.duration - s.time))} 秒`;
     $('kitchen-goal').textContent = `目标 ${s.served} / ${game.target} 份`;
     $('kitchen-service').hidden = done || this.decorOpen; $('kitchen-result').hidden = !done || this.decorOpen;
     $('kitchen-decor').hidden = !this.decorOpen;
@@ -230,7 +231,7 @@ export class KitchenView {
       const left = Math.max(0, Math.ceil(game.burnAt - (s.pans[i]?.heat || 0)));
       const pan = s.pans[i], kind = pan?.kind || this.panChoice;
       const seconds = kind === 'egg' ? pan?.flipped ? 3 - pan.side : 3 - (pan?.heat || 0) : (kind === 'patty' ? 6 : TOAST_SECONDS) - (pan?.heat || 0);
-      const label = stage === 'empty' ? `点一下，下${PARTS[this.panChoice].label}` : stage === 'flip' ? '第一面好了 · 点锅翻面' : stage === 'cooking' ? `${pan?.flipped ? '第二面' : '煎制中'} ${Math.max(1, Math.ceil(seconds))} 秒` : stage === 'ready' ? `熟啦！${left} 秒内装盘` : '煎焦了 · 点一下清理';
+      const label = stage === 'empty' ? `下${({ toast: '面包', egg: '鸡蛋', patty: '肉饼' })[this.panChoice]}` : stage === 'flip' ? '翻面 ↻' : stage === 'cooking' ? `${pan?.flipped ? '第二面' : '煎制中'} ${Math.max(1, Math.ceil(seconds))} 秒` : stage === 'ready' ? `装盘 · ${left} 秒` : '煎焦了 · 清理';
       $(`kitchen-pan-label-${i}`).textContent = label; button.setAttribute('aria-label', `${i === 0 ? '左' : '右'}煎锅 · ${PARTS[kind].label}：${label}`);
       progress.max = game.burnAt; progress.value = s.pans[i]?.heat || 0;
       const sprite = kind === 'egg' ? pan?.flipped && stage !== 'ready' ? 'k_egg_flip' : stage === 'ready' ? 'k_egg_cooked' : 'k_egg_raw' : kind === 'patty' ? stage === 'cooking' ? 'k_patty_raw' : 'k_patty_cooked' : 'bread';
@@ -239,7 +240,7 @@ export class KitchenView {
     const cuts = s.board?.cuts || 0, ready = Boolean(s.board && cuts >= game.chopCount);
     $('kitchen-board').className = `kitchen-station board-station${ready ? ' ready' : ''}${this.selected?.kind === 'board' ? ' selected' : ''}`;
     $('kitchen-board').disabled = locked;
-    $('kitchen-board-label').textContent = !s.board ? `点一下，放${this.boardChoice === 'fruit' ? '草莓' : '番茄'}` : ready ? '切好了 · 放入餐盘' : `再切 ${game.chopCount - cuts} 刀`;
+    $('kitchen-board-label').textContent = !s.board ? `放${this.boardChoice === 'fruit' ? '草莓' : '番茄'}` : ready ? '切好了 · 装盘' : `再切 ${game.chopCount - cuts} 刀`;
     $('kitchen-board').setAttribute('aria-label', `${PARTS[s.board?.kind || this.boardChoice].label}砧板：${$('kitchen-board-label').textContent}`);
     $('kitchen-board-progress').max = game.chopCount; $('kitchen-board-progress').value = cuts;
     const boardSprite = s.board?.kind === 'tomato' ? ready ? 'k_tomato_cut' : 'k_tomato' : ready ? 'k_berry_cut' : 'strawberry';
@@ -253,27 +254,28 @@ export class KitchenView {
   renderPickers(locked) {
     const key = JSON.stringify([this.game.state.day, this.panChoice, this.boardChoice, this.drinkChoice, locked, this.selected?.part]);
     if (key === this.pickerKey) return; this.pickerKey = key;
-    const group = (id, parts, field, heading) => {
+    const group = (id, parts, field) => {
       const buttons = parts.filter(p => this.game.unlocked(p)).map(part => {
         const button = el('button', '', 'ingredient-pick'); button.dataset.ingredient = part; button.disabled = locked;
         button.classList.toggle('active', this[field] === part); button.setAttribute('aria-pressed', String(this[field] === part));
-        button.append(this.assets.icon(spriteFor(part), 28), el('span', PARTS[part].label));
+        button.setAttribute('aria-label', `下一份：${PARTS[part].label}`);
+        button.append(this.assets.icon(spriteFor(part), 48), el('span', PARTS[part].label));
         button.addEventListener('click', () => { this[field] = part; this.render(); this.hint('只改变下一份原料，台上正在做的不会丢失'); }); return button;
       });
-      $(id).replaceChildren(el('small', heading), ...buttons); $(id).hidden = buttons.length < 2;
+      $(id).replaceChildren(...buttons); $(id).hidden = buttons.length < 2;
     };
-    group('kitchen-pan-picker', ['toast', 'egg', 'patty'], 'panChoice', '下锅');
-    group('kitchen-board-picker', ['fruit', 'tomato'], 'boardChoice', '切配');
-    group('kitchen-drink-picker', ['juice', 'shake'], 'drinkChoice', '饮品');
-    $('kitchen-prep').hidden = this.game.state.day < 2;
+    group('kitchen-pan-picker', ['toast', 'egg', 'patty'], 'panChoice');
+    group('kitchen-board-picker', ['fruit', 'tomato'], 'boardChoice');
+    group('kitchen-drink-picker', ['juice', 'shake'], 'drinkChoice');
     const pantry = PANTRY.filter(p => this.game.unlocked(p)).map(part => {
       const button = el('button', '', 'ingredient-pick'); button.dataset.pantry = part; button.disabled = locked;
-      button.append(this.assets.icon(spriteFor(part), 32), el('span', PARTS[part].label));
+      button.setAttribute('aria-label', `放入餐盘：${PARTS[part].label}`);
+      button.append(this.assets.icon(spriteFor(part), 48), el('span', PARTS[part].label));
       button.setAttribute('aria-pressed', String(this.selected?.kind === 'pantry' && this.selected.part === part));
       button.addEventListener('click', event => { if (!this.ignoreClick(event)) { this.select({ kind: 'pantry', part }); this.hint(`已选${PARTS[part].label}，点餐盘按顺序叠上去`); } });
       this.draggable(button, () => ({ kind: 'pantry', part })); return button;
     });
-    $('kitchen-pantry').hidden = !pantry.length; $('kitchen-pantry').replaceChildren(el('small', '叠一层'), ...pantry);
+    $('kitchen-pantry').hidden = !pantry.length; $('kitchen-pantry').replaceChildren(...pantry);
   }
   renderSkins() {
     if (!this.assets.ready) return;
@@ -282,10 +284,7 @@ export class KitchenView {
     for (let i = 0; i < 2; i++) $(`kitchen-pan-art-${i}`).replaceChildren(this.art(DECOR[equipped.pan].sprite, 220));
     $('kitchen-board-art').replaceChildren(this.art('k_board', 220));
     $('kitchen-knife-art').replaceChildren(this.art('k_knife', 100));
-    const cloth = this.assets.sprites[DECOR[equipped.cloth].sprite], canvas = document.createElement('canvas');
-    canvas.width = 800; canvas.height = 460; canvas.setAttribute('aria-hidden', 'true');
-    const f = cloth.frame; canvas.getContext('2d').drawImage(this.assets.images[cloth.atlas], f.x, f.y, f.w, f.h, 0, 0, 800, 460);
-    $('kitchen-counter-skin').replaceChildren(canvas);
+    $('kitchen-counter-skin').replaceChildren(this.art(DECOR[equipped.cloth].sprite, 700));
     $('kitchen-ornament').replaceChildren(...(equipped.ornament === 'none' ? [] : [this.assets.icon(DECOR[equipped.ornament].sprite, 68)]));
   }
   art(id, width) {
@@ -297,10 +296,12 @@ export class KitchenView {
   renderDrink(locked) {
     const drink = this.game.shift.drink, kind = drink?.kind || this.drinkChoice, stage = drink?.stage;
     $('kitchen-drink-station').hidden = !this.game.unlocked('juice');
+    $('kitchen-drink-station').dataset.stage = stage || 'empty';
+    $('kitchen-drink-station').classList.toggle('selected', this.selected?.kind === 'drink');
     $('kitchen-room').classList.toggle('has-drinks', this.game.unlocked('juice'));
     $('kitchen-drink').disabled = locked; $('kitchen-pour-step').disabled = locked;
     $('kitchen-drink-clear').disabled = locked || !drink;
-    $('kitchen-drink-label').textContent = stage === 'ready' ? '做好了 · 点选装盘' : stage === 'mixing' ? `左右摇匀 ${Math.round(drink.stir * 100)}%` : stage === 'spilled' || drink?.fill > .75 ? '倒多了 · 清空再来' : this.pouring ? '绿区松手！' : '按住倒到绿区';
+    $('kitchen-drink-label').textContent = stage === 'ready' ? '做好了 · 装盘' : stage === 'mixing' ? `摇匀 ${Math.round(drink.stir * 100)}%` : stage === 'spilled' || drink?.fill > .75 ? '倒多了 · 清空' : this.pouring ? '绿区松手！' : '按住倒到绿区';
     $('kitchen-pour-step').textContent = stage === 'ready' ? '装盘' : stage === 'mixing' ? '摇一下' : '加一点';
     $('kitchen-drink-progress').value = drink?.fill || 0;
     this.food('kitchen-drink-tool', kind, [kind === 'juice' ? 'k_pitcher' : 'k_shaker']);
@@ -349,11 +350,11 @@ export class KitchenView {
         const complete = Object.values(DISHES).find(d => d.ordered && dishMatches(parts, d));
         const layers = complete ? [this.assets.icon(complete.sprite, 92)] : parts.map((part, n) => {
           const icon = this.assets.icon(spriteFor(part), 76); icon.className = 'plate-food';
-          if (parts.length > 2 || ['slice', 'bun_base'].includes(parts[0])) { icon.style.top = `${32 - n * 6}px`; icon.style.left = '18%'; icon.style.width = '64%'; }
+          if (parts.length > 2 || ['slice', 'bun_base'].includes(parts[0])) { icon.style.top = `${26 - n * 6}%`; icon.style.left = '18%'; icon.style.width = '64%'; icon.style.height = '64%'; }
           return icon;
         });
         if (complete) layers[0].className = 'plate-complete';
-        button.replaceChildren(base, ...layers, el('small', parts.length ? `${parts.length > 2 ? parts.length + ' 层 · ' : ''}点选出餐` : `餐盘 ${i + 1}`));
+        button.replaceChildren(base, ...layers);
       }
       button.disabled = locked; button.classList.toggle('selected', this.selected?.kind === 'plate' && this.selected.index === i);
       button.setAttribute('aria-pressed', String(this.selected?.kind === 'plate' && this.selected.index === i));
@@ -365,19 +366,25 @@ export class KitchenView {
     if (key !== this.ordersKey) {
       this.ordersKey = key; this.orderNodes.clear();
       const cards = orders.map(order => {
-        const button = el('button', '', 'kitchen-order'), cat = el('span', '', 'kitchen-cat'), text = el('span');
+        const button = el('button', '', 'kitchen-order'), cat = el('span', '', 'kitchen-cat'), ticket = el('span', '', 'kitchen-ticket');
         const color = ['cream', 'peach', 'gray'][(order.id - 1) % 3];
-        cat.append(this.assets.icon(`cat_${color}_body`, 54), this.assets.icon(`cat_${color}_head`, 54));
-        text.append(el('strong', DISHES[order.dish].label), el('small', DISHES[order.dish].recipe));
+        for (const part of ['body', 'head', 'hand_l', 'hand_r']) {
+          const icon = this.assets.icon(`cat_${color}_${part}`, 96); icon.className = `cat-${part}`; cat.append(icon);
+        }
+        const dish = DISHES[order.dish], recipe = el('span', '', 'kitchen-recipe');
+        recipe.setAttribute('aria-hidden', 'true'); ticket.title = dish.recipe;
+        dish.parts.forEach((part, index) => {
+          if (index) recipe.append(el('span', dish.ordered ? '›' : '+', 'recipe-separator'));
+          recipe.append(this.assets.icon(spriteFor(part), 32));
+        });
+        ticket.append(el('strong', dish.label), recipe);
         const progress = el('progress'); progress.max = order.patience; progress.value = order.left;
         progress.setAttribute('aria-label', '顾客耐心');
         button.dataset.kitchenTarget = 'order'; button.dataset.orderId = String(order.id);
-        button.append(cat, text, progress); button.addEventListener('click', event => { if (!this.ignoreClick(event)) this.customer(order.id); });
+        ticket.append(progress); button.append(ticket, cat);
+        button.addEventListener('click', event => { if (!this.ignoreClick(event)) this.customer(order.id); });
         this.orderNodes.set(order.id, { button, progress }); return button;
       });
-      const spots = this.game.state.day === 1 ? 2 : 3;
-      while (cards.length < spots) cards.push(el('div', '等下一位小客人…', 'kitchen-order waiting'));
-      $('kitchen-orders').style.gridTemplateColumns = `repeat(${spots},minmax(0,1fr))`;
       $('kitchen-orders').replaceChildren(...cards);
     }
     const matches = this.selected?.kind === 'plate' ? this.game.matchingOrders(this.selected.index) : [];
