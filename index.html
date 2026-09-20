@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="description" content="美食工坊：忙碌小厨房。双锅煎面包、亲手切草莓、装盘给猫猫出餐，用连击收入升级厨具。奶油手绘风，原自动化工坊存档保留。" />
+    <meta name="description" content="猫咪开饭啦：把散乱的美食拖进餐盘，配齐套餐招待小猫，赚金币装饰小店。奶油手绘风，不限时，原厨房与工坊进度保留。" />
     <meta name="theme-color" content="#fff2d9" />
     <meta name="color-scheme" content="light" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -11,32 +11,33 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://nornttyy.github.io/food-factory/" />
-    <meta property="og:title" content="美食工坊｜忙碌小厨房" />
-    <meta property="og:description" content="切一切、煎一煎，给小猫做一份热早餐。" />
-    <meta property="og:image" content="https://nornttyy.github.io/food-factory/public/og.png" />
+    <meta property="og:title" content="猫咪开饭啦｜美食整理与小店经营" />
+    <meta property="og:description" content="整理美味，招待小猫。慢慢配套餐，赚金币装饰小店。" />
+    <meta property="og:image" content="https://nornttyy.github.io/food-factory/public/og.png?v=0.24.0" />
     <meta property="og:image:width" content="1672" />
     <meta property="og:image:height" content="941" />
-    <meta property="og:image:alt" content="美食工坊：奶油色机器与传送带连接面包、甜甜圈和橙汁产线" />
+    <meta property="og:image:alt" content="猫咪开饭啦：三只小猫在奶油色柜台后等待整理好的早餐套餐" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:image" content="https://nornttyy.github.io/food-factory/public/og.png" />
-    <meta name="twitter:title" content="美食工坊｜忙碌小厨房" />
-    <meta name="twitter:description" content="切一切、煎一煎，给小猫做一份热早餐。" />
-    <title>美食工坊｜忙碌小厨房</title>
+    <meta name="twitter:image" content="https://nornttyy.github.io/food-factory/public/og.png?v=0.24.0" />
+    <meta name="twitter:title" content="猫咪开饭啦｜美食整理与小店经营" />
+    <meta name="twitter:description" content="整理美味，招待小猫。慢慢配套餐，赚金币装饰小店。" />
+    <title>猫咪开饭啦｜美食整理与小店经营</title>
     <link rel="canonical" href="https://nornttyy.github.io/food-factory/" />
     <link rel="icon" href="data:," />
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="stylesheet" href="./factory.css?v=0.23.0" />
-    <link rel="stylesheet" href="./factory-layout.css?v=0.23.0" />
-    <link rel="stylesheet" href="./factory-menu.css?v=0.23.0" />
-    <link rel="stylesheet" href="./factory-service.css?v=0.23.0" />
-    <link rel="stylesheet" href="./factory-crafting.css?v=0.23.0" />
-    <link rel="stylesheet" href="./factory-kitchen.css?v=0.23.0" />
+    <link rel="stylesheet" href="./factory.css?v=0.24.0" />
+    <link rel="stylesheet" href="./factory-layout.css?v=0.24.0" />
+    <link rel="stylesheet" href="./factory-menu.css?v=0.24.0" />
+    <link rel="stylesheet" href="./factory-service.css?v=0.24.0" />
+    <link rel="stylesheet" href="./factory-crafting.css?v=0.24.0" />
+    <link rel="stylesheet" href="./factory-kitchen.css?v=0.24.0" />
+    <link rel="stylesheet" href="./factory-sorting.css?v=0.24.0" />
   </head>
   <body class="menu-open">
     <section id="loading" class="loading" aria-labelledby="loading-title" aria-busy="true">
       <div class="loading-content">
         <span class="section-label">揉一揉，等开工</span>
-        <h1 id="loading-title">美食工坊</h1>
+        <h1 id="loading-title">猫咪开饭啦</h1>
         <div class="loading-tray">
           <button id="loading-dough" class="loading-dough" type="button" aria-label="戳戳面团"><span class="dough-face" aria-hidden="true"></span></button>
         </div>
@@ -46,14 +47,17 @@
         <button id="loading-retry" class="soft-button" type="button" hidden>重新加载</button>
       </div>
     </section>
-    <main id="main-menu" class="main-menu" aria-label="美食工坊主菜单" inert>
-      <div class="menu-scene"><img src="./public/og.png" alt="美食工坊的奶油色美食与厨具" width="1672" height="941" /><p>切一切 · 煎一煎 · 趁热上桌</p></div>
+    <main id="main-menu" class="main-menu" aria-label="猫咪开饭啦主菜单" inert>
+      <div class="menu-scene"><img src="./public/og.png?v=0.24.0" alt="猫咪开饭啦，三只小猫在奶油色柜台后等待早餐" width="1672" height="941" /><p>整理美味 · 招待小猫 · 装饰小店</p></div>
       <section class="menu-card">
-        <span class="section-label">美食工坊 · 忙碌小厨房</span><h1>今天，亲自下厨。</h1>
+        <span class="section-label">美食整理 · 猫咪小店</span><h1>猫咪开饭啦</h1>
+        <p id="sort-menu-summary" class="menu-summary">整理一份美味，招待一只小猫。</p>
+        <button id="menu-sort" class="primary-button menu-play" disabled>开门迎客 →</button>
+        <small class="menu-note">配好套餐 · 慢慢经营 · 装饰小店</small>
+        <details class="classic-modes"><summary>之前的厨房与自动化工坊</summary>
         <p id="kitchen-menu-summary" class="menu-summary">双锅开火，给小猫做一份热早餐。</p>
         <button id="menu-kitchen" class="primary-button menu-play" disabled>进入小厨房 →</button>
         <small class="menu-note">亲手制作 · 连击出餐 · 升级厨具</small>
-        <details class="classic-modes"><summary>原来的自动化工坊</summary>
         <p id="menu-summary" class="menu-summary">从第一份面包开始。</p>
         <button id="menu-play" class="primary-button menu-play" disabled>正在准备…</button>
         <button id="menu-craft" class="menu-feature craft-feature" disabled><span>亲手做甜甜圈 →</span><small>压面圈 · 看火候 · 涂糖霜 · 解锁量产</small></button>
@@ -64,7 +68,7 @@
         <button id="menu-new" class="menu-reset" hidden>重新开一间</button>
         <button id="menu-restore" class="menu-reset" hidden>恢复重开前的工坊</button>
         </details>
-        <small class="menu-note">进度保存在此浏览器 · 原工坊存档保留</small>
+        <small class="menu-note">进度保存在此浏览器 · 各玩法独立保存</small>
       </section>
     </main>
     <main id="factory-app" class="factory-app" aria-label="美食自动化工坊" hidden>
@@ -149,6 +153,22 @@
         <small class="craft-note">研发不扣金币 · 离开制作台自动暂停</small>
       </footer>
     </main>
+    <main id="sort-room" class="sort-room" aria-label="猫咪开饭啦，美食整理小店" hidden>
+      <header class="sort-header"><button id="sort-home">← 菜单</button><div><h1>猫咪开饭啦</h1><small id="sort-day">第 1 天</small></div><strong id="sort-coins">0 金币</strong><button id="sort-decor-toggle">装饰</button><button id="sort-pause" aria-pressed="false">暂停</button></header>
+      <section id="sort-service" class="sort-service">
+        <div class="sort-status"><span id="sort-progress">今日 0 / 6</span><span>不计时 · 慢慢整理</span></div>
+        <div id="sort-orders" class="sort-orders" aria-label="顾客套餐，点猫咪出餐"></div>
+        <section class="sort-counter" aria-label="美食整理桌面">
+          <div id="sort-ornament" class="sort-ornament" aria-hidden="true"></div>
+          <div id="sort-bench" class="sort-bench" data-sort-target="bench" aria-label="散落食物，拖回这里可重新整理"><div id="sort-scatter" class="sort-scatter"></div><div id="sort-wave-end" class="sort-wave-end" hidden><strong id="sort-wave-title">这一桌吃好啦</strong><span id="sort-wave-stats"></span><button id="sort-next" class="primary-button">迎接下一桌 →</button></div></div>
+          <div class="sort-serving"><div id="sort-cloth" class="sort-cloth" aria-hidden="true"></div><div id="sort-plates" class="sort-plates" aria-label="三只套餐餐盘"></div><button id="sort-return" class="sort-return" disabled>放回桌面</button></div>
+        </section>
+        <p id="sort-hint" class="sort-hint" role="status" aria-live="polite">把食物拖进餐盘，配齐后交给猫咪。</p>
+        <div id="sort-paused" class="sort-paused" hidden><strong>小猫们等你回来</strong><button id="sort-resume" class="primary-button">继续整理</button></div>
+      </section>
+      <section id="sort-shop" class="sort-shop" aria-label="小店装饰" hidden><div class="sort-shop-heading"><div><h2>给小店添一点喜欢</h2><p>买过的装饰，随时免费换。</p></div><button id="sort-shop-back">← 回小店</button></div><nav id="sort-shop-tabs" class="sort-shop-tabs" aria-label="装饰类别"></nav><div id="sort-shop-items" class="sort-shop-items"></div><p id="sort-shop-message" role="status" aria-live="polite"></p></section>
+      <small id="sort-save-status" class="sort-save-status">独立存档 · 原厨房进度保留</small>
+    </main>
     <main id="kitchen-room" class="kitchen-room" aria-label="忙碌小厨房" hidden>
       <header class="kitchen-header"><button id="kitchen-home" class="soft-button">← 菜单</button><div><h1>忙碌小厨房</h1><small id="kitchen-day">第 1 天 · 早餐营业</small></div><div class="kitchen-score"><strong id="kitchen-coins">0 金币</strong><small id="kitchen-combo">出餐 0 份</small></div><button id="kitchen-decor-toggle" class="soft-button">装扮</button><button id="kitchen-pause" class="soft-button" aria-pressed="false">暂停</button></header>
       <section id="kitchen-service" class="kitchen-service">
@@ -188,7 +208,7 @@
       <small id="kitchen-save-status" class="kitchen-save-status">自动保存 · 离开自动暂停</small>
     </main>
     <noscript><style>#loading{display:none}</style>需要启用 JavaScript 才能开始游戏。</noscript>
-    <script defer src="./src/factory-loading.js?v=0.23.0"></script>
-    <script id="factory-entry" type="module" src="./src/factory-main.js?v=0.23.0"></script>
+    <script defer src="./src/factory-loading.js?v=0.24.0"></script>
+    <script id="factory-entry" type="module" src="./src/factory-main.js?v=0.24.0"></script>
   </body>
 </html>

@@ -1,0 +1,58 @@
+.sort-room{height:100dvh;max-width:1180px;margin:auto;display:flex;flex-direction:column;padding:max(10px,env(safe-area-inset-top)) max(24px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(24px,env(safe-area-inset-left));overflow:auto;background:#fff2d9;color:#725b47}
+.sort-header{display:flex;align-items:center;gap:18px;min-height:52px;flex-shrink:0}
+.sort-header h1{font-size:21px;letter-spacing:.04em}.sort-header small{display:block;font-size:11px;color:#9b846c;margin-top:3px}
+.sort-header>strong{margin-left:auto;font-size:18px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.sort-header button,.sort-shop-heading>button{min-height:44px;min-width:44px;padding:6px;font-size:12px}
+.sort-service{position:relative;display:flex;flex-direction:column;flex:1 0 auto}
+.sort-status{display:flex;justify-content:space-between;padding:6px 6px 0;font-size:11px;color:#9b846c}
+.sort-orders{display:flex;justify-content:center;align-items:flex-end;gap:clamp(16px,5vw,70px);height:174px;flex-shrink:0;position:relative;z-index:2}
+.sort-customer{width:190px;max-width:31%;height:170px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;border:0;background:none;padding:0;position:relative}
+.sort-customer .kitchen-ticket{min-height:74px;max-width:180px}.sort-customer .kitchen-cat{height:88px}
+.sort-customer .kitchen-recipe{height:34px;gap:3px}.sort-customer .kitchen-recipe canvas{height:32px;max-width:34px;flex-basis:34px}
+.sort-customer.match .kitchen-ticket{background:#e8f0da;box-shadow:0 3px 0 #9eb481}.sort-customer.match .kitchen-cat{animation:sort-bob 1.4s ease-in-out infinite}
+.sort-customer.done .kitchen-ticket{background:none;box-shadow:none;color:#81946a;min-height:74px}.sort-customer.done .kitchen-ticket:after{display:none}.sort-customer.done .kitchen-cat{opacity:.55}
+.sort-customer:disabled{opacity:1}.sort-customer.done{cursor:default}
+.sort-counter{position:relative;display:flex;flex-direction:column;flex:1 0 auto;margin-top:-6px;padding:18px 26px 12px;background:#eddbbd;box-shadow:inset 0 7px #f5e6cd,0 9px #d5bb94;border-radius:45% 45% 22px 22px / 12px 12px 18px 18px}
+.sort-ornament{position:absolute;right:12px;top:-46px;pointer-events:none;z-index:2}.sort-ornament canvas{width:64px;height:64px;object-fit:contain}
+.sort-bench{position:relative;flex:1 0 auto;min-height:230px;display:flex;align-items:center;justify-content:center}
+.sort-scatter{width:100%;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-rows:repeat(2,minmax(98px,1fr));gap:8px 12px;min-height:230px;padding:4px 10px 14px;align-content:center}
+.sort-spot{position:relative;display:grid;place-items:center;min-width:0;min-height:88px}
+.sort-food{position:relative;width:clamp(68px,9vw,110px);height:clamp(68px,9vw,110px);padding:0;border:0;background:none;touch-action:none;user-select:none;border-radius:45%;transform:rotate(var(--tilt,0deg));transition:filter .16s,transform .22s}
+.sort-food canvas{display:block;width:100%;height:100%;object-fit:contain;pointer-events:none}
+.sort-food.selected{filter:drop-shadow(0 0 4px #7b9959);transform:rotate(0deg) translateY(-4px)}
+.sort-food.is-dragging{opacity:.35}.sort-food:disabled{opacity:1}
+.sort-serving{position:relative;isolation:isolate;flex-shrink:0;display:flex;align-items:center;gap:10px;padding:7px 0;min-height:134px}
+.sort-cloth{position:absolute;inset:0 5%;z-index:-1;overflow:hidden;pointer-events:none}.sort-cloth canvas{width:100%;height:100%;object-fit:cover;opacity:.7}
+.sort-plates{flex:1;min-width:0;display:flex;justify-content:center;gap:20px}
+.sort-plate{position:relative;width:clamp(140px,23vw,245px);height:clamp(110px,17dvh,164px);min-width:0;flex:0 1 245px}
+.sort-plate-base{position:absolute;inset:0;width:100%;height:100%;padding:0;background:none;border:0;border-radius:50%;touch-action:none}
+.sort-plate-base canvas{width:100%;height:100%;object-fit:contain;pointer-events:none}.sort-plate.selected .sort-plate-base canvas{filter:drop-shadow(0 0 4px #7b9959)}
+.sort-plate-base small{position:absolute;bottom:1%;left:0;right:0;text-align:center;font-size:10px;color:#715d44}.sort-plate.ready .sort-plate-base small{color:#51733a;font-weight:700}
+.sort-plate>.sort-food{position:absolute;width:38%;height:52%;left:calc(9% + var(--food-col)*38%);top:calc(1% + var(--food-row)*34%);z-index:1}
+.sort-plate-base:disabled{opacity:1}.sort-return{flex-shrink:0;min-height:44px;max-width:48px;font-size:10px;line-height:17px;padding:3px}.sort-return:disabled{visibility:hidden}
+.sort-hint{font-size:11px;line-height:1.7;text-align:center;min-height:25px;margin:16px 0 0;color:#937b60}.sort-save-status{text-align:center;font-size:9px;color:#a58d70;min-height:13px}
+.sort-wave-end{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;text-align:center}.sort-wave-end strong{font-size:25px}.sort-wave-end>span{font-size:12px;color:#917b62}.sort-wave-end .primary-button{max-width:240px;min-height:46px;font-size:14px}
+.sort-paused{position:absolute;inset:0;z-index:8;background:#fff2d9ee;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:20px}.sort-paused .primary-button{max-width:230px;min-height:46px}
+.sort-room[data-paused=true] *{animation-play-state:paused!important}
+.sort-ghost{position:fixed;left:0;top:0;z-index:35;pointer-events:none;filter:drop-shadow(0 7px 4px #846a5733)}.sort-ghost canvas{display:block;width:72px;height:72px}
+.sort-ghost.meal{display:flex;align-items:center;gap:2px;background:#fff8e4d9;border-radius:50%;padding:10px}.sort-ghost.meal canvas{width:42px;height:42px}
+.sort-shop{flex:1;display:flex;flex-direction:column;gap:28px;padding:32px 0}
+.sort-shop-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}.sort-shop h2{font-size:24px}.sort-shop-heading p{font-size:11px;margin-top:8px;color:#9b846c}
+.sort-shop-tabs{display:flex;gap:24px}.sort-shop-tabs button{min-height:44px;padding:8px 2px;border-bottom:2px solid transparent;font-size:13px}.sort-shop-tabs button[aria-pressed=true]{border-color:#829b69;color:#52733a}
+.sort-shop-items{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}.sort-product{display:flex;flex-direction:column;align-items:center;gap:18px;min-width:0;padding:14px 4px}.sort-product>canvas{width:clamp(85px,20vw,220px);height:clamp(85px,20vw,220px);object-fit:contain}.sort-product strong{font-size:13px}.sort-product button{min-height:44px;font-size:12px;padding:8px 13px;border-radius:15px;background:#f2e5cd}.sort-product button:disabled{opacity:.55}
+#sort-shop-message{text-align:center;font-size:12px;min-height:20px}
+@keyframes sort-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px) scale(1.035,.975)}}
+@media(max-width:650px){
+ .sort-room{padding:max(7px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(6px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left))}
+ .sort-header{gap:7px;min-height:48px}.sort-header h1{font-size:16px;letter-spacing:0}.sort-header small{font-size:10px}.sort-header>strong{font-size:13px}.sort-header button{font-size:11px;min-width:36px;padding:4px}
+ .sort-status{font-size:10px}.sort-orders{height:142px;gap:10px}.sort-customer{height:139px;gap:3px}.sort-customer .kitchen-ticket{padding:5px;min-height:61px}.sort-customer .kitchen-ticket strong{font-size:10px}.sort-customer .kitchen-cat{width:78px;height:72px}.sort-customer .kitchen-recipe{height:29px;gap:1px}.sort-customer .kitchen-recipe canvas{height:28px;max-width:29px}
+ .sort-counter{padding:14px 8px 6px}.sort-bench{min-height:222px}.sort-scatter{grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(3,minmax(64px,1fr));min-height:220px;gap:8px 4px;padding:4px 0 10px}.sort-spot{min-height:64px}.sort-food{width:clamp(54px,18vw,82px);height:clamp(54px,18vw,82px)}
+ .sort-serving{min-height:106px;gap:3px;padding:6px 0}.sort-cloth{inset:0 -2px}.sort-plates{gap:3px}.sort-plate{width:31%;height:100px}.sort-plate>.sort-food{width:41%;height:48%;left:calc(5% + var(--food-col)*43%);top:calc(3% + var(--food-row)*31%)}.sort-plate-base small{font-size:9px;bottom:0}.sort-return{font-size:9px;max-width:30px;min-width:30px}
+ .sort-ornament{right:0;top:-31px}.sort-ornament canvas{width:44px;height:44px}.sort-hint{font-size:10px;margin-top:13px;min-height:23px}.sort-save-status{font-size:8px}
+ .sort-wave-end strong{font-size:21px}.sort-wave-end .primary-button{max-width:200px}.sort-shop{padding:24px 0;gap:20px}.sort-shop h2{font-size:18px}.sort-shop-items{gap:8px}.sort-product{gap:14px;padding:8px 0}.sort-product strong{font-size:11px}.sort-product button{font-size:10px;padding:8px}
+}
+@media(max-height:560px) and (min-width:601px){
+ .sort-room{padding-top:max(4px,env(safe-area-inset-top));padding-bottom:max(4px,env(safe-area-inset-bottom))}.sort-header{min-height:40px;gap:12px}.sort-header h1{font-size:16px}.sort-header small{display:none}.sort-header>strong{font-size:14px}.sort-header button{min-height:36px}.sort-status{font-size:9px;padding-top:0;position:absolute;inset:0 0 auto;pointer-events:none}
+ .sort-orders{height:84px;padding:0 90px;gap:14px}.sort-customer{height:81px;flex-direction:row;align-items:center;gap:2px}.sort-customer .kitchen-ticket{min-height:55px;padding:4px;max-width:117px;min-width:0}.sort-customer .kitchen-ticket strong{font-size:9px}.sort-customer .kitchen-cat{width:55px;height:60px;align-self:flex-end}.sort-customer .kitchen-recipe,.sort-customer .kitchen-recipe canvas{height:24px}
+ .sort-counter{padding:9px 16px 4px}.sort-bench{min-height:130px}.sort-scatter{min-height:130px;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-rows:repeat(2,minmax(52px,1fr));gap:0 8px;padding:0}.sort-spot{min-height:52px}.sort-food{width:58px;height:58px}.sort-serving{min-height:70px;padding:0}.sort-plate{height:70px;max-width:185px}.sort-plate-base small{font-size:9px}.sort-hint{font-size:9px;margin-top:11px;min-height:16px}.sort-save-status{font-size:8px;min-height:10px}.sort-wave-end{gap:6px}.sort-wave-end strong{font-size:19px}.sort-wave-end .primary-button{min-height:36px;font-size:12px}.sort-ornament{top:-30px}.sort-ornament canvas{width:40px;height:40px}.sort-shop{padding:14px 0;gap:12px}.sort-product>canvas{width:85px;height:85px}
+}

@@ -9,7 +9,7 @@ const assetDir = resolve(root, 'assets/generated/factory/cream-v1');
 const manifest = JSON.parse(await readFile(resolve(assetDir, 'manifest.json'), 'utf8'));
 const validation = await validateFactoryAssets(manifest, assetDir);
 if (!validation.valid) throw new Error(validation.errors.join('\n'));
-const source = ['src/factory-loading.js', 'src/factory-shop.js', 'src/factory-business.js', 'src/factory-career.js', 'src/factory-links.js', 'src/factory-core.js', 'src/factory-crafting.js', 'src/factory-crafting-view.js', 'src/factory-kitchen.js', 'src/factory-kitchen-content.js', 'src/factory-kitchen-view.js', 'src/factory-packing.js', 'src/factory-service.js', 'src/factory-automation.js', 'src/factory-yard.js', 'src/factory-feel.js', 'src/factory-renderer.js', 'src/factory-tutorial.js', 'src/factory-main.js'];
+const source = ['src/factory-loading.js', 'src/factory-shop.js', 'src/factory-business.js', 'src/factory-career.js', 'src/factory-links.js', 'src/factory-core.js', 'src/factory-crafting.js', 'src/factory-crafting-view.js', 'src/factory-sorting.js', 'src/factory-sorting-view.js', 'src/factory-kitchen.js', 'src/factory-kitchen-content.js', 'src/factory-kitchen-view.js', 'src/factory-packing.js', 'src/factory-service.js', 'src/factory-automation.js', 'src/factory-yard.js', 'src/factory-feel.js', 'src/factory-renderer.js', 'src/factory-tutorial.js', 'src/factory-main.js'];
 for (const file of source) execFileSync(process.execPath, ['--check', resolve(root, file)]);
 const html = await readFile(resolve(root, 'index.html'), 'utf8');
 const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]));
@@ -21,7 +21,9 @@ const crafting = await readFile(resolve(root, 'src/factory-crafting-view.js'), '
 for (const [, id] of crafting.matchAll(/\$\('([^']+)'\)/g)) if (!ids.has(id)) throw new Error(`Missing crafting UI target: ${id}`);
 const kitchen = await readFile(resolve(root, 'src/factory-kitchen-view.js'), 'utf8');
 for (const [, id] of kitchen.matchAll(/\$\('([^']+)'\)/g)) if (!ids.has(id)) throw new Error(`Missing kitchen UI target: ${id}`);
-const files = ['index.html', '.nojekyll', 'factory.css', 'factory-layout.css', 'factory-menu.css', 'factory-service.css', 'factory-crafting.css', 'factory-kitchen.css', 'manifest.webmanifest', 'public/og.png', ...source,
+const sorting = await readFile(resolve(root, 'src/factory-sorting-view.js'), 'utf8');
+for (const [, id] of sorting.matchAll(/\$\('([^']+)'\)/g)) if (!ids.has(id)) throw new Error(`Missing sorting UI target: ${id}`);
+const files = ['index.html', '.nojekyll', 'factory.css', 'factory-layout.css', 'factory-menu.css', 'factory-service.css', 'factory-crafting.css', 'factory-kitchen.css', 'factory-sorting.css', 'manifest.webmanifest', 'public/og.png', 'public/og-cat-sorting-prompt.md', ...source,
   'assets/generated/factory/cream-v1/manifest.json',
   'assets/generated/factory/cream-v1/KITCHEN-PROMPTS.md',
   ...Object.values(manifest.atlases).map(atlas => `assets/generated/factory/cream-v1/${atlas.file}`)];

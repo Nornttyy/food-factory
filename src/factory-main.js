@@ -1,14 +1,15 @@
-import { BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, WIDTH, HEIGHT, upgradeCost, isTransport, transportCount } from './factory-core.js?v=0.23.0';
-import { AutomaticFactoryGame as FactoryGame, createPackingTrial } from './factory-automation.js?v=0.23.0';
-import { PACKING_SAVE_KEY, PACK_RECIPES, PACK_GOALS, TRIAL_BUILDINGS, ingredientsReady } from './factory-packing.js?v=0.23.0';
-import { CraftingView } from './factory-crafting-view.js?v=0.23.0';
-import { KitchenView } from './factory-kitchen-view.js?v=0.23.0';
-import { CRAFT_ITEM, craftUnlocks } from './factory-crafting.js?v=0.23.0';
-import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.23.0';
-import { directionBetween, nextBeltCell } from './factory-links.js?v=0.23.0';
-import { RESEARCH } from './factory-career.js?v=0.23.0';
-import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.23.0';
-import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS, WAREHOUSE_FOODS } from './factory-business.js?v=0.23.0';
+import { BUILDINGS, ITEMS, FOOD_RECIPES, SAVE_KEY, DIRECTION_NAMES, WIDTH, HEIGHT, upgradeCost, isTransport, transportCount } from './factory-core.js?v=0.24.0';
+import { AutomaticFactoryGame as FactoryGame, createPackingTrial } from './factory-automation.js?v=0.24.0';
+import { PACKING_SAVE_KEY, PACK_RECIPES, PACK_GOALS, TRIAL_BUILDINGS, ingredientsReady } from './factory-packing.js?v=0.24.0';
+import { CraftingView } from './factory-crafting-view.js?v=0.24.0';
+import { KitchenView } from './factory-kitchen-view.js?v=0.24.0';
+import { SortingView } from './factory-sorting-view.js?v=0.24.0';
+import { CRAFT_ITEM, craftUnlocks } from './factory-crafting.js?v=0.24.0';
+import { FactoryAssets, FactoryRenderer } from './factory-renderer.js?v=0.24.0';
+import { directionBetween, nextBeltCell } from './factory-links.js?v=0.24.0';
+import { RESEARCH } from './factory-career.js?v=0.24.0';
+import { TUTORIAL_KEY, LESSONS, createPractice, nextLesson } from './factory-tutorial.js?v=0.24.0';
+import { BUSINESS_RANKS, REPUTATION_LEVELS, businessLevel, MILESTONES, SALE_FOODS, WAREHOUSE_FOODS } from './factory-business.js?v=0.24.0';
 
 const $ = selector => document.querySelector(selector);
 let game = new FactoryGame();
@@ -27,6 +28,7 @@ const craftingView = new CraftingView({ canvas: $('#craft-canvas'), assets, getG
 });
 const ui = { screen: 'menu', craftPaused: false, handmadeId: null, customerArea: false, recipeOpen: false, recipeItem: 'bread', careerTab: 'contracts', businessTab: 'trade', mapOpen: false, category: 'logistics', tool: 'select', dir: 0, selected: null, hover: null, dockOpen: false, ordersOpen: false, inspectorOpen: false, focus: false, reducedMotion: false };
 const kitchenView = new KitchenView({ assets, isActive: () => ui.screen === 'kitchen' && !document.hidden, bounce: bounceElement });
+const sortingView = new SortingView({ assets, isActive: () => ui.screen === 'sorting' && !document.hidden, bounce: bounceElement });
 const PREFERENCES_KEY = 'food-factory-preferences-v1', BACKUP_KEY = `${SAVE_KEY}-before-restart`;
 let hasSave = false, hasBackup = false, restartMode = 'new', explicitMotion = false;
 const motionQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)');
@@ -53,6 +55,7 @@ function toast(message) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => $('#toast').hidden = true, 2400);
 }
 function save() {
+  sortingView.save();
   kitchenView.save();
   if (practice) { $('#save-status').textContent = '练习工坊 · 不影响存档'; return; }
   if (packingSession) {
@@ -394,6 +397,8 @@ function renderFront() {
   const s = game.state, c = game.contract, menu = ui.screen === 'menu';
   $('#main-menu').hidden = !menu; $('#factory-app').hidden = ui.screen !== 'workshop'; $('#craft-room').hidden = ui.screen !== 'craft'; $('#kitchen-room').hidden = ui.screen !== 'kitchen';
   $('#menu-kitchen').disabled = !assets.ready;
+  $('#sort-room').hidden = ui.screen !== 'sorting'; $('#menu-sort').disabled = !assets.ready;
+  sortingView.renderMenu();
   kitchenView.renderMenu();
   document.body?.classList.toggle('menu-open', menu); document.body?.classList.toggle('reduced-motion', ui.reducedMotion);
   $('#menu-play').disabled = !assets.ready; $('#menu-career').disabled = !assets.ready;
@@ -502,6 +507,7 @@ function enterWorkshop() {
   }
 }
 function enterMenu() {
+  if (ui.screen === 'sorting') sortingView.close();
   if (ui.screen === 'kitchen') kitchenView.close();
   if (practice) { leaveTutorial(true); return; }
   finishDrag(); save();
@@ -510,7 +516,7 @@ function enterMenu() {
     resetEffects(); renderPalette(); renderRecipes();
   }
   ui.screen = 'menu'; ui.hover = null; ui.focus = false; ui.ordersOpen = false; ui.dockOpen = false; ui.inspectorOpen = false;
-  previousTime = performance.now(); renderUi(true); $('#menu-kitchen').focus();
+  previousTime = performance.now(); renderUi(true); $('#menu-sort').focus();
 }
 function openCareer() { if (practice) return; finishDrag(); $('#career-dialog').showModal(); renderCareer(); }
 function requestRestart(mode) {
@@ -642,7 +648,7 @@ function finishDrag(event, complete = false) {
 canvas.addEventListener('pointerup', event => finishDrag(event, true));
 canvas.addEventListener('pointercancel', event => finishDrag(event));
 canvas.addEventListener('lostpointercapture', event => finishDrag(event));
-window.addEventListener('blur', () => { finishDrag(); touchPointers.clear(); blockedTouchGesture = false; pinch = null; if (ui.screen === 'kitchen') kitchenView.pause(true); if (ui.screen === 'craft') { craftingView.cancel(); ui.craftPaused = true; craftingView.info(); save(); } });
+window.addEventListener('blur', () => { finishDrag(); touchPointers.clear(); blockedTouchGesture = false; pinch = null; if (ui.screen === 'sorting') sortingView.pause(true); if (ui.screen === 'kitchen') kitchenView.pause(true); if (ui.screen === 'craft') { craftingView.cancel(); ui.craftPaused = true; craftingView.info(); save(); } });
 // Capture all touch contacts, including contacts over HUD controls. A multi-touch
 // gesture cannot become a fresh paint stroke until every finger has been lifted.
 document.addEventListener('pointerdown', event => {
@@ -726,6 +732,8 @@ $('#menu-play').addEventListener('click', () => !hasSave && !tutorialSeen && !pr
 $('#menu-packing').addEventListener('click', startPacking);
 $('#menu-kitchen').addEventListener('click', () => { if (assets.ready) { finishDrag(); save(); ui.screen = 'kitchen'; previousTime = performance.now(); renderUi(true); kitchenView.open(); } });
 $('#kitchen-home').addEventListener('click', enterMenu);
+$('#menu-sort').addEventListener('click', () => { if (assets.ready) { finishDrag(); save(); ui.screen = 'sorting'; previousTime = performance.now(); renderUi(true); sortingView.open(); } });
+$('#sort-home').addEventListener('click', enterMenu);
 $('#menu-craft').addEventListener('click', openCraft);
 $('#craft-toggle').addEventListener('click', openCraft);
 $('#craft-back').addEventListener('click', () => leaveCraft());
@@ -766,6 +774,10 @@ $('#help').addEventListener('click', () => $('#help-dialog').showModal());
 for (const selector of ['#close-help', '#help-done']) $(selector).addEventListener('click', () => $('#help-dialog').close());
 $('#close-recipes').addEventListener('click', () => $('#recipe-dialog').close());
 window.addEventListener('keydown', event => {
+  if (ui.screen === 'sorting') {
+    if (event.key === 'Escape' && !event.repeat) { event.preventDefault(); if (sortingView.shopOpen) sortingView.closeShop(); else sortingView.pause(!sortingView.game.round?.paused); }
+    return;
+  }
   if (ui.screen === 'kitchen') {
     if (event.key === 'Escape' && !event.repeat) { event.preventDefault(); if (kitchenView.decorOpen) kitchenView.closeDecor(); else kitchenView.pause(!kitchenView.game.shift?.paused); }
     return;
@@ -790,7 +802,7 @@ window.addEventListener('keydown', event => {
   }
   if (event.key === 'Enter' && document.activeElement === canvas && ui.hover) { event.preventDefault(); useCell(ui.hover); }
 });
-document.addEventListener('visibilitychange', () => { if (document.hidden) { finishDrag(); craftingView.cancel(); if (ui.screen === 'kitchen') kitchenView.pause(true); save(); } previousTime = performance.now(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { finishDrag(); craftingView.cancel(); if (ui.screen === 'sorting') sortingView.pause(true); if (ui.screen === 'kitchen') kitchenView.pause(true); save(); } previousTime = performance.now(); });
 window.addEventListener('pagehide', save);
 let previousTime = performance.now(), previousSave = previousTime, previousUi = 0;
 function frame(now) {
@@ -818,4 +830,4 @@ try {
   if (!window.factoryLoading) $('#loading-retry').addEventListener('click', () => window.location.reload());
   console.error(error);
 }
-export const runtime = { get game() { return game; }, get practice() { return practice; }, assets, renderer, craftingView, kitchenView, ui };
+export const runtime = { get game() { return game; }, get practice() { return practice; }, assets, renderer, craftingView, kitchenView, sortingView, ui };

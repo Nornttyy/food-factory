@@ -1,7 +1,7 @@
 {
-  "name": "美食工坊",
-  "short_name": "美食工坊",
-  "description": "奶油手绘小厨房：切配、煎制、装盘，亲手做美食",
+  "name": "猫咪开饭啦",
+  "short_name": "猫咪开饭啦",
+  "description": "奶油手绘美食整理：配齐套餐、招待猫咪、装饰小店",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",

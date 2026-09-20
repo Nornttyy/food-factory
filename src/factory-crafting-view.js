@@ -1,5 +1,5 @@
-import { FRY_WINDOW, glazeCount, craftScore } from './factory-crafting.js?v=0.23.0';
-import { jellyPose } from './factory-feel.js?v=0.23.0';
+import { FRY_WINDOW, glazeCount, craftScore } from './factory-crafting.js?v=0.24.0';
+import { jellyPose } from './factory-feel.js?v=0.24.0';
 
 const $ = id => document.querySelector(`#${id}`);
 export function craftLayout(width, height) {

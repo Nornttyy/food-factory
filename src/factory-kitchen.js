@@ -1,5 +1,5 @@
 // The hands-on kitchen has its own device-local save. Factory saves are never migrated.
-import { DISHES, PARTS, PANTRY, DECOR, defaultDecor, dishMatches, fitsRecipe } from './factory-kitchen-content.js?v=0.23.0';
+import { DISHES, PARTS, PANTRY, DECOR, defaultDecor, dishMatches, fitsRecipe } from './factory-kitchen-content.js?v=0.24.0';
 export { DISHES, PARTS, PANTRY, DECOR };
 export const KITCHEN_SAVE_KEY = 'food-factory-kitchen-v1';
 export const SHIFT_SECONDS = 90;

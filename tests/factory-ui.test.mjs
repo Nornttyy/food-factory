@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { FactoryRenderer } from '../src/factory-renderer.js';
 import { FactoryGame } from '../src/factory-core.js';
+import { SORT_MEALS } from '../src/factory-sorting.js';
 
 test('factory entry loads generated atlases and wires construction, production, order and persistence controls', async () => {
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
@@ -23,7 +24,7 @@ test('factory entry loads generated atlases and wires construction, production, 
     focus() { document.activeElement = this; }
     setPointerCapture() {}
     remove() { this.removed = true; }
-    closest(selector) { return selector === '[data-kitchen-target]' && this.dataset.kitchenTarget ? this : null; }
+    closest(selector) { return (selector === '[data-kitchen-target]' && this.dataset.kitchenTarget) || (selector === '[data-sort-target]' && this.dataset.sortTarget) || (selector === 'button' && this.tagName === 'BUTTON') ? this : null; }
     showModal() { this.open = true; }
     close() { this.open = false; }
   }
@@ -55,7 +56,78 @@ test('factory entry loads generated atlases and wires construction, production, 
     nodes.get('menu-settings').click(); assert.equal(nodes.get('settings-dialog').open, true);
     nodes.get('settings-motion').click(); assert.equal(JSON.parse(storage.get('food-factory-preferences-v1')).reducedMotion, true);
     nodes.get('settings-motion').click(); nodes.get('close-settings').click();
-    // The primary kitchen entry is a real hands-on scene, not the factory in new colors.
+    // The new primary mode uses actual food pieces, three plates, and cats on one counter.
+    {
+      nodes.get('menu-sort').click(); assert.equal(runtime.ui.screen, 'sorting');
+      assert.equal(nodes.get('sort-room').hidden, false); assert.equal(nodes.get('kitchen-room').hidden, true);
+      assert.equal(storage.has('food-factory-v1'), false); assert.equal(storage.has('food-factory-kitchen-v1'), false);
+      const view = runtime.sortingView, game = view.game;
+      assert.equal(game.state.coins, 0); assert.equal(nodes.get('sort-orders').children.length, 3);
+      assert.equal(nodes.get('sort-scatter').children.length, 12);
+      assert.equal(view.foodNodes.values().next().value.children[0].tagName, 'CANVAS');
+      assert.deepEqual(view.orderNodes.values().next().value.button.children[1].children.map(child => child.className), ['cat-body', 'cat-head', 'cat-hand_l', 'cat-hand_r']);
+      const emit = (kind, event) => documentListeners[kind]?.forEach(fn => fn(event));
+      const pointer = (id, x = 10) => ({ pointerId: id, pointerType: 'touch', isPrimary: true, button: 0, clientX: x, clientY: 90, preventDefault() {} });
+      const drag = (button, target, id) => {
+        view.suppressClickUntil = 0; button.listeners.pointerdown(pointer(id)); emit('pointermove', pointer(id, 120));
+        dropTarget = target; emit('pointerup', pointer(id, 120));
+      };
+      const first = game.round.items[0], firstButton = view.foodNodes.get(first.id);
+      drag(firstButton, null, 801); assert.equal(first.place, 'bench');
+      view.suppressClickUntil = 0; firstButton.listeners.pointerdown(pointer(802)); emit('pointermove', pointer(802, 110)); emit('pointercancel', pointer(802));
+      dropTarget = view.plateNodes[0].root; emit('pointerup', pointer(802)); assert.equal(first.place, 'bench');
+      view.suppressClickUntil = 0; firstButton.listeners.pointerdown(pointer(803)); emit('pointerdown', { ...pointer(804), isPrimary: false });
+      emit('pointerup', pointer(803)); assert.equal(first.place, 'bench'); assert.equal(view.gesture, null);
+      drag(firstButton, view.plateNodes[0].root, 805); assert.equal(first.place, 0);
+      firstButton.listeners.click({ detail: 1 }); assert.deepEqual(view.selected, { kind: 'plate', index: 0 }, 'post-drag synthetic click cannot accidentally reselect the food');
+      firstButton.listeners.click({ detail: 0 }); assert.deepEqual(view.selected, { kind: 'food', id: first.id }, 'keyboard activation is not blocked by touch suppression');
+      nodes.get('sort-return').click(); assert.equal(first.place, 'bench');
+      view.suppressClickUntil = 0; firstButton.click(); view.plateNodes[1].base.click();
+      const wrongState = game.serialize(); view.orderNodes.values().next().value.button.click();
+      assert.equal(game.serialize(), wrongState, 'incomplete meal does not destroy food or award coins');
+      nodes.get('sort-bench').dataset.sortTarget = 'bench';
+      drag(view.plateNodes[1].base, nodes.get('sort-bench'), 806); assert.equal(first.place, 'bench');
+      view.suppressClickUntil = 0;
+      firstButton.listeners.pointerdown(pointer(807)); emit('pointermove', pointer(807, 110));
+      nodes.get('sort-pause').click(); assert.equal(view.gesture, null); const paused = game.serialize();
+      emit('pointerup', pointer(807, 110)); firstButton.click(); assert.equal(game.serialize(), paused);
+      windowListeners.keydown({ key: 'Escape', preventDefault() {} }); assert.equal(game.round.paused, false);
+      windowListeners.blur(); assert.equal(game.round.paused, true); nodes.get('sort-resume').click();
+      document.hidden = true; emit('visibilitychange'); assert.equal(game.round.paused, true);
+      document.hidden = false; emit('visibilitychange'); assert.equal(game.round.paused, true); nodes.get('sort-resume').click();
+      const originalFactory = runtime.game.serialize(); frames.shift()(performance.now() + 100);
+      assert.equal(runtime.game.serialize(), originalFactory); assert.equal(game.state.coins, 0, 'waiting in this mode generates no income');
+      let id = 820;
+      const serveTable = () => {
+        for (const order of game.round.orders.filter(order => !order.done)) {
+          for (const food of SORT_MEALS[order.meal].foods) {
+            const item = game.round.items.find(item => item.food === food && item.place === 'bench');
+            assert.ok(item); drag(view.foodNodes.get(item.id), view.plateNodes[0].root, id++);
+          }
+          const customer = view.orderNodes.get(order.id).button;
+          drag(view.plateNodes[0].base, customer, id++); assert.equal(order.done, true);
+          const paid = game.state.coins; customer.click(); assert.equal(game.state.coins, paid);
+        }
+        view.suppressClickUntil = 0;
+      };
+      serveTable(); assert.equal(game.round.status, 'wave'); assert.equal(nodes.get('sort-wave-end').hidden, false);
+      nodes.get('sort-next').click(); serveTable(); assert.equal(game.round.status, 'done'); assert.equal(game.state.coins, 40);
+      nodes.get('sort-next').click(); assert.equal(game.state.day, 2); assert.equal(game.state.coins, 40);
+      serveTable(); nodes.get('sort-next').click(); serveTable(); nodes.get('sort-next').click();
+      const earned = game.state.coins; assert.ok(earned >= 65);
+      nodes.get('sort-decor-toggle').click(); assert.equal(game.round.paused, true); assert.equal(nodes.get('sort-service').hidden, true);
+      const buy = () => nodes.get('sort-shop-items').children.find(card => card.children[2].dataset.decor === 'plate_sage').children[2];
+      buy().click(); assert.equal(game.state.coins, earned - 65); buy().click(); assert.equal(game.state.coins, earned - 65);
+      nodes.get('sort-shop-back').click(); assert.equal(game.round.paused, false);
+      assert.equal(view.plateNodes[0].base.dataset.skin, 'plate_sage', 'purchased plate art changes the real serving area');
+      failStorageKey = 'food-factory-sort-v1'; view.save(); assert.match(nodes.get('sort-save-status').textContent, /无法保存/);
+      failStorageKey = null; view.save(); nodes.get('sort-home').click(); assert.equal(runtime.ui.screen, 'menu');
+      assert.equal(game.round.paused, true); assert.equal(storage.has('food-factory-v1'), false);
+      assert.equal(storage.has('food-factory-kitchen-v1'), false); assert.equal(JSON.parse(storage.get('food-factory-sort-v1')).day, 3);
+      nodes.get('menu-sort').click(); assert.equal(game.round.paused, true); nodes.get('sort-home').click();
+      dropTarget = null;
+    }
+    // The earlier kitchen entry remains a real hands-on scene with its independent save.
     {
     nodes.get('menu-kitchen').click(); assert.equal(runtime.ui.screen, 'kitchen');
     assert.equal(nodes.get('kitchen-room').hidden, false); assert.equal(nodes.get('factory-app').hidden, true);
@@ -707,6 +779,25 @@ test('factory entry loads generated atlases and wires construction, production, 
       assert.equal(storage.get('food-factory-kitchen-v1-before-recipes-v2'), JSON.stringify(legacy));
       assert.equal(JSON.parse(storage.get('food-factory-kitchen-v1')).version, 2);
       assert.equal(storage.get('food-factory-v1'), factoryBeforeKitchenReload); dropTarget = null;
+    }
+    {
+      const oldFactory = storage.get('food-factory-v1'), oldKitchen = storage.get('food-factory-kitchen-v1');
+      const { runtime: restored } = await import(`../src/factory-main.js?sorting-restored=${Date.now()}`);
+      nodes.get('menu-sort').click();
+      assert.equal(restored.sortingView.game.state.day, 3); assert.equal(restored.sortingView.game.state.totalServed, 12);
+      assert.equal(restored.sortingView.game.round.paused, true);
+      assert.equal(restored.sortingView.plateNodes[0].base.dataset.skin, 'plate_sage');
+      nodes.get('sort-home').click();
+      assert.equal(storage.get('food-factory-v1'), oldFactory); assert.equal(storage.get('food-factory-kitchen-v1'), oldKitchen);
+      storage.set('food-factory-sort-v1', '{bad-sorting'); failStorageKey = 'all';
+      const { runtime: protectedSorting } = await import(`../src/factory-main.js?sorting-protected=${Date.now()}`);
+      nodes.get('menu-sort').click(); assert.equal(protectedSorting.sortingView.protectSave, true);
+      nodes.get('sort-home').click(); assert.equal(storage.get('food-factory-sort-v1'), '{bad-sorting');
+      failStorageKey = null; await import(`../src/factory-main.js?sorting-recovery=${Date.now()}`);
+      assert.ok([...storage.entries()].some(([key, value]) => key.startsWith('food-factory-sort-v1-recovery-') && value === '{bad-sorting'));
+      nodes.get('menu-sort').click(); assert.equal(JSON.parse(storage.get('food-factory-sort-v1')).coins, 0);
+      nodes.get('sort-home').click();
+      assert.equal(storage.get('food-factory-v1'), oldFactory); assert.equal(storage.get('food-factory-kitchen-v1'), oldKitchen);
     }
   } finally {
     for (const [name, descriptor] of savedGlobals) { if (descriptor) Object.defineProperty(globalThis, name, descriptor); else delete globalThis[name]; }

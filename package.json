@@ -1,7 +1,7 @@
 {
   "name": "food-factory",
-  "version": "0.23.0",
-  "description": "奶油手绘美食工坊：忙碌小厨房",
+  "version": "0.24.0",
+  "description": "猫咪开饭啦：奶油手绘美食整理与小店经营",
   "private": true,
   "type": "module",
   "homepage": "https://nornttyy.github.io/food-factory/",
